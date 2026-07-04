@@ -1,0 +1,6 @@
+{
+  "name": "GatePass",
+  "description": "An organizer-first ticketing and event operations platform with QR entry validation, attendance tracking, and live control room dashboards.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
