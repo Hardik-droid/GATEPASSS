@@ -54,14 +54,20 @@ export class PostgresAppStateStore implements AppStateStore {
       throw new Error("PostgreSQL password is required. Set PGPASSWORD in .env or provide DATABASE_URL.");
     }
 
+    const ssl = config.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined;
+
     this.pool = config.DATABASE_URL
-      ? new Pool({ connectionString: config.DATABASE_URL })
+      ? new Pool({
+          connectionString: config.DATABASE_URL,
+          ssl,
+        })
       : new Pool({
           host: config.PGHOST,
           port: config.PGPORT,
           database: config.PGDATABASE,
           user: config.PGUSER,
           password: String(config.PGPASSWORD),
+          ssl,
         });
   }
 

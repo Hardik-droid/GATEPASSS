@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { UserProfile, InvitePass, TicketStatus } from "../types";
+import { GoogleLogin } from "@react-oauth/google";
 import { 
   CheckCircle, 
   MapPin, 
@@ -20,13 +21,15 @@ interface IdentityCardProps {
   invitePasses: InvitePass[];
   onNavigateToRequest: () => void;
   onNavigateToWallet: (pass: InvitePass) => void;
+  onLoginSuccess?: (credentialResponse: any) => void;
 }
 
 export default function IdentityCard({ 
   user, 
   invitePasses, 
   onNavigateToRequest,
-  onNavigateToWallet
+  onNavigateToWallet,
+  onLoginSuccess
 }: IdentityCardProps) {
   const [viewMode, setViewMode] = useState<"access" | "badge">("badge");
   const [copiedText, setCopiedText] = useState(false);
@@ -95,9 +98,20 @@ export default function IdentityCard({
                 </div>
 
                 <h2 className="text-2xl font-bold tracking-tight text-white mb-1">{user.name}</h2>
-                <p className="text-sm text-primary-fixed opacity-90 mb-5">
+                <p className="text-sm text-primary-fixed opacity-90 mb-3">
                   Student • ID: {user.studentId}
                 </p>
+
+                {onLoginSuccess && (
+                  <div className="mb-4 flex justify-center scale-90">
+                    <GoogleLogin
+                      onSuccess={onLoginSuccess}
+                      onError={() => {
+                        console.error("Google Login failed in IdentityCard");
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* QR Code Container */}
                 <div className="bg-white p-3 rounded-2xl shadow-sm mb-3 relative group">

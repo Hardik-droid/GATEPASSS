@@ -45,6 +45,23 @@ import {
   Ticket as TicketIcon
 } from "lucide-react";
 
+const decodeGoogleCredential = (credential: string) => {
+  try {
+    const base64Url = credential.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      window.atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("Failed to decode Google credential:", error);
+    return null;
+  }
+};
+
 export default function App() {
   // Perspectives
   const [perspective, setPerspective] = useState<"attendee" | "organizer">("attendee");
@@ -93,6 +110,31 @@ export default function App() {
     settlements,
     auditLogs,
   });
+
+  const handleGoogleLoginSuccess = (credentialResponse: any) => {
+    if (!credentialResponse.credential) return;
+    const profile = decodeGoogleCredential(credentialResponse.credential);
+    if (profile) {
+      const updatedUser = {
+        ...user,
+        id: profile.sub || user.id,
+        name: profile.name || user.name,
+        email: profile.email || user.email,
+        avatarUrl: profile.picture || user.avatarUrl,
+      };
+      setUser(updatedUser);
+
+      // Log to audit logs
+      const addedAudit: AuditLog = {
+        id: "aud_" + Date.now(),
+        timestamp: new Date().toISOString(),
+        actor: profile.name || "Google User",
+        action: "OAuth Authenticated",
+        details: `Successfully logged in via Google OAuth. Email: ${profile.email}. User profile state hydrated.`
+      };
+      persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+    }
+  };
 
   // Load from PostgreSQL through the backend API. If unavailable, keep the app usable with demo data.
   useEffect(() => {
@@ -771,6 +813,7 @@ export default function App() {
                   setSelectedWalletPass(pass);
                   setAttendeeSection("wallet");
                 }}
+                onLoginSuccess={handleGoogleLoginSuccess}
               />
             )}
 
