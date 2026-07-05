@@ -248,7 +248,7 @@ export default function WalletSync({ user, selectedPass }: WalletSyncProps) {
                   />
                   <div>
                     <p className="text-sm font-bold text-charcoal-dark">No, keep on website</p>
-                    <p className="text-xs text-on-surface-variant">Store solely inside browser localStorage.</p>
+                    <p className="text-xs text-on-surface-variant">Persist through the GatePass backend database.</p>
                   </div>
                 </label>
               </div>

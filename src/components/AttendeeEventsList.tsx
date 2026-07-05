@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { 
   EventItem, 
   Ticket, 
@@ -15,6 +16,9 @@ import {
   Users, 
   CheckCircle2, 
   CreditCard,
+  Download,
+  Shield,
+  Clock,
   X,
   Sparkles,
   Info,
@@ -24,7 +28,8 @@ import {
   Map,
   ArrowRight,
   Music2,
-  QrCode
+  QrCode,
+  Lock
 } from "lucide-react";
 
 interface AttendeeEventsListProps {
@@ -61,6 +66,8 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const [paymentMethod, setPaymentMethod] = useState<"online" | "upi" | "cash">("online");
   const [isCheckoutSuccess, setIsCheckoutSuccess] = useState(false);
   const [lastGeneratedTicketCode, setLastGeneratedTicketCode] = useState("");
+  const [lastBookedTicket, setLastBookedTicket] = useState<{qrToken: string; attendeeName: string; categoryName: string; price: number; orderId: string; eventTitle: string; eventVenue: string; eventDate: string; ticketId: string} | null>(null);
+  const ticketCardRef = useRef<HTMLDivElement>(null);
 
   const triggerToast = (msg: string) => {
     setShowToastMessage(msg);
@@ -167,6 +174,17 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
 
     onBookTicket(newOrder, newTicket);
     setLastGeneratedTicketCode(passIdCode);
+    setLastBookedTicket({
+      qrToken,
+      attendeeName,
+      categoryName: chosenCategory.name,
+      price: chosenCategory.price,
+      orderId,
+      eventTitle: selectedEvent.title,
+      eventVenue: selectedEvent.venue,
+      eventDate: new Date(selectedEvent.startTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+      ticketId: "tkt_" + Date.now() + "_" + Math.floor(10 + Math.random() * 90)
+    });
     setIsCheckoutSuccess(true);
     setTicketQty(1);
     triggerToast("Ticket successfully generated!");
@@ -804,39 +822,166 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                   )}
                 </>
               ) : (
-                /* Success screen */
-                <div className="flex flex-col items-center text-center p-4 gap-4">
-                  <div className="w-14 h-14 rounded-full bg-pink-500/10 text-pink-500 flex items-center justify-center">
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-black text-white uppercase tracking-tight">Access Ticket Reserved!</h3>
-                    <p className="text-[11px] text-neutral-400 mt-1 max-w-xs">
-                      We generated a cryptographically unique validation QR code token and linked it to your digital ID pass.
-                    </p>
+                /* ── PRODUCTION TICKET CONFIRMATION WITH QR CODE ── */
+                <div className="flex flex-col items-center gap-0" ref={ticketCardRef}>
+                  {/* Ticket Card */}
+                  <div className="w-full max-w-sm mx-auto">
+                    {/* Top Section - Event Info */}
+                    <div className="bg-gradient-to-br from-[#1a1a2e] via-[#16162a] to-[#0f0f1a] rounded-t-3xl p-5 pb-6 border border-b-0 border-pink-500/20 relative overflow-hidden">
+                      {/* Decorative glows */}
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-pink-500/10 rounded-full blur-3xl" />
+                      <div className="absolute -bottom-8 -left-8 w-24 h-24 bg-cyan-500/8 rounded-full blur-2xl" />
+                      
+                      {/* Success badge */}
+                      <div className="flex items-center justify-center mb-4">
+                        <div className="flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-4 py-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Booking Confirmed</span>
+                        </div>
+                      </div>
+
+                      {/* Event title */}
+                      <h3 className="text-lg font-black text-white uppercase tracking-tight text-center leading-tight">
+                        {lastBookedTicket?.eventTitle || selectedEvent.title}
+                      </h3>
+                      
+                      {/* Event meta */}
+                      <div className="flex items-center justify-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5 text-neutral-400">
+                          <Calendar className="w-3.5 h-3.5 text-pink-400" />
+                          <span className="text-[10px] font-bold">{lastBookedTicket?.eventDate}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-neutral-400">
+                          <MapPin className="w-3.5 h-3.5 text-pink-400" />
+                          <span className="text-[10px] font-bold truncate max-w-[120px]">{lastBookedTicket?.eventVenue || selectedEvent.venue}</span>
+                        </div>
+                      </div>
+
+                      {/* Ticket details grid */}
+                      <div className="grid grid-cols-3 gap-2 mt-4">
+                        <div className="bg-white/5 rounded-xl p-2.5 text-center border border-white/5">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-wider block">Category</span>
+                          <span className="text-[11px] font-black text-white uppercase mt-0.5 block truncate">{lastBookedTicket?.categoryName}</span>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-2.5 text-center border border-white/5">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-wider block">Price</span>
+                          <span className="text-[11px] font-black text-pink-400 mt-0.5 block">
+                            {lastBookedTicket?.price === 0 ? "FREE" : `₹${lastBookedTicket?.price}`}
+                          </span>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-2.5 text-center border border-white/5">
+                          <span className="text-[8px] font-black text-neutral-500 uppercase tracking-wider block">Pass ID</span>
+                          <span className="text-[10px] font-mono font-black text-cyan-400 mt-0.5 block">{lastGeneratedTicketCode}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Perforation line (tear effect) */}
+                    <div className="relative w-full h-6 flex items-center">
+                      <div className="absolute left-0 w-6 h-6 bg-[#121216] rounded-r-full -translate-x-3 z-10" />
+                      <div className="absolute right-0 w-6 h-6 bg-[#121216] rounded-l-full translate-x-3 z-10" />
+                      <div className="w-full border-t-2 border-dashed border-neutral-700/50" />
+                    </div>
+
+                    {/* Bottom Section - QR Code */}
+                    <div className="bg-gradient-to-b from-[#0f0f1a] to-[#0a0a12] rounded-b-3xl p-5 pt-2 border border-t-0 border-pink-500/20 flex flex-col items-center gap-4">
+                      <p className="text-[9px] font-black text-neutral-500 uppercase tracking-[0.2em] text-center">
+                        Scan at entry gate for verification
+                      </p>
+
+                      {/* QR Code container */}
+                      <div className="relative">
+                        {/* Animated scanning border */}
+                        <div className="absolute -inset-3 rounded-2xl border-2 border-pink-500/30 animate-pulse" />
+                        {/* Corner markers */}
+                        <div className="absolute -top-3 -left-3 w-5 h-5 border-t-2 border-l-2 border-pink-500 rounded-tl-lg" />
+                        <div className="absolute -top-3 -right-3 w-5 h-5 border-t-2 border-r-2 border-pink-500 rounded-tr-lg" />
+                        <div className="absolute -bottom-3 -left-3 w-5 h-5 border-b-2 border-l-2 border-pink-500 rounded-bl-lg" />
+                        <div className="absolute -bottom-3 -right-3 w-5 h-5 border-b-2 border-r-2 border-pink-500 rounded-br-lg" />
+                        
+                        {/* Actual QR Code */}
+                        <div className="bg-white rounded-xl p-3">
+                          <QRCodeSVG
+                            value={lastBookedTicket?.qrToken || "GATEPASS_TICKET"}
+                            size={180}
+                            level="H"
+                            includeMargin={false}
+                            bgColor="#ffffff"
+                            fgColor="#0a0a12"
+                          />
+                        </div>
+                      </div>
+
+                      {/* QR Token (truncated) */}
+                      <div className="flex items-center gap-2 bg-neutral-900/80 border border-neutral-800 rounded-lg px-3 py-2 w-full">
+                        <Shield className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                        <span className="text-[9px] font-mono text-neutral-400 truncate flex-1">
+                          {lastBookedTicket?.qrToken}
+                        </span>
+                      </div>
+
+                      {/* Attendee info row */}
+                      <div className="flex items-center justify-between w-full text-[10px]">
+                        <div className="flex flex-col">
+                          <span className="font-black text-neutral-500 uppercase tracking-wider">Attendee</span>
+                          <span className="font-bold text-neutral-200">{lastBookedTicket?.attendeeName}</span>
+                        </div>
+                        <div className="flex flex-col text-right">
+                          <span className="font-black text-neutral-500 uppercase tracking-wider">Order</span>
+                          <span className="font-mono font-bold text-neutral-200">{lastBookedTicket?.orderId}</span>
+                        </div>
+                      </div>
+
+                      {/* Security footer */}
+                      <div className="flex items-center gap-1.5 text-neutral-600">
+                        <Lock className="w-3 h-3" />
+                        <span className="text-[8px] font-bold uppercase tracking-wider">Secured by GatePass • Cryptographic Token Verified</span>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="p-3 bg-neutral-900 border border-neutral-800 rounded-xl w-full flex flex-col gap-2 text-[10px] text-neutral-300">
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Security Code ID:</span>
-                      <span className="font-mono font-extrabold text-neutral-200">{lastGeneratedTicketCode}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-neutral-500">Event Target:</span>
-                      <span className="font-extrabold text-neutral-200 truncate max-w-[200px]">{selectedEvent.title}</span>
-                    </div>
-                  </div>
+                  {/* Action buttons below ticket card */}
+                  <div className="w-full max-w-sm mx-auto flex flex-col gap-2.5 mt-5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (ticketCardRef.current) {
+                          const canvas = document.createElement('canvas');
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            const svgEl = ticketCardRef.current.querySelector('svg');
+                            if (svgEl) {
+                              const svgData = new XMLSerializer().serializeToString(svgEl);
+                              const svgBlob = new Blob([svgData], {type: 'image/svg+xml;charset=utf-8'});
+                              const url = URL.createObjectURL(svgBlob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `gatepass-ticket-${lastGeneratedTicketCode}.svg`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                              triggerToast('QR code downloaded! 📥');
+                            }
+                          }
+                        }
+                      }}
+                      className="w-full py-3 bg-pink-500 hover:bg-pink-600 text-white text-xs font-black tracking-widest uppercase rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-pink-500/20"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download QR Ticket</span>
+                    </button>
 
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setSelectedEvent(null);
-                      setIsCheckoutSuccess(false);
-                    }}
-                    className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-black tracking-widest uppercase rounded-xl transition-all"
-                  >
-                    Return to Explore Grid
-                  </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setSelectedEvent(null);
+                        setIsCheckoutSuccess(false);
+                        setLastBookedTicket(null);
+                      }}
+                      className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-black tracking-widest uppercase rounded-xl transition-all cursor-pointer"
+                    >
+                      Return to Explore Grid
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -1,0 +1,30 @@
+import type { AppStateSnapshot } from "./appState";
+
+export async function loadAppState(): Promise<AppStateSnapshot | null> {
+  const response = await fetch("/api/state", {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load app state: ${response.status}`);
+  }
+
+  const payload = (await response.json()) as { state: AppStateSnapshot | null };
+  return payload.state;
+}
+
+export async function saveAppState(state: AppStateSnapshot): Promise<void> {
+  const response = await fetch("/api/state", {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ state }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to save app state: ${response.status}`);
+  }
+}
+

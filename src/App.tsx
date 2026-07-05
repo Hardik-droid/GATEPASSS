@@ -1,17 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { 
-  getOrCreateStore, 
-  saveStore,
-  INITIAL_USER,
-  INITIAL_ACCESS_REQUESTS,
-  INITIAL_INVITE_PASSES,
-  INITIAL_EVENTS,
-  INITIAL_ORDERS,
-  INITIAL_TICKETS,
-  INITIAL_SCAN_LOGS,
-  INITIAL_SETTLEMENTS,
-  INITIAL_AUDIT_LOGS
+  INITIAL_USER
 } from "./mockData";
+import { createInitialAppState, type AppStateSnapshot } from "./appState";
+import { loadAppState, saveAppState } from "./api";
 import { 
   UserProfile, 
   AccessRequest, 
@@ -72,27 +64,81 @@ export default function App() {
   const [scanLogs, setScanLogs] = useState<ScanLog[]>([]);
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "offline">("loading");
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Selected pass for Wallet details
   const [selectedWalletPass, setSelectedWalletPass] = useState<InvitePass | undefined>(undefined);
 
-  // Load from LocalStorage on mount
+  const applyStateSnapshot = (state: AppStateSnapshot) => {
+    setUser(state.user);
+    setRequests(state.requests);
+    setInvitePasses(state.invitePasses);
+    setEvents(state.events);
+    setOrders(state.orders);
+    setTickets(state.tickets);
+    setScanLogs(state.scanLogs);
+    setSettlements(state.settlements);
+    setAuditLogs(state.auditLogs);
+  };
+
+  const currentStateSnapshot = (): AppStateSnapshot => ({
+    user,
+    requests,
+    invitePasses,
+    events,
+    orders,
+    tickets,
+    scanLogs,
+    settlements,
+    auditLogs,
+  });
+
+  // Load from PostgreSQL through the backend API. If unavailable, keep the app usable with demo data.
   useEffect(() => {
-    setUser(getOrCreateStore("gps_user", INITIAL_USER));
-    setRequests(getOrCreateStore("gps_requests", INITIAL_ACCESS_REQUESTS));
-    setInvitePasses(getOrCreateStore("gps_invites", INITIAL_INVITE_PASSES));
-    setEvents(getOrCreateStore("gps_events", INITIAL_EVENTS));
-    setOrders(getOrCreateStore("gps_orders", INITIAL_ORDERS));
-    setTickets(getOrCreateStore("gps_tickets", INITIAL_TICKETS));
-    setScanLogs(getOrCreateStore("gps_scanlogs", INITIAL_SCAN_LOGS));
-    setSettlements(getOrCreateStore("gps_settlements", INITIAL_SETTLEMENTS));
-    setAuditLogs(getOrCreateStore("gps_auditlogs", INITIAL_AUDIT_LOGS));
+    let cancelled = false;
+
+    const hydrate = async () => {
+      try {
+        const remoteState = await loadAppState();
+        if (cancelled) return;
+        applyStateSnapshot(remoteState ?? createInitialAppState());
+        setBackendStatus("connected");
+      } catch (error) {
+        console.error("Backend state load failed, using demo data.", error);
+        if (cancelled) return;
+        applyStateSnapshot(createInitialAppState());
+        setBackendStatus("offline");
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    hydrate();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Update localStorage when state alters
+  // Persist state changes to PostgreSQL with a small debounce to collapse multi-step UI updates.
+  useEffect(() => {
+    if (!isHydrated || backendStatus !== "connected") return;
+
+    const timeoutId = window.setTimeout(() => {
+      saveAppState(currentStateSnapshot()).catch((error) => {
+        console.error("Backend state save failed.", error);
+        setBackendStatus("offline");
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [user, requests, invitePasses, events, orders, tickets, scanLogs, settlements, auditLogs, isHydrated, backendStatus]);
+
+  // State setter shim retained so existing workflows stay scoped to their current components.
   const persistState = (key: string, data: any, stateSetter: Function) => {
     stateSetter(data);
-    saveStore(key, data);
   };
 
   // Callback: Request Access submitted (Screen 4 Form)
