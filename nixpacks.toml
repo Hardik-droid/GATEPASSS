@@ -1,6 +1,9 @@
 # Nixpacks configuration for Railway Node.js Express server
+[phases.install]
+cmds = ["npm install --include=dev"]
+
 [phases.build]
-cmds = ["npm install", "npm run build:server"]
+cmds = ["npm run build:server"]
 
 [start]
 cmd = "node dist-server/index.js"
