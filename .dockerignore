@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/node_modules
+dist
+dist-server
+.venv
+.dotnet
+.dotnet-tools
+.publish-test
+*.log
+.env*
+!.env.example

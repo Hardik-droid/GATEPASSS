@@ -1,6 +1,6 @@
 import type { AppStateSnapshot } from "./appState";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export async function loadAppState(): Promise<AppStateSnapshot | null> {
   const response = await fetch(`${API_BASE_URL}/api/state`, {
@@ -29,4 +29,3 @@ export async function saveAppState(state: AppStateSnapshot): Promise<void> {
     throw new Error(`Failed to save app state: ${response.status}`);
   }
 }
-

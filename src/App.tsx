@@ -45,6 +45,8 @@ import {
   Ticket as TicketIcon
 } from "lucide-react";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 export default function App() {
   // Perspectives
   const [perspective, setPerspective] = useState<"attendee" | "organizer">("attendee");
@@ -97,7 +99,6 @@ export default function App() {
   const handleGoogleLoginSuccess = async (credentialResponse: any) => {
     if (!credentialResponse.credential) return;
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
       const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
         method: "POST",
         headers: {
