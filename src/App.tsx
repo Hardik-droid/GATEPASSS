@@ -111,28 +111,44 @@ export default function App() {
     auditLogs,
   });
 
-  const handleGoogleLoginSuccess = (credentialResponse: any) => {
+  const handleGoogleLoginSuccess = async (credentialResponse: any) => {
     if (!credentialResponse.credential) return;
-    const profile = decodeGoogleCredential(credentialResponse.credential);
-    if (profile) {
-      const updatedUser = {
-        ...user,
-        id: profile.sub || user.id,
-        name: profile.name || user.name,
-        email: profile.email || user.email,
-        avatarUrl: profile.picture || user.avatarUrl,
-      };
-      setUser(updatedUser);
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+      const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ idToken: credentialResponse.credential }),
+      });
+      if (!res.ok) {
+        throw new Error(`Auth verification failed: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data.success && data.user) {
+        const profile = data.user;
+        const updatedUser = {
+          ...user,
+          id: profile.id || user.id,
+          name: profile.name || user.name,
+          email: profile.email || user.email,
+          avatarUrl: profile.avatarUrl || user.avatarUrl,
+        };
+        setUser(updatedUser);
 
-      // Log to audit logs
-      const addedAudit: AuditLog = {
-        id: "aud_" + Date.now(),
-        timestamp: new Date().toISOString(),
-        actor: profile.name || "Google User",
-        action: "OAuth Authenticated",
-        details: `Successfully logged in via Google OAuth. Email: ${profile.email}. User profile state hydrated.`
-      };
-      persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+        // Log to audit logs
+        const addedAudit: AuditLog = {
+          id: "aud_" + Date.now(),
+          timestamp: new Date().toISOString(),
+          actor: profile.name || "Google User",
+          action: "OAuth Authenticated",
+          details: `Successfully logged in and verified via Google OAuth. Email: ${profile.email}. User profile state hydrated.`
+        };
+        persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+      }
+    } catch (error) {
+      console.error("Failed Google OAuth Login verification:", error);
     }
   };
 

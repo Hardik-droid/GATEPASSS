@@ -48,6 +48,47 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
+  app.post("/api/auth/google-login", async (req, res, next) => {
+    try {
+      const { idToken } = req.body;
+      if (!idToken) {
+        throw new HttpError(400, "idToken is required");
+      }
+
+      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
+      if (!response.ok) {
+        throw new HttpError(401, "Invalid Google ID token");
+      }
+
+      const payload = (await response.json()) as {
+        aud: string;
+        sub: string;
+        email: string;
+        name?: string;
+        picture?: string;
+      };
+
+      if (config.GOOGLE_CLIENT_ID && payload.aud !== config.GOOGLE_CLIENT_ID) {
+        throw new HttpError(401, "Audience mismatch");
+      }
+
+      const user = {
+        id: payload.sub,
+        name: payload.name || "Google User",
+        email: payload.email,
+        avatarUrl: payload.picture || "",
+      };
+
+      res.json({
+        success: true,
+        user,
+        token: `gp_session_${payload.sub}`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/state", async (_req, res, next) => {
     try {
       const state = await store.load();

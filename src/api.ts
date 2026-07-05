@@ -1,7 +1,9 @@
 import type { AppStateSnapshot } from "./appState";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+
 export async function loadAppState(): Promise<AppStateSnapshot | null> {
-  const response = await fetch("/api/state", {
+  const response = await fetch(`${API_BASE_URL}/api/state`, {
     headers: { Accept: "application/json" },
   });
 
@@ -14,7 +16,7 @@ export async function loadAppState(): Promise<AppStateSnapshot | null> {
 }
 
 export async function saveAppState(state: AppStateSnapshot): Promise<void> {
-  const response = await fetch("/api/state", {
+  const response = await fetch(`${API_BASE_URL}/api/state`, {
     method: "PUT",
     headers: {
       Accept: "application/json",

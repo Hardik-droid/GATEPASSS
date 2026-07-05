@@ -15,6 +15,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  GOOGLE_CLIENT_ID: z.string().default(process.env.GOOGLE_CLIENT_ID || process.env.GoogleAuth__ClientId || process.env.VITE_GOOGLE_CLIENT_ID || ""),
 });
 
 export const config = envSchema.parse(process.env);
