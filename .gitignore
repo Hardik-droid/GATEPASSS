@@ -1,7 +1,12 @@
 node_modules/
+.dotnet/
+.dotnet-tools/
+.publish-test/
 build/
 dist/
 dist-server/
+bin/
+obj/
 coverage/
 .DS_Store
 *.log
