@@ -1,6 +1,6 @@
 import type { AppStateSnapshot } from "./appState";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export async function loadAppState(): Promise<AppStateSnapshot | null> {
   const token = sessionStorage.getItem("gp_session_token");

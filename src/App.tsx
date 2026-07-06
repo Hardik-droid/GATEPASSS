@@ -278,6 +278,7 @@ export default function App() {
   // Persist state changes to PostgreSQL with a small debounce to collapse multi-step UI updates.
   useEffect(() => {
     if (!isHydrated || backendStatus !== "connected") return;
+    if (!sessionStorage.getItem("gp_session_token")) return;
 
     const timeoutId = window.setTimeout(() => {
       saveAppState(currentStateSnapshot()).catch((error) => {

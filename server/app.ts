@@ -24,8 +24,8 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
   app.use(
     cors({
       origin: config.NODE_ENV === "production" ? config.CORS_ORIGIN.split(",") : true,
-      methods: ["GET", "PUT", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Accept"],
+      methods: ["GET", "POST", "PUT", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Accept", "Authorization"],
     }),
   );
   app.use(

@@ -13,6 +13,24 @@ export interface AppStateStore {
   save(state: AppStateSnapshot): Promise<void>;
 }
 
+export class MemoryAppStateStore implements AppStateStore {
+  private state: AppStateSnapshot | null = null;
+
+  async ensureReady(): Promise<void> {}
+
+  async health(): Promise<{ now: string }> {
+    return { now: new Date().toISOString() };
+  }
+
+  async load(): Promise<AppStateSnapshot | null> {
+    return this.state;
+  }
+
+  async save(state: AppStateSnapshot): Promise<void> {
+    this.state = state;
+  }
+}
+
 const { Pool } = pg;
 const serverDir = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.resolve(serverDir, "../db/postgres18_schema.sql");
