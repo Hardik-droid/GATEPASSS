@@ -72,6 +72,12 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
         throw new HttpError(401, "Audience mismatch");
       }
 
+      // Gating login to authorized email (Issue #3)
+      const allowedEmail = "hardik.jain@college.edu";
+      if (payload.email.toLowerCase() !== allowedEmail.toLowerCase()) {
+        throw new HttpError(403, "Access Forbidden: This Google account is not authorized to access this profile.");
+      }
+
       const user = {
         id: payload.sub,
         name: payload.name || "Google User",
@@ -89,7 +95,23 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/state", async (_req, res, next) => {
+  const authenticateSession = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      next(new HttpError(401, "Unauthorized: Session token is missing. Please sign in with Google."));
+      return;
+    }
+
+    const token = authHeader.split(" ")[1];
+    if (!token.startsWith("gp_session_")) {
+      next(new HttpError(403, "Forbidden: Invalid session token."));
+      return;
+    }
+
+    next();
+  };
+
+  app.get("/api/state", authenticateSession, async (_req, res, next) => {
     try {
       const state = await store.load();
       res.json({ state: state ?? createInitialAppState() });
@@ -98,7 +120,7 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
-  app.put("/api/state", async (req, res, next) => {
+  app.put("/api/state", authenticateSession, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
       await store.save(state as AppStateSnapshot);

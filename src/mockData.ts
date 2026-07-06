@@ -18,7 +18,7 @@ export const INITIAL_USER: UserProfile = {
   email: "hardik.jain@college.edu",
   phone: "+91 98765 43210",
   role: UserRole.ATTENDEE,
-  avatarUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuDj7mTK90opxu1ESzTxIAf19q8xnUwTA4P0ugcXJO9_Is5Uy6_piGMEBrMx_Oi5MutYjhOQAblGTptgy9VUGxN1yzuLSK7IhhIDwhzmsp_-aMuDDE9TTa5VH7Cj_qqTMAYpvlzJjzC4HU8iMK3ypBb2ThAipsumxWjwaVoj-tGKaQ5eT8OfmPTWsp8iiBP0qxxUTEMnbnzBEwTG8UkzY2Pse_6ZZzptt2z09qRDKuaSO3QIbPgvQJbtVQ",
+  avatarUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
   studentId: "894-32A",
   currentZone: "Main Campus",
   clearanceLevel: "Level 2"
@@ -28,7 +28,7 @@ export const INITIAL_ACCESS_REQUESTS: AccessRequest[] = [
   {
     id: "req1",
     requesterName: "Hardik Sharma",
-    requesterAvatarUrl: "https://lh3.googleusercontent.com/aida-public/AB6AXuC0sxSL3fD9vyEuckIw6sbtDPhs8OQ3xaFV923IDdGXl8E4PFDFOFcsmIQnwFW_xX-Xj1-S9rF-7eJO-vKyofVvThpTYHnT27KDB8NjQnMDa9AmpC06Klpvg5LFtY9hFTxFLOebVDVOaPanZq23h7LKukGfrXbu5gR9HnoKZBMoApC0S6q1M8z9zvxmKLE76EET5GwXW2rhuOBy5P0t9I7RCGLOX5S4dT4cEpZ1NQ4WvPdLb_vuLc0RfA",
+    requesterAvatarUrl: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
     zoneName: "Hostel B • Ground Floor",
     durationHours: "3 Hours",
     purpose: "Requested access for study group session in Common Room B.",

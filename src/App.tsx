@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   INITIAL_USER
 } from "./mockData";
@@ -42,10 +42,35 @@ import {
   ChevronRight,
   Sparkles,
   Info,
+  Lock,
+  CheckCircle,
+  AlertTriangle,
+  XCircle,
+  WifiOff,
+  Loader2,
+  LogOut,
   Ticket as TicketIcon
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// Demo mode bypass — set to false in production to enforce role-based access
+const IS_DEMO_MODE = true;
+
+// Organizer-capable roles
+const ORGANIZER_ROLES: UserRole[] = [
+  UserRole.OWNER,
+  UserRole.EVENT_MANAGER,
+  UserRole.FINANCE_MANAGER,
+  UserRole.GATE_STAFF,
+  UserRole.SCANNER_STAFF,
+];
+
+interface ToastMessage {
+  id: number;
+  type: "success" | "error" | "warning" | "info";
+  text: string;
+}
 
 export default function App() {
   // Perspectives
@@ -69,8 +94,26 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "offline">("loading");
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Auth state (Issue #1 & #4)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authEmail, setAuthEmail] = useState<string | null>(null);
+
+  // Toast notifications (Issue #2)
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Offline banner dismissed
+  const [offlineBannerDismissed, setOfflineBannerDismissed] = useState(false);
+
   // Selected pass for Wallet details
   const [selectedWalletPass, setSelectedWalletPass] = useState<InvitePass | undefined>(undefined);
+
+  const addToast = useCallback((type: ToastMessage["type"], text: string) => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, type, text }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
   const applyStateSnapshot = (state: AppStateSnapshot) => {
     setUser(state.user);
@@ -97,7 +140,10 @@ export default function App() {
   });
 
   const handleGoogleLoginSuccess = async (credentialResponse: any) => {
-    if (!credentialResponse.credential) return;
+    if (!credentialResponse.credential) {
+      addToast("error", "Google sign-in did not return credentials. Please try again.");
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
         method: "POST",
@@ -107,6 +153,9 @@ export default function App() {
         body: JSON.stringify({ idToken: credentialResponse.credential }),
       });
       if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error("Access Forbidden: Your Google account is not authorized to access this profile.");
+        }
         throw new Error(`Auth verification failed: ${res.status}`);
       }
       const data = await res.json();
@@ -120,6 +169,27 @@ export default function App() {
           avatarUrl: profile.avatarUrl || user.avatarUrl,
         };
         setUser(updatedUser);
+        setIsAuthenticated(true);
+        setAuthEmail(profile.email || null);
+        if (data.token) {
+          sessionStorage.setItem("gp_session_token", data.token);
+        }
+        if (profile.email) {
+          sessionStorage.setItem("gp_session_email", profile.email);
+        }
+
+        // Fetch database state using the newly acquired session token
+        try {
+          const remoteState = await loadAppState();
+          if (remoteState) {
+            applyStateSnapshot(remoteState);
+            setBackendStatus("connected");
+          }
+        } catch (error) {
+          console.error("Backend state load failed after login, using local fallback state.", error);
+        }
+
+        addToast("success", `Signed in as ${profile.name || profile.email}`);
 
         // Log to audit logs
         const addedAudit: AuditLog = {
@@ -131,17 +201,58 @@ export default function App() {
         };
         persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed Google OAuth Login verification:", error);
+      addToast("error", error.message || "Login failed. Server could not verify your Google account.");
     }
+  };
+
+  const handleGoogleLoginError = () => {
+    addToast("error", "Google sign-in was cancelled or failed. Please try again.");
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setAuthEmail(null);
+    sessionStorage.removeItem("gp_session_token");
+    sessionStorage.removeItem("gp_session_email");
+    addToast("info", "You have been signed out.");
+  };
+
+  // Role gating for organizer toggle (Issue #7)
+  const canAccessOrganizer = IS_DEMO_MODE || ORGANIZER_ROLES.includes(user.role);
+
+  const handlePerspectiveSwitch = (target: "attendee" | "organizer") => {
+    if (target === "organizer" && !canAccessOrganizer) {
+      addToast("warning", "You don't have organizer permissions. Contact an administrator.");
+      return;
+    }
+    setPerspective(target);
   };
 
   // Load from PostgreSQL through the backend API. If unavailable, keep the app usable with demo data.
   useEffect(() => {
     let cancelled = false;
 
+    // Restore session states from sessionStorage if available (Issue #3)
+    const storedToken = sessionStorage.getItem("gp_session_token");
+    const storedEmail = sessionStorage.getItem("gp_session_email");
+    if (storedToken && storedEmail) {
+      setIsAuthenticated(true);
+      setAuthEmail(storedEmail);
+    }
+
     const hydrate = async () => {
       try {
+        // If not authenticated yet, we don't try to query the protected backend,
+        // we just fall back to mock data so the user can see the UI and log in.
+        if (!storedToken) {
+          applyStateSnapshot(createInitialAppState());
+          setBackendStatus("connected");
+          setIsHydrated(true);
+          return;
+        }
+
         const remoteState = await loadAppState();
         if (cancelled) return;
         applyStateSnapshot(remoteState ?? createInitialAppState());
@@ -553,7 +664,50 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-background font-sans text-on-background flex flex-col pb-20 md:pb-0">
+    <div className="min-h-screen md:h-screen bg-background font-sans text-on-background flex flex-col md:overflow-hidden pb-20 md:pb-0">
+      {/* Toast Notifications (Issue #2) */}
+      <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto animate-fadeIn flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-semibold max-w-sm ${
+              toast.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : toast.type === "error"
+                ? "bg-red-50 border-red-200 text-red-800"
+                : toast.type === "warning"
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : "bg-blue-50 border-blue-200 text-blue-800"
+            }`}
+          >
+            {toast.type === "success" && <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+            {toast.type === "error" && <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+            {toast.type === "warning" && <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+            {toast.type === "info" && <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+            <span>{toast.text}</span>
+            <button
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="ml-auto text-current opacity-50 hover:opacity-100 transition-opacity"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Loading Skeleton (Issue #9) */}
+      {!isHydrated && (
+        <div className="fixed inset-0 z-[90] bg-background flex flex-col items-center justify-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
+            <Fingerprint className="w-9 h-9" />
+          </div>
+          <h2 className="text-xl font-black text-charcoal-dark tracking-tight uppercase">GatePass</h2>
+          <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Connecting to server…</span>
+          </div>
+        </div>
+      )}
       
       {/* Top Bar Navigation (Responsive Sidebar Drawer Trigger) */}
       <header className="w-full bg-white border-b border-outline-variant/30 sticky top-0 z-40 px-6 py-4 flex justify-between items-center md:hidden">
@@ -567,9 +721,14 @@ export default function App() {
         <div className="flex items-center gap-3">
           {/* Quick Perspective Toggle on Mobile header */}
           <button 
-            onClick={() => setPerspective(perspective === "attendee" ? "organizer" : "attendee")}
-            className="text-[10px] font-black uppercase bg-primary-container text-on-primary-container px-3 py-1.5 rounded-full shadow-sm"
+            onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
+            className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1 ${
+              perspective === "attendee" && !canAccessOrganizer
+                ? "bg-surface-container text-on-surface-variant opacity-60"
+                : "bg-primary-container text-on-primary-container"
+            }`}
           >
+            {perspective === "attendee" && !canAccessOrganizer && <Lock className="w-3 h-3" />}
             {perspective === "attendee" ? "Organizer Mode" : "User Mode"}
           </button>
           <button 
@@ -595,6 +754,12 @@ export default function App() {
               <h1 className="text-xl md:text-3xl font-black text-charcoal-dark tracking-tighter uppercase">GatePass</h1>
               <p className="text-[10px] md:text-xs uppercase font-bold bg-charcoal-dark text-white px-2 py-0.5 tracking-widest hidden md:block">PRO</p>
             </div>
+            {/* Connection status indicator (Issue #9) */}
+            <div className={`w-2.5 h-2.5 rounded-full ml-1 flex-shrink-0 ${
+              backendStatus === "connected" ? "bg-emerald-400" :
+              backendStatus === "offline" ? "bg-amber-400" :
+              "bg-gray-300 animate-pulse"
+            }`} title={backendStatus === "connected" ? "Connected" : backendStatus === "offline" ? "Offline mode" : "Connecting..."} />
           </div>
 
           {/* Perspective Selector Swapper */}
@@ -603,7 +768,7 @@ export default function App() {
             <div className="flex gap-1">
               <button
                 onClick={() => {
-                  setPerspective("attendee");
+                  handlePerspectiveSwitch("attendee");
                   setMobileMenuOpen(false);
                 }}
                 className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
@@ -614,13 +779,19 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
-                  setPerspective("organizer");
+                  handlePerspectiveSwitch("organizer");
                   setMobileMenuOpen(false);
                 }}
                 className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  perspective === "organizer" ? "bg-primary text-white shadow font-bold" : "text-on-surface-variant hover:text-charcoal-dark"
+                  perspective === "organizer"
+                    ? "bg-primary text-white shadow font-bold"
+                    : !canAccessOrganizer
+                    ? "text-on-surface-variant opacity-50 cursor-not-allowed"
+                    : "text-on-surface-variant hover:text-charcoal-dark"
                 }`}
+                disabled={!canAccessOrganizer && perspective !== "organizer"}
               >
+                {!canAccessOrganizer && <Lock className="w-3 h-3 inline mr-1" />}
                 Organizer
               </button>
             </div>
@@ -777,8 +948,29 @@ export default function App() {
       )}
 
       {/* Primary Layout Center */}
-      <main className="flex-1 max-w-full px-6 py-6 md:py-10 md:px-10 overflow-x-hidden">
+      <main className="flex-1 max-w-full px-6 py-6 md:py-10 md:px-10 overflow-x-hidden md:overflow-y-auto">
         
+        {/* Offline mode banner (Issue #9) */}
+        {backendStatus === "offline" && !offlineBannerDismissed && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <WifiOff className="w-5 h-5 text-amber-500 flex-shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold uppercase text-amber-800 tracking-wide">Offline Demo Mode</h4>
+                <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
+                  Backend server is unreachable. Running with local demo data — changes won't be saved.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setOfflineBannerDismissed(true)}
+              className="text-amber-500 hover:text-amber-700 transition-colors flex-shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Banner Alert advising users on the perspective toggling feature */}
         <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -793,9 +985,14 @@ export default function App() {
             </div>
           </div>
           <button 
-            onClick={() => setPerspective(perspective === "attendee" ? "organizer" : "attendee")}
-            className="whitespace-nowrap py-2 px-4 bg-charcoal-dark text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-opacity-95 transition-all cursor-pointer shadow-sm text-center"
+            onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
+            className={`whitespace-nowrap py-2 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm text-center ${
+              perspective === "attendee" && !canAccessOrganizer
+                ? "bg-surface-container text-on-surface-variant"
+                : "bg-charcoal-dark text-white hover:bg-opacity-95"
+            }`}
           >
+            {perspective === "attendee" && !canAccessOrganizer && <Lock className="w-3 h-3 inline mr-1" />}
             Swap to {perspective === "attendee" ? "Organizer Console" : "User App"}
           </button>
         </div>
@@ -814,6 +1011,10 @@ export default function App() {
                   setAttendeeSection("wallet");
                 }}
                 onLoginSuccess={handleGoogleLoginSuccess}
+                onLoginError={handleGoogleLoginError}
+                onLogout={handleLogout}
+                isAuthenticated={isAuthenticated}
+                authEmail={authEmail}
               />
             )}
 

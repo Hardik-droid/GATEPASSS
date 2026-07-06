@@ -33,7 +33,10 @@ test("health route returns database status", async () => {
 
 test("state route returns initial state when database is empty", async () => {
   const app = createApp({ store: new MemoryStore() });
-  const response = await request(app).get("/api/state").expect(200);
+  const response = await request(app)
+    .get("/api/state")
+    .set("Authorization", "Bearer gp_session_test")
+    .expect(200);
 
   assert.equal(response.body.state.user.name, "Hardik Jain");
   assert.ok(Array.isArray(response.body.state.events));
@@ -41,7 +44,11 @@ test("state route returns initial state when database is empty", async () => {
 
 test("state route validates payloads before persisting", async () => {
   const app = createApp({ store: new MemoryStore() });
-  await request(app).put("/api/state").send({ state: { bad: true } }).expect(400);
+  await request(app)
+    .put("/api/state")
+    .set("Authorization", "Bearer gp_session_test")
+    .send({ state: { bad: true } })
+    .expect(400);
 });
 
 test("state route persists a valid snapshot", async () => {
@@ -49,8 +56,16 @@ test("state route persists a valid snapshot", async () => {
   const state = createInitialAppState();
   state.user.name = "Production Test User";
 
-  await request(app).put("/api/state").send({ state }).expect(204);
-  const response = await request(app).get("/api/state").expect(200);
+  await request(app)
+    .put("/api/state")
+    .set("Authorization", "Bearer gp_session_test")
+    .send({ state })
+    .expect(204);
+    
+  const response = await request(app)
+    .get("/api/state")
+    .set("Authorization", "Bearer gp_session_test")
+    .expect(200);
 
   assert.equal(response.body.state.user.name, "Production Test User");
 });
