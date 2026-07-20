@@ -72,11 +72,7 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
         throw new HttpError(401, "Audience mismatch");
       }
 
-      // Gating login to authorized email (Issue #3)
-      const allowedEmail = "hardik.jain@college.edu";
-      if (payload.email.toLowerCase() !== allowedEmail.toLowerCase()) {
-        throw new HttpError(403, "Access Forbidden: This Google account is not authorized to access this profile.");
-      }
+      // Allowed all emails to let anyone use it as attendee
 
       const user = {
         id: payload.sub,
@@ -125,6 +121,58 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
       const { state } = statePayloadSchema.parse(req.body);
       await store.save(state as AppStateSnapshot);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/qr/me", authenticateSession, (_req, res) => {
+    res.json({
+      status: "active",
+      qr_payload: "gp:v1:mock_token_payload"
+    });
+  });
+
+  app.post("/api/qr/reissue", authenticateSession, (_req, res) => {
+    res.json({
+      status: "active",
+      qr_payload: "gp:v1:mock_token_payload_reissued"
+    });
+  });
+
+  app.post("/api/scanner/pair", (req, res, next) => {
+    try {
+      const { pairing_code } = req.body;
+      if (pairing_code !== "123456") {
+        throw new HttpError(400, "Invalid pairing code");
+      }
+      res.json({
+        scanner_id: "scanner_main_gate",
+        token: "gp_scanner_session_token"
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/scanner/me", (_req, res) => {
+    res.json({
+      scanner_id: "scanner_main_gate",
+      paired: true
+    });
+  });
+
+  app.post("/api/scanner/scan", (req, res, next) => {
+    try {
+      const { payload } = req.body;
+      if (!payload || !payload.startsWith("gp:v1:")) {
+        throw new HttpError(400, "Invalid scan payload format");
+      }
+      res.json({
+        success: true,
+        result: "VALID",
+        message: "Check-in successful"
+      });
     } catch (error) {
       next(error);
     }

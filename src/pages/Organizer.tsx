@@ -1,23 +1,27 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus } from "../types";
-import { 
-  Plus, 
-  TrendingUp, 
-  Users, 
-  Calendar, 
-  ShieldCheck, 
-  DollarSign, 
-  Download, 
-  History, 
-  Info, 
-  Tag, 
-  Trash2, 
+import { AnimatedNumber } from "../components/ui/animated-number";
+import AnimatedButton from "../components/ui/animated-button";
+import {
+  Plus,
+  TrendingUp,
+  Users,
+  Calendar,
+  ShieldCheck,
+  DollarSign,
+  Download,
+  History,
+  Info,
+  Tag,
+  Trash2,
   FileText,
   Clock,
   MapPin,
   AlertOctagon,
   Sparkles,
-  Award
+  Award,
+  ArrowLeft
 } from "lucide-react";
 
 interface OrganizerWorkspaceProps {
@@ -52,14 +56,14 @@ export default function OrganizerWorkspace({
   const [orgType, setOrgType] = useState("College Society");
   const [orgEmail, setOrgEmail] = useState("fests@dtu.ac.in");
   const [orgPhone, setOrgPhone] = useState("+91 11 2789 6522");
-  
+
   const [teamMembers, setTeamMembers] = useState([
     { id: "tm_1", name: "Hardik Jain", email: "hardik@dtu.ac.in", role: "Owner", status: "Active" },
     { id: "tm_2", name: "Rishabh Mehra", email: "mehra.rishabh@dtu.ac.in", role: "Finance Manager", status: "Active" },
     { id: "tm_3", name: "Officer Mehra", email: "mehra@security.org", role: "Gate Staff", status: "Active" },
     { id: "tm_4", name: "Kunal Sen", email: "kunal@dtu.ac.in", role: "Volunteer", status: "Active" }
   ]);
-  
+
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberRole, setNewMemberRole] = useState("Scanner Staff");
@@ -72,7 +76,7 @@ export default function OrganizerWorkspace({
 
   const [brandingColor, setBrandingColor] = useState("#18181b");
   const [ticketHeader, setTicketHeader] = useState("GATEPASS VALID ENTRY TIER");
-  
+
   const handleAddTeamMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMemberName.trim() || !newMemberEmail.trim()) {
@@ -91,7 +95,7 @@ export default function OrganizerWorkspace({
     setNewMemberEmail("");
     showToast(`Added ${newMemberName} as ${newMemberRole}!`);
   };
-  
+
   const handleRemoveMember = (id: string) => {
     const target = teamMembers.find(m => m.id === id);
     if (target?.role === "Owner") {
@@ -177,7 +181,7 @@ export default function OrganizerWorkspace({
 
     onAddNewEvent(newEvent);
     showToast(`Successfully launched "${eventTitle}" event!`);
-    
+
     // Reset Form & Switch Tab
     setEventTitle("");
     setEventVenue("");
@@ -233,22 +237,27 @@ export default function OrganizerWorkspace({
 
       {/* Header and Switcher Links */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">GatePass Organizer Console</h2>
-          <p className="text-sm text-on-surface-variant">
-            Immersion suite to create events, reconcile manual sales, view live scan audits, and track settlements.
-          </p>
+        <div className="flex items-center gap-3">
+          <Link to="/" className="p-2 rounded-xl bg-white hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <div>
+            <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">GatePass Organizer Console</h2>
+            <p className="text-sm text-on-surface-variant">
+              Immersion suite to create events, reconcile manual sales, view live scan audits, and track settlements.
+            </p>
+          </div>
         </div>
 
         {/* Action Button to launch builder quickly */}
         {activeTab !== "builder" && (
-          <button
+          <AnimatedButton
             onClick={() => setActiveTab("builder")}
-            className="sm:w-auto w-full bg-primary hover:bg-opacity-95 text-white py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 shadow cursor-pointer"
+            className="!sm:w-auto !w-full !bg-primary !text-white !py-2.5 !px-4 !rounded-xl !text-xs !font-bold !uppercase !tracking-wider !border-primary [--shine:rgba(255,255,255,.66)]"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 mr-2" />
             <span>Create Event</span>
-          </button>
+          </AnimatedButton>
         )}
       </div>
 
@@ -256,49 +265,43 @@ export default function OrganizerWorkspace({
       <div className="w-full bg-white/70 p-1.5 rounded-xl flex flex-wrap gap-1 border border-outline-variant/30">
         <button
           onClick={() => setActiveTab("dashboard")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "dashboard" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "dashboard" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Control Room (Live)
         </button>
         <button
           onClick={() => setActiveTab("builder")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "builder" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "builder" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Event Builder
         </button>
         <button
           onClick={() => setActiveTab("manual")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "manual" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "manual" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Manual/Cash Sales
         </button>
         <button
           onClick={() => setActiveTab("settlement")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "settlement" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "settlement" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Settlements &amp; Fees
         </button>
         <button
           onClick={() => setActiveTab("audit")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "audit" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "audit" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Audit Ledger
         </button>
         <button
           onClick={() => setActiveTab("org")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${
-            activeTab === "org" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-          }`}
+          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "org" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
+            }`}
         >
           Org &amp; Settings
         </button>
@@ -315,7 +318,9 @@ export default function OrganizerWorkspace({
                 <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Gross Sales Volume</span>
                 <DollarSign className="w-4 h-4 text-primary" />
               </div>
-              <h3 className="text-2xl font-black text-charcoal-dark">₹{totalSalesVolume.toLocaleString()}</h3>
+              <h3 className="text-2xl font-black text-charcoal-dark flex items-center">
+                ₹<AnimatedNumber value={totalSalesVolume} className="text-2xl font-black" />
+              </h3>
               <span className="text-[10px] text-outline font-medium mt-2 flex items-center gap-1">
                 From {orders.length} digital/manual reservations
               </span>
@@ -327,13 +332,13 @@ export default function OrganizerWorkspace({
                 <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Checked In / Used</span>
                 <ShieldCheck className="w-4 h-4 text-status-success" />
               </div>
-              <h3 className="text-2xl font-black text-status-success">
-                {totalCheckedIn} <span className="text-sm font-semibold text-outline">/ {tickets.length}</span>
+              <h3 className="text-2xl font-black text-status-success flex items-center">
+                <AnimatedNumber value={totalCheckedIn} className="text-2xl font-black" /> <span className="text-sm font-semibold text-outline ml-1">/ {tickets.length}</span>
               </h3>
               {/* Progress bar */}
               <div className="w-full bg-surface-container h-1.5 rounded-full mt-2 overflow-hidden">
-                <div 
-                  className="bg-status-success h-full rounded-full transition-all" 
+                <div
+                  className="bg-status-success h-full rounded-full transition-all"
                   style={{ width: `${tickets.length ? (totalCheckedIn / tickets.length) * 100 : 0}%` }}
                 ></div>
               </div>
@@ -345,7 +350,7 @@ export default function OrganizerWorkspace({
                 <span className="text-[10px] font-black text-status-danger uppercase tracking-wider">Blocked Fraud Scans</span>
                 <AlertOctagon className="w-4 h-4 text-status-danger" />
               </div>
-              <h3 className="text-2xl font-black text-status-danger">{duplicateScanAttempts}</h3>
+              <h3 className="text-2xl font-black text-status-danger"><AnimatedNumber value={duplicateScanAttempts} className="text-2xl font-black" /></h3>
               <span className="text-[10px] text-status-danger font-medium mt-2 flex items-center gap-1">
                 Same-QR duplicated screenshots blocked
               </span>
@@ -357,7 +362,7 @@ export default function OrganizerWorkspace({
                 <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Cancellations / Refunds</span>
                 <Users className="w-4 h-4 text-outline" />
               </div>
-              <h3 className="text-2xl font-black text-charcoal-dark">{totalRefunded}</h3>
+              <h3 className="text-2xl font-black text-charcoal-dark"><AnimatedNumber value={totalRefunded} className="text-2xl font-black" /></h3>
               <span className="text-[10px] text-outline font-medium mt-2">
                 Voided from database instantly
               </span>
@@ -368,17 +373,15 @@ export default function OrganizerWorkspace({
           <div className="flex bg-surface-container border border-outline-variant/20 p-1 rounded-xl w-full max-w-md my-1 self-start">
             <button
               onClick={() => setControlRoomSubView("stream")}
-              className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                controlRoomSubView === "stream" ? "bg-charcoal-dark text-white shadow" : "text-outline hover:text-charcoal-dark"
-              }`}
+              className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${controlRoomSubView === "stream" ? "bg-charcoal-dark text-white shadow" : "text-outline hover:text-charcoal-dark"
+                }`}
             >
               Live Check-In Monitor
             </button>
             <button
               onClick={() => setControlRoomSubView("analytics")}
-              className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                controlRoomSubView === "analytics" ? "bg-primary text-white shadow" : "text-outline hover:text-charcoal-dark"
-              }`}
+              className={`flex-1 py-2 text-center text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${controlRoomSubView === "analytics" ? "bg-primary text-white shadow" : "text-outline hover:text-charcoal-dark"
+                }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-status-warning" />
               <span>Shotgun Community Analytics</span>
@@ -405,13 +408,12 @@ export default function OrganizerWorkspace({
                     </div>
                   ) : (
                     scanLogs.map((log) => (
-                      <div 
+                      <div
                         key={log.id}
-                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 text-xs ${
-                          log.scanResult === "VALID" 
-                            ? "bg-status-success/5 border-status-success/20" 
+                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 text-xs ${log.scanResult === "VALID"
+                            ? "bg-status-success/5 border-status-success/20"
                             : "bg-status-danger/5 border-status-danger/20"
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-center gap-2">
@@ -425,9 +427,8 @@ export default function OrganizerWorkspace({
                         </div>
 
                         <div className="text-right">
-                          <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded ${
-                            log.scanResult === "VALID" ? "bg-status-success text-white" : "bg-status-danger text-white"
-                          }`}>
+                          <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded ${log.scanResult === "VALID" ? "bg-status-success text-white" : "bg-status-danger text-white"
+                            }`}>
                             {log.scanResult}
                           </span>
                           <p className="font-mono text-[9px] text-outline mt-1.5">{log.scanTime}</p>
@@ -490,7 +491,7 @@ export default function OrganizerWorkspace({
           ) : (
             /* Shotgun Community Analytics Overview View */
             <div className="flex flex-col gap-6 animate-fadeIn" id="shotgun-community-analytics">
-              
+
               {/* Header Info Area */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 rounded-2xl border border-outline-variant/30 gap-4">
                 <div>
@@ -571,7 +572,7 @@ export default function OrganizerWorkspace({
 
               {/* Advanced Graphs/Tables Grid (2 columns) */}
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                
+
                 {/* Left Card: Event attendance with beautiful Donut concentric SVG loops */}
                 <div className="md:col-span-5 bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
                   <div>
@@ -650,7 +651,7 @@ export default function OrganizerWorkspace({
                         strokeLinecap="round"
                       />
                     </svg>
-                    
+
                     {/* Centered value overlay */}
                     <div className="absolute flex flex-col items-center">
                       <span className="text-2xl font-black text-charcoal-dark leading-none">1,5</span>
@@ -697,7 +698,7 @@ export default function OrganizerWorkspace({
 
                   {/* Beautiful structured table */}
                   <div className="flex flex-col gap-3.5 my-4">
-                    
+
                     {/* Row 1: < 3 months */}
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
@@ -1053,13 +1054,12 @@ export default function OrganizerWorkspace({
                     <td className="p-3 text-right text-on-surface-variant">₹{set.manualCollections.toLocaleString()}</td>
                     <td className="p-3 text-right font-black text-primary">₹{set.netSettlement.toLocaleString()}</td>
                     <td className="p-3 text-center">
-                      <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-1 rounded-full ${
-                        set.status === "settled" 
-                          ? "bg-status-success text-white" 
+                      <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-1 rounded-full ${set.status === "settled"
+                          ? "bg-status-success text-white"
                           : set.status === "processing"
-                          ? "bg-status-warning text-white"
-                          : "bg-status-inactive text-white"
-                      }`}>
+                            ? "bg-status-warning text-white"
+                            : "bg-status-inactive text-white"
+                        }`}>
                         {set.status}
                       </span>
                     </td>
@@ -1109,31 +1109,31 @@ export default function OrganizerWorkspace({
         <div className="flex flex-col gap-6 animate-fadeIn" id="org-tab-content">
           {/* Org Profile & Payout Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
+
             {/* Org Profile card */}
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
               <div>
                 <h3 className="text-base font-black text-charcoal-dark mb-1">Organization Profile</h3>
                 <p className="text-xs text-on-surface-variant">Configure standard workspace parameters for institutional verification.</p>
               </div>
-              
+
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Organization Name</label>
-                  <input 
-                    type="text" 
-                    value={orgName} 
-                    onChange={(e) => setOrgName(e.target.value)} 
+                  <input
+                    type="text"
+                    value={orgName}
+                    onChange={(e) => setOrgName(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                   />
                 </div>
-                
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Workspace Type</label>
-                  <input 
-                    type="text" 
-                    value={orgType} 
-                    onChange={(e) => setOrgType(e.target.value)} 
+                  <input
+                    type="text"
+                    value={orgType}
+                    onChange={(e) => setOrgType(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                   />
                 </div>
@@ -1141,25 +1141,25 @@ export default function OrganizerWorkspace({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">Contact Email</label>
-                    <input 
-                      type="email" 
-                      value={orgEmail} 
-                      onChange={(e) => setOrgEmail(e.target.value)} 
+                    <input
+                      type="email"
+                      value={orgEmail}
+                      onChange={(e) => setOrgEmail(e.target.value)}
                       className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">Support Phone</label>
-                    <input 
-                      type="text" 
-                      value={orgPhone} 
-                      onChange={(e) => setOrgPhone(e.target.value)} 
+                    <input
+                      type="text"
+                      value={orgPhone}
+                      onChange={(e) => setOrgPhone(e.target.value)}
                       className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                     />
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => showToast("Organization Profile settings updated!")}
                   className="mt-2 w-full py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer"
                 >
@@ -1174,14 +1174,14 @@ export default function OrganizerWorkspace({
                 <h3 className="text-base font-black text-charcoal-dark mb-1">Payout &amp; Settlement Settings</h3>
                 <p className="text-xs text-on-surface-variant">Add bank or UPI targets for ticket revenues. 100% transparent fee structure.</p>
               </div>
-              
+
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Settlement Bank Name</label>
-                  <input 
-                    type="text" 
-                    value={payoutBank} 
-                    onChange={(e) => setPayoutBank(e.target.value)} 
+                  <input
+                    type="text"
+                    value={payoutBank}
+                    onChange={(e) => setPayoutBank(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                   />
                 </div>
@@ -1189,19 +1189,19 @@ export default function OrganizerWorkspace({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">IFSC Code</label>
-                    <input 
-                      type="text" 
-                      value={payoutIFSC} 
-                      onChange={(e) => setPayoutIFSC(e.target.value)} 
+                    <input
+                      type="text"
+                      value={payoutIFSC}
+                      onChange={(e) => setPayoutIFSC(e.target.value)}
                       className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">Account Number</label>
-                    <input 
-                      type="text" 
-                      value={payoutAcc} 
-                      onChange={(e) => setPayoutAcc(e.target.value)} 
+                    <input
+                      type="text"
+                      value={payoutAcc}
+                      onChange={(e) => setPayoutAcc(e.target.value)}
                       className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                     />
                   </div>
@@ -1210,18 +1210,18 @@ export default function OrganizerWorkspace({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">UPI ID / Address</label>
-                    <input 
-                      type="text" 
-                      value={payoutUPI} 
-                      onChange={(e) => setPayoutUPI(e.target.value)} 
+                    <input
+                      type="text"
+                      value={payoutUPI}
+                      onChange={(e) => setPayoutUPI(e.target.value)}
                       className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                     />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-[10px] font-bold text-outline uppercase">Payout Cycle</label>
-                    <select 
-                      value={payoutSchedule} 
-                      onChange={(e) => setPayoutSchedule(e.target.value)} 
+                    <select
+                      value={payoutSchedule}
+                      onChange={(e) => setPayoutSchedule(e.target.value)}
                       className="p-2 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded cursor-pointer outline-none"
                     >
                       <option value="Daily after gate-reconciliation">Daily gate-reconciliation</option>
@@ -1230,8 +1230,8 @@ export default function OrganizerWorkspace({
                     </select>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => showToast("Financial Settlement Accounts updated!")}
                   className="mt-2 w-full py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer"
                 >
@@ -1244,14 +1244,14 @@ export default function OrganizerWorkspace({
 
           {/* Team Roles and Permissions Section */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
+
             {/* List members */}
             <div className="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
               <div>
                 <h3 className="text-base font-black text-charcoal-dark mb-1">Team Members &amp; Permission Roles</h3>
                 <p className="text-xs text-on-surface-variant">School / College fests require team coordination. Assign scanning and gate roles.</p>
               </div>
-              
+
               <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
                 {teamMembers.map(member => (
                   <div key={member.id} className="p-3 bg-surface-container-low border border-outline-variant/15 flex justify-between items-center text-xs rounded-lg">
@@ -1259,9 +1259,9 @@ export default function OrganizerWorkspace({
                       <p className="font-extrabold text-charcoal-dark">{member.name}</p>
                       <p className="text-[10px] text-outline mt-0.5">{member.email}</p>
                     </div>
-                    
+
                     <div className="flex items-center gap-3">
-                      <select 
+                      <select
                         value={member.role}
                         onChange={(e) => {
                           const updated = teamMembers.map(m => m.id === member.id ? { ...m, role: e.target.value } : m);
@@ -1278,8 +1278,8 @@ export default function OrganizerWorkspace({
                         <option value="Volunteer">Volunteer</option>
                         <option value="Viewer">Viewer</option>
                       </select>
-                      
-                      <button 
+
+                      <button
                         onClick={() => handleRemoveMember(member.id)}
                         className="text-status-danger p-1 hover:bg-status-danger/10 rounded transition-all cursor-pointer"
                         title="Remove member"
@@ -1302,32 +1302,32 @@ export default function OrganizerWorkspace({
               <form onSubmit={handleAddTeamMember} className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Member Full Name</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     placeholder="e.g. Ramesh Kumar"
-                    value={newMemberName} 
-                    onChange={(e) => setNewMemberName(e.target.value)} 
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                   />
                 </div>
-                
+
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Member Email</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     required
                     placeholder="ramesh@dtu.ac.in"
-                    value={newMemberEmail} 
-                    onChange={(e) => setNewMemberEmail(e.target.value)} 
+                    value={newMemberEmail}
+                    onChange={(e) => setNewMemberEmail(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-outline uppercase">Default Permission Role</label>
-                  <select 
-                    value={newMemberRole} 
+                  <select
+                    value={newMemberRole}
                     onChange={(e) => setNewMemberRole(e.target.value)}
                     className="p-2 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded cursor-pointer outline-none"
                   >
@@ -1339,8 +1339,8 @@ export default function OrganizerWorkspace({
                     <option value="Viewer">Viewer</option>
                   </select>
                 </div>
-                
-                <button 
+
+                <button
                   type="submit"
                   className="mt-2 w-full py-2.5 bg-charcoal-dark hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 rounded cursor-pointer"
                 >
@@ -1358,21 +1358,21 @@ export default function OrganizerWorkspace({
               <h3 className="text-base font-black text-charcoal-dark mb-1">Branding &amp; Ticket Personalization</h3>
               <p className="text-xs text-on-surface-variant">Format client-side parameters on issued ticket categories, banners, and digital email frames.</p>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-outline uppercase">Corporate Brand Color (Primary HEX)</label>
                 <div className="flex gap-2">
-                  <input 
-                    type="color" 
-                    value={brandingColor} 
-                    onChange={(e) => setBrandingColor(e.target.value)} 
+                  <input
+                    type="color"
+                    value={brandingColor}
+                    onChange={(e) => setBrandingColor(e.target.value)}
                     className="w-10 h-10 border border-outline-variant rounded cursor-pointer outline-none"
                   />
-                  <input 
-                    type="text" 
-                    value={brandingColor} 
-                    onChange={(e) => setBrandingColor(e.target.value)} 
+                  <input
+                    type="text"
+                    value={brandingColor}
+                    onChange={(e) => setBrandingColor(e.target.value)}
                     className="p-2.5 text-xs text-charcoal-dark font-mono font-bold bg-surface-container-low flex-1 border border-outline-variant rounded outline-none"
                   />
                 </div>
@@ -1380,16 +1380,16 @@ export default function OrganizerWorkspace({
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-outline uppercase">Issued Ticket Header Warning Text</label>
-                <input 
-                  type="text" 
-                  value={ticketHeader} 
-                  onChange={(e) => setTicketHeader(e.target.value)} 
+                <input
+                  type="text"
+                  value={ticketHeader}
+                  onChange={(e) => setTicketHeader(e.target.value)}
                   className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
                 />
               </div>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => showToast("Branding settings saved successfully!")}
               className="mt-2 w-max px-6 py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer self-end"
             >

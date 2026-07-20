@@ -75,3 +75,34 @@ test("unknown API route returns 404", async () => {
   await request(app).get("/api/missing").expect(404);
 });
 
+test("GET /api/qr/me returns active qr payload", async () => {
+  const app = createApp({ store: new MemoryStore() });
+  const response = await request(app)
+    .get("/api/qr/me")
+    .set("Authorization", "Bearer gp_session_test")
+    .expect(200);
+
+  assert.equal(response.body.status, "active");
+  assert.match(response.body.qr_payload, /^gp:v1:/);
+});
+
+test("POST /api/scanner/pair registers scanner with valid code", async () => {
+  const app = createApp({ store: new MemoryStore() });
+  const response = await request(app)
+    .post("/api/scanner/pair")
+    .send({ pairing_code: "123456" })
+    .expect(200);
+
+  assert.equal(response.body.scanner_id, "scanner_main_gate");
+  assert.equal(response.body.token, "gp_scanner_session_token");
+});
+
+test("POST /api/scanner/scan rejects malformed payloads", async () => {
+  const app = createApp({ store: new MemoryStore() });
+  await request(app)
+    .post("/api/scanner/scan")
+    .send({ payload: "invalid-prefix" })
+    .expect(400);
+});
+
+

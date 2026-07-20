@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { AccessRequest, InvitePass } from "../types";
 import { 
   CheckCircle, 
@@ -12,7 +13,8 @@ import {
   Bell,
   Trash2,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from "lucide-react";
 
 interface ApprovalsInvitesProps {
@@ -63,11 +65,16 @@ export default function ApprovalsInvites({
       )}
 
       {/* Header Info */}
-      <div>
-        <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">Approvals &amp; Invites</h2>
-        <p className="text-sm text-on-surface-variant mt-1">
-          Manage pending security access requests and active visitor passes.
-        </p>
+      <div className="flex items-center gap-3">
+        <Link to="/" className="p-2 rounded-xl bg-white hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div>
+          <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">Approvals &amp; Invites</h2>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Manage pending security access requests and active visitor passes.
+          </p>
+        </div>
       </div>
 
       {/* Custom Tabbed Switcher */}

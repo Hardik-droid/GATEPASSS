@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { UserProfile, InvitePass } from "../types";
+import { fetchMyQrPayload } from "../scannerQr";
 import { GoogleLogin } from "@react-oauth/google";
 import { QRCodeSVG } from "qrcode.react";
-import { 
-  CheckCircle, 
-  MapPin, 
-  Clock, 
-  ChevronRight, 
-  Plus, 
-  ShieldCheck, 
-  QrCode, 
-  History, 
+import AnimatedButton from "../components/ui/animated-button";
+import {
+  CheckCircle,
+  MapPin,
+  Clock,
+  ChevronRight,
+  Plus,
+  ShieldCheck,
+  QrCode,
+  History,
   IdCard,
   Fingerprint,
   LogOut,
   AlertTriangle,
-  XCircle
+  XCircle,
+  ArrowLeft,
+  Smartphone
 } from "lucide-react";
 
 interface IdentityCardProps {
@@ -84,11 +89,11 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
       if (ap && ap.toLowerCase() === "pm" && hour < 12) hour += 12;
       if (ap && ap.toLowerCase() === "am" && hour === 12) hour = 0;
       const min = parseInt(m);
-      
+
       const now = new Date();
       const curHour = now.getHours();
       const curMin = now.getMinutes();
-      
+
       if (curHour > hour || (curHour === hour && curMin > min)) {
         return "EXPIRED";
       }
@@ -140,9 +145,9 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
   return pass.status === "APPROVED" ? "ACTIVE" : "EXPIRED";
 }
 
-export default function IdentityCard({ 
-  user, 
-  invitePasses, 
+export default function IdentityCard({
+  user,
+  invitePasses,
   onNavigateToRequest,
   onNavigateToWallet,
   onLoginSuccess,
@@ -154,36 +159,14 @@ export default function IdentityCard({
   const [viewMode, setViewMode] = useState<"access" | "badge">("badge");
   const [copiedText, setCopiedText] = useState(false);
 
-  // Dynamic rotating token state
-  const [timeRemaining, setTimeRemaining] = useState(30 - (Math.floor(Date.now() / 1000) % 30));
-  const [rotatingToken, setRotatingToken] = useState("");
+  // Permanent QR code state
+  const [permanentQr, setPermanentQr] = useState<string | null>(null);
 
   useEffect(() => {
-    const updateToken = () => {
-      const epochSlot = Math.floor(Date.now() / 30000);
-      const hashSeed = `${user.studentId || "GUEST"}-${epochSlot}`;
-      let hash = 0;
-      for (let i = 0; i < hashSeed.length; i++) {
-        hash = (hash << 5) - hash + hashSeed.charCodeAt(i);
-        hash |= 0;
-      }
-      const tokenVal = "GP-" + Math.abs(hash).toString(16).toUpperCase().slice(0, 8).padEnd(8, "X");
-      setRotatingToken(tokenVal);
-    };
-
-    updateToken();
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const remaining = 30 - (Math.floor(now / 1000) % 30);
-      setTimeRemaining(remaining);
-      if (remaining === 30) {
-        updateToken();
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [user.studentId]);
+    fetchMyQrPayload()
+      .then(setPermanentQr)
+      .catch((err) => console.error("Failed to load permanent QR code:", err));
+  }, []);
 
   // Combine hardcoded and dynamic passes
   const allPasses = [...SIMULATED_PASSES, ...invitePasses];
@@ -200,16 +183,26 @@ export default function IdentityCard({
 
   return (
     <div className="flex flex-col gap-6" id="identity-card-section">
+      {/* Page Header with Back Icon */}
+      <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-outline-variant/30 shadow-sm">
+        <Link to="/" className="p-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div>
+          <h2 className="text-base font-black text-charcoal-dark uppercase tracking-tight">Digital Identity</h2>
+          <p className="text-[10px] text-outline uppercase font-semibold">Verified Member Badge &amp; Clearance Level</p>
+        </div>
+      </div>
+
       {/* View Switcher Bar */}
       <div className="flex justify-between items-center bg-surface-container-high/60 p-1 rounded-xl">
         <button
           id="toggle-badge-view"
           onClick={() => setViewMode("badge")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-            viewMode === "badge"
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${viewMode === "badge"
               ? "bg-white text-primary shadow-sm font-bold"
               : "text-on-secondary-fixed-variant hover:text-charcoal-dark"
-          }`}
+            }`}
         >
           <IdCard className="w-4 h-4" />
           <span>Digital Identity Card</span>
@@ -217,11 +210,10 @@ export default function IdentityCard({
         <button
           id="toggle-access-view"
           onClick={() => setViewMode("access")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-            viewMode === "access"
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${viewMode === "access"
               ? "bg-white text-primary shadow-sm font-bold"
               : "text-on-secondary-fixed-variant hover:text-charcoal-dark"
-          }`}
+            }`}
         >
           <Fingerprint className="w-4 h-4" />
           <span>Access Overview</span>
@@ -286,59 +278,47 @@ export default function IdentityCard({
                   )
                 )}
 
-                {/* Dynamic QR Code Container */}
+                {/* Permanent QR Code Container */}
                 <div className="bg-white p-3.5 rounded-2xl shadow-sm mb-3 relative group w-48 flex flex-col items-center gap-2.5">
                   <div className="w-40 h-40 bg-white flex items-center justify-center border border-outline-variant/30 rounded-xl overflow-hidden p-1 relative">
-                    <QRCodeSVG
-                      value={rotatingToken}
-                      size={144}
-                      level="H"
-                      includeMargin={false}
-                    />
-                  </div>
-                  
-                  {/* Countdown progress bar */}
-                  <div className="w-full flex flex-col gap-1 px-1">
-                    <div className="flex justify-between items-center text-[9px] font-extrabold tracking-wider uppercase text-charcoal-dark/70">
-                      <span>Token Expires</span>
-                      <span>{timeRemaining}s</span>
-                    </div>
-                    <div className="w-full h-1 bg-charcoal-dark/10 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-status-success transition-all duration-1000 ease-linear"
-                        style={{ width: `${(timeRemaining / 30) * 100}%` }}
-                      ></div>
-                    </div>
+                    {permanentQr ? (
+                      <QRCodeSVG
+                        value={permanentQr}
+                        size={144}
+                        level="H"
+                        includeMargin={false}
+                      />
+                    ) : (
+                      <div className="text-[10px] text-outline font-semibold animate-pulse">Loading QR...</div>
+                    )}
                   </div>
 
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/95 rounded-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer text-charcoal-dark font-mono text-xs p-4 text-center">
-                    <div>
-                      <p className="font-extrabold uppercase mb-1">Rotating Token</p>
-                      <p className="text-[10px] text-on-surface-variant font-mono">{rotatingToken}</p>
-                      <p className="text-[9px] text-primary mt-2">Generates new signature every 30s.</p>
-                    </div>
+                  <div className="text-center">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-status-success">
+                      ● Active Permanent QR
+                    </span>
                   </div>
                 </div>
 
-                <button 
-                  onClick={() => handleCopyCode(rotatingToken)}
+                <button
+                  onClick={() => handleCopyCode(permanentQr || "")}
                   className="font-mono text-sm tracking-widest text-white/80 hover:text-white transition-colors cursor-pointer"
-                  title="Click to copy security code"
+                  title="Click to copy QR payload"
                 >
-                  {copiedText ? "COPIED!" : rotatingToken.replace(/(.{4})/, "$1 - ")}
+                  {copiedText ? "COPIED!" : (permanentQr ? "VIEW PAYLOAD" : "SECURE PASS")}
                 </button>
               </div>
 
               {/* Card Footer Quick Actions */}
               <div className="bg-charcoal-dark/20 grid grid-cols-2 divide-x divide-white/15 border-t border-white/10 text-white/90">
-                <button 
+                <button
                   id="action-show-id"
                   className="py-3 flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-semibold tracking-wider uppercase cursor-pointer"
                 >
                   <IdCard className="w-4 h-4 text-white" />
                   <span>Show ID</span>
                 </button>
-                <button 
+                <button
                   id="action-view-logs"
                   className="py-3 flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-semibold tracking-wider uppercase cursor-pointer"
                 >
@@ -346,6 +326,26 @@ export default function IdentityCard({
                   <span>Logs</span>
                 </button>
               </div>
+            </div>
+
+            {/* Wallet Sync Quick Action Banner */}
+            <div className="mt-4 bg-white rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-xl text-primary">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-charcoal-dark uppercase tracking-wider">Sync To Apple &amp; Google Wallet</h4>
+                  <p className="text-[10px] text-outline mt-0.5">Generate passes and push securely to your device</p>
+                </div>
+              </div>
+              <Link 
+                to="/wallet" 
+                className="p-2 rounded-lg bg-surface-container hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center cursor-pointer"
+                title="Wallet Settings"
+              >
+                <ChevronRight className="w-4 h-4 text-primary" />
+              </Link>
             </div>
           </div>
 
@@ -383,7 +383,7 @@ export default function IdentityCard({
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-charcoal-dark">Active Passes</h3>
-                <button 
+                <button
                   onClick={() => setViewMode("access")}
                   className="text-xs font-bold text-primary hover:underline tracking-wider uppercase cursor-pointer"
                 >
@@ -425,15 +425,15 @@ export default function IdentityCard({
                 )}
               </div>
 
-              {/* Request Access Button */}
-              <button
+              {/* Request Access Button — AnimatedButton with shimmer */}
+              <AnimatedButton
                 id="btn-trigger-request-access"
                 onClick={onNavigateToRequest}
-                className="mt-5 w-full bg-charcoal-dark hover:bg-opacity-95 text-white py-3.5 px-6 rounded-xl font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                className="!mt-5 !w-full !bg-charcoal-dark !text-white !py-3.5 !px-6 !rounded-xl !font-bold !text-xs !tracking-wider !border-charcoal-dark [--shine:rgba(255,255,255,.66)]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Request Temporary Access</span>
-              </button>
+              </AnimatedButton>
             </div>
           </div>
         </div>

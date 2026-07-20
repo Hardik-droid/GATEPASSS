@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { UserProfile, InvitePass } from "../types";
 import { 
   QrCode, 
@@ -16,7 +17,8 @@ import {
   Music,
   Activity,
   Briefcase,
-  Share2
+  Share2,
+  ArrowLeft
 } from "lucide-react";
 
 interface WalletSyncProps {
@@ -58,6 +60,17 @@ export default function WalletSync({ user, selectedPass }: WalletSyncProps) {
 
   return (
     <div className="flex flex-col gap-6 animate-fadeIn" id="wallet-sync-section">
+      {/* Page Header with Back Icon */}
+      <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-outline-variant/30 shadow-sm">
+        <Link to="/" className="p-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        <div>
+          <h2 className="text-base font-black text-charcoal-dark uppercase tracking-tight">Wallet Sync</h2>
+          <p className="text-[10px] text-outline uppercase font-semibold">Integrate official passes with Apple & Google Wallet</p>
+        </div>
+      </div>
+
       {/* Pane Toggles */}
       <div className="flex justify-between items-center bg-surface-container-high/60 p-1 rounded-xl">
         <button

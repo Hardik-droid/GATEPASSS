@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Routes, Route, Navigate, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { 
   INITIAL_USER
 } from "./mockData";
@@ -17,13 +18,20 @@ import {
   TicketStatus,
   UserRole
 } from "./types";
-import IdentityCard from "./components/IdentityCard";
-import RequestAccessForm from "./components/RequestAccessForm";
-import ApprovalsInvites from "./components/ApprovalsInvites";
-import WalletSync from "./components/WalletSync";
-import QRScannerSimulation from "./components/QRScannerSimulation";
-import OrganizerWorkspace from "./components/OrganizerWorkspace";
-import AttendeeEventsList from "./components/AttendeeEventsList";
+import IdentityCard from "./pages/Profile";
+import RequestAccessForm from "./pages/RequestAccess";
+import ApprovalsInvites from "./pages/Approvals";
+import WalletSync from "./pages/Wallet";
+import QRScannerSimulation from "./pages/Scanner";
+import OrganizerWorkspace from "./pages/Organizer";
+import AttendeeEventsList from "./pages/Events";
+import HomeUpdates from "./pages/Home";
+import LandingPage from "./pages/LandingPage";
+import { MorphText } from "./components/ui/morph-text";
+import AnimatedButton from "./components/ui/animated-button";
+import SocialFlipButton from "./components/ui/social-flip-button";
+import { AnimatedNumber } from "./components/ui/animated-number";
+import { FaGithub, FaLinkedin, FaInstagram, FaEnvelope, FaGlobe } from "react-icons/fa";
 import { 
   Fingerprint, 
   IdCard, 
@@ -52,7 +60,7 @@ import {
   Ticket as TicketIcon
 } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 // Demo mode bypass — set to false in production to enforce role-based access
 const IS_DEMO_MODE = true;
@@ -73,13 +81,21 @@ interface ToastMessage {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Perspectives
   const [perspective, setPerspective] = useState<"attendee" | "organizer">("attendee");
-
-  // Nav states
-  const [attendeeSection, setAttendeeSection] = useState<"home" | "request" | "approvals" | "wallet" | "events">("home");
-  const [organizerSection, setOrganizerSection] = useState<"workspace" | "scanner">("workspace");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Sync perspective layout with active URL path
+  useEffect(() => {
+    if (location.pathname.startsWith("/organizer") || location.pathname.startsWith("/scanner")) {
+      setPerspective("organizer");
+    } else {
+      setPerspective("attendee");
+    }
+  }, [location.pathname]);
 
   // Database states
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
@@ -144,6 +160,9 @@ export default function App() {
       addToast("error", "Google sign-in did not return credentials. Please try again.");
       return;
     }
+    // Retain the raw Google ID token so the FastAPI scanner service (the QR
+    // authority) can verify identity for the permanent QR endpoint.
+    sessionStorage.setItem("gp_google_id_token", credentialResponse.credential);
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
         method: "POST",
@@ -216,6 +235,7 @@ export default function App() {
     setAuthEmail(null);
     sessionStorage.removeItem("gp_session_token");
     sessionStorage.removeItem("gp_session_email");
+    sessionStorage.removeItem("gp_google_id_token");
     addToast("info", "You have been signed out.");
   };
 
@@ -228,6 +248,11 @@ export default function App() {
       return;
     }
     setPerspective(target);
+    if (target === "organizer") {
+      navigate("/organizer");
+    } else {
+      navigate("/");
+    }
   };
 
   // Load from PostgreSQL through the backend API. If unavailable, keep the app usable with demo data.
@@ -664,6 +689,66 @@ export default function App() {
     persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
   };
 
+  if (!isHydrated) {
+    return (
+      <div className="fixed inset-0 z-[90] bg-background flex flex-col items-center justify-center gap-6">
+        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
+          <Fingerprint className="w-9 h-9" />
+        </div>
+        <MorphText
+          words={["GATEPASS", "SECURE", "VERIFIED", "ACCESS"]}
+          interval={1800}
+          fontSize="clamp(1.8rem, 5vw, 3rem)"
+          fontFamily='"Inter", sans-serif'
+          className="text-charcoal-dark"
+        />
+        <div className="flex items-center gap-2 text-sm text-on-surface-variant">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Connecting to server…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background font-sans text-on-background">
+        <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`pointer-events-auto animate-fadeIn flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border text-sm font-semibold max-w-sm ${
+                toast.type === "success"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                  : toast.type === "error"
+                  ? "bg-red-50 border-red-200 text-red-800"
+                  : toast.type === "warning"
+                  ? "bg-amber-50 border-amber-200 text-amber-800"
+                  : "bg-blue-50 border-blue-200 text-blue-800"
+              }`}
+            >
+              {toast.type === "success" && <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />}
+              {toast.type === "error" && <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />}
+              {toast.type === "warning" && <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />}
+              {toast.type === "info" && <Info className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+              <span>{toast.text}</span>
+              <button
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                className="ml-auto text-current opacity-50 hover:opacity-100 transition-opacity"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+        <LandingPage 
+          onLoginSuccess={handleGoogleLoginSuccess} 
+          onLoginError={handleGoogleLoginError} 
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen md:h-screen bg-background font-sans text-on-background flex flex-col md:overflow-hidden pb-20 md:pb-0">
       {/* Toast Notifications (Issue #2) */}
@@ -695,25 +780,10 @@ export default function App() {
           </div>
         ))}
       </div>
-
-      {/* Loading Skeleton (Issue #9) */}
-      {!isHydrated && (
-        <div className="fixed inset-0 z-[90] bg-background flex flex-col items-center justify-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-            <Fingerprint className="w-9 h-9" />
-          </div>
-          <h2 className="text-xl font-black text-charcoal-dark tracking-tight uppercase">GatePass</h2>
-          <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Connecting to server…</span>
-          </div>
-        </div>
-      )}
       
       {/* Top Bar Navigation (Responsive Sidebar Drawer Trigger) */}
       <header className="w-full bg-white border-b border-outline-variant/30 sticky top-0 z-40 px-6 py-4 flex justify-between items-center md:hidden">
-        <div className="flex items-center gap-3">
-          <Fingerprint className="w-8 h-8 text-primary" />
+        <div className="flex items-center gap-1">
           <div>
             <h1 className="text-base font-black text-charcoal-dark tracking-tight">GatePass</h1>
             <p className="text-[9px] uppercase tracking-wider text-outline font-bold">Organizer &amp; Entry Operating System</p>
@@ -747,16 +817,10 @@ export default function App() {
       }`}>
         <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8">
           {/* Logo and Branding header */}
-          <div className="flex items-center gap-3 px-2 md:px-0">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-white border-2 border-primary">
-              <Fingerprint className="w-6 h-6" />
-            </div>
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-xl md:text-3xl font-black text-charcoal-dark tracking-tighter uppercase">GatePass</h1>
-              <p className="text-[10px] md:text-xs uppercase font-bold bg-charcoal-dark text-white px-2 py-0.5 tracking-widest hidden md:block">PRO</p>
-            </div>
+          <div className="flex items-center gap-1.5 px-2 md:px-0">
+            <h1 className="text-xl md:text-3xl font-black text-charcoal-dark tracking-tighter uppercase leading-none">GatePass</h1>
             {/* Connection status indicator (Issue #9) */}
-            <div className={`w-2.5 h-2.5 rounded-full ml-1 flex-shrink-0 ${
+            <div className={`w-2.5 h-2.5 rounded-full ml-1.5 flex-shrink-0 ${
               backendStatus === "connected" ? "bg-emerald-400" :
               backendStatus === "offline" ? "bg-amber-400" :
               "bg-gray-300 animate-pulse"
@@ -803,134 +867,141 @@ export default function App() {
             {perspective === "attendee" ? (
               /* ATTENDEE ROUTES */
               <>
-                <button
-                  onClick={() => {
-                    setAttendeeSection("home");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    attendeeSection === "home" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/"
+                  end
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
-                  <IdCard className="w-4 h-4 md:hidden" />
-                  <span>Digital Identity</span>
-                </button>
+                  <Sparkles className="w-4 h-4 md:hidden" />
+                  <span>Home</span>
+                </NavLink>
 
-                <button
-                  onClick={() => {
-                    setAttendeeSection("request");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    attendeeSection === "request" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/request"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
                   <Calendar className="w-4 h-4 md:hidden" />
                   <span>Request Temp Access</span>
-                </button>
+                </NavLink>
 
-                <button
-                  onClick={() => {
-                    setAttendeeSection("approvals");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest relative ${
-                    attendeeSection === "approvals" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/approvals"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest relative ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
                   <Bell className="w-4 h-4 md:hidden" />
                   <span>Approvals &amp; Invites</span>
                   {requests.filter(r => r.status === "pending").length > 0 && (
                     <span className="absolute right-4 md:-right-4 md:-top-2 w-5 h-5 md:w-4 md:h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-charcoal-dark">
-                      {requests.filter(r => r.status === "pending").length}
+                      <AnimatedNumber value={requests.filter(r => r.status === "pending").length} className="text-[9px]" />
                     </span>
                   )}
-                </button>
+                </NavLink>
 
-                <button
-                  onClick={() => {
-                    setAttendeeSection("wallet");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    attendeeSection === "wallet" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
-                >
-                  <Smartphone className="w-4 h-4 md:hidden" />
-                  <span>Wallet Sync</span>
-                </button>
 
-                <button
-                  onClick={() => {
-                    setAttendeeSection("events");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    attendeeSection === "events" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/events"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
                   <TicketIcon className="w-4 h-4 md:hidden" />
                   <span>Events &amp; Concerts</span>
-                </button>
+                </NavLink>
               </>
             ) : (
               /* ORGANIZER ROUTES */
               <>
-                <button
-                  onClick={() => {
-                    setOrganizerSection("workspace");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    organizerSection === "workspace" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/organizer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
                   <TrendingUp className="w-4 h-4 md:hidden" />
                   <span>Control Room &amp; Workspace</span>
-                </button>
+                </NavLink>
 
-                <button
-                  onClick={() => {
-                    setOrganizerSection("scanner");
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
-                    organizerSection === "scanner" 
-                      ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                      : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
-                  }`}
+                <NavLink
+                  to="/scanner"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      isActive 
+                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
+                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                    }`
+                  }
                 >
                   <Smartphone className="w-4 h-4 md:hidden" />
                   <span>Gate Checkout Scanner</span>
-                </button>
+                </NavLink>
               </>
             )}
           </nav>
         </div>
 
-        {/* Desktop Sidebar Footer -> Now Header Avatar */}
-        <div className="border-t border-surface-container md:border-t-0 pt-4 md:pt-0 mt-auto md:mt-0 flex flex-col md:flex-row gap-2">
-          <div className="flex items-center gap-3 px-2 md:px-0">
+        {/* Desktop Sidebar Footer -> Now Header Avatar + Social Links */}
+        <div className="border-t border-surface-container md:border-t-0 pt-4 md:pt-0 mt-auto md:mt-0 flex flex-col md:flex-row gap-2 md:items-center">
+          {/* Social Flip Buttons — hidden on mobile, shown on desktop */}
+          <div className="hidden md:block">
+            <SocialFlipButton
+              items={[
+                { letter: "G", icon: <FaGithub />, label: "GitHub", href: "https://github.com" },
+                { letter: "A", icon: <FaLinkedin />, label: "LinkedIn", href: "https://linkedin.com" },
+                { letter: "T", icon: <FaInstagram />, label: "Instagram", href: "https://instagram.com" },
+                { letter: "E", icon: <FaEnvelope />, label: "Email", href: "mailto:hello@gatepass.io" },
+                { letter: "S", icon: <FaGlobe />, label: "Website", href: "#" },
+              ]}
+              className="!p-0 !gap-1"
+            />
+          </div>
+          <div 
+            onClick={() => {
+              if (perspective === "attendee") {
+                navigate("/identity");
+              }
+            }}
+            className="flex items-center gap-3 px-2 md:px-0 cursor-pointer group hover:opacity-80 transition-opacity"
+          >
             <div className="hidden md:block text-right">
-              <h4 className="text-xs font-bold text-charcoal-dark">{user.name}</h4>
+              <h4 className="text-xs font-bold text-charcoal-dark group-hover:text-primary transition-colors">{user.name}</h4>
               <p className="text-[10px] text-outline uppercase font-semibold">Verified Member</p>
             </div>
             <img 
               src={user.avatarUrl} 
               alt={user.name} 
-              className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-outline-variant"
+              className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-outline-variant group-hover:border-primary transition-colors"
             />
             <div className="truncate md:hidden">
               <h4 className="text-xs font-bold text-charcoal-dark truncate">{user.name}</h4>
@@ -949,11 +1020,11 @@ export default function App() {
       )}
 
       {/* Primary Layout Center */}
-      <main className="flex-1 max-w-full px-6 py-6 md:py-10 md:px-10 overflow-x-hidden md:overflow-y-auto">
+      <main className={`flex-1 max-w-full overflow-x-hidden md:overflow-y-auto ${location.pathname === "/" ? "p-0" : "px-6 py-6 md:py-10 md:px-10"}`}>
         
         {/* Offline mode banner (Issue #9) */}
         {backendStatus === "offline" && !offlineBannerDismissed && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4 mx-6 mt-6 md:mx-10 md:mt-10">
             <div className="flex items-center gap-3">
               <WifiOff className="w-5 h-5 text-amber-500 flex-shrink-0" />
               <div>
@@ -972,44 +1043,19 @@ export default function App() {
           </div>
         )}
 
-        {/* Banner Alert advising users on the perspective toggling feature */}
-        <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="bg-primary/10 text-primary p-2 rounded-full flex-shrink-0">
-              <Shield className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-black uppercase text-charcoal-dark tracking-wide">Interactive V1 Live Preview Sandbox</h4>
-              <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
-                Switch perspective nodes at any time! Generate access requests as a user, instantly approve them, and test validation gates using the QR scanner mock simulator.
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
-            className={`whitespace-nowrap py-2 px-4 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm text-center ${
-              perspective === "attendee" && !canAccessOrganizer
-                ? "bg-surface-container text-on-surface-variant"
-                : "bg-charcoal-dark text-white hover:bg-opacity-95"
-            }`}
-          >
-            {perspective === "attendee" && !canAccessOrganizer && <Lock className="w-3 h-3 inline mr-1" />}
-            Swap to {perspective === "attendee" ? "Organizer Console" : "User App"}
-          </button>
-        </div>
-
         {/* Dynamic Route Switching block */}
-        {perspective === "attendee" ? (
-          /* ATTENDEE PANEL COMPONENT MATRIX */
-          <div id="attendee-matrix">
-            {attendeeSection === "home" && (
+        <Routes>
+          <Route path="/" element={<HomeUpdates onViewEvent={() => navigate("/events")} />} />
+          <Route 
+            path="/identity" 
+            element={
               <IdentityCard 
                 user={user}
                 invitePasses={invitePasses}
-                onNavigateToRequest={() => setAttendeeSection("request")}
+                onNavigateToRequest={() => navigate("/request")}
                 onNavigateToWallet={(pass) => {
                   setSelectedWalletPass(pass);
-                  setAttendeeSection("wallet");
+                  navigate("/wallet");
                 }}
                 onLoginSuccess={handleGoogleLoginSuccess}
                 onLoginError={handleGoogleLoginError}
@@ -1017,16 +1063,20 @@ export default function App() {
                 isAuthenticated={isAuthenticated}
                 authEmail={authEmail}
               />
-            )}
-
-            {attendeeSection === "request" && (
+            } 
+          />
+          <Route 
+            path="/request" 
+            element={
               <RequestAccessForm 
-                onBack={() => setAttendeeSection("home")}
+                onBack={() => navigate("/")}
                 onSubmitRequest={handleAddRequest}
               />
-            )}
-
-            {attendeeSection === "approvals" && (
+            } 
+          />
+          <Route 
+            path="/approvals" 
+            element={
               <ApprovalsInvites 
                 requests={requests}
                 invites={invitePasses}
@@ -1035,27 +1085,30 @@ export default function App() {
                 onRevokeInvite={handleRevokeInvite}
                 onResendInvite={handleResendInvite}
               />
-            )}
-
-            {attendeeSection === "wallet" && (
+            } 
+          />
+          <Route 
+            path="/wallet" 
+            element={
               <WalletSync 
                 user={user}
                 selectedPass={selectedWalletPass}
               />
-            )}
-
-            {attendeeSection === "events" && (
+            } 
+          />
+          <Route 
+            path="/events" 
+            element={
               <AttendeeEventsList 
                 events={events}
                 user={user}
                 onBookTicket={handleBookTicket}
               />
-            )}
-          </div>
-        ) : (
-          /* ORGANIZER PANEL COMPONENT MATRIX */
-          <div id="organizer-matrix">
-            {organizerSection === "workspace" && (
+            } 
+          />
+          <Route 
+            path="/organizer" 
+            element={
               <OrganizerWorkspace 
                 events={events}
                 orders={orders}
@@ -1067,47 +1120,58 @@ export default function App() {
                 onIssueManualTicket={handleIssueManualTicket}
                 onProcessRefund={handleProcessRefund}
               />
-            )}
-
-            {organizerSection === "scanner" && (
+            } 
+          />
+          <Route 
+            path="/scanner" 
+            element={
               <QRScannerSimulation 
                 tickets={tickets}
                 events={events}
                 scanLogs={scanLogs}
                 onLogScan={handleLogScan}
               />
-            )}
-          </div>
-        )}
+            } 
+          />
+          {/* Catch-all redirect to / */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       {/* Mobile Bottom Navigation Sticky Bar (Matches mockups strictly for touch convenience) */}
       <nav className="fixed bottom-0 left-0 w-full z-40 bg-white border-t border-outline-variant/30 py-2.5 px-4 flex justify-around items-center md:hidden shadow-lg">
         {perspective === "attendee" ? (
           <>
-            <button
-              onClick={() => setAttendeeSection("home")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                attendeeSection === "home" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
-              <IdCard className="w-5 h-5" />
+              <Sparkles className="w-5 h-5" />
               <span>Home</span>
-            </button>
-            <button
-              onClick={() => setAttendeeSection("request")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                attendeeSection === "request" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            </NavLink>
+            <NavLink
+              to="/request"
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
               <Calendar className="w-5 h-5" />
               <span>Requests</span>
-            </button>
-            <button
-              onClick={() => setAttendeeSection("approvals")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider relative cursor-pointer ${
-                attendeeSection === "approvals" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            </NavLink>
+            <NavLink
+              to="/approvals"
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider relative cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
               <Bell className="w-5 h-5" />
               <span>Invites</span>
@@ -1116,46 +1180,44 @@ export default function App() {
                   {requests.filter(r => r.status === "pending").length}
                 </span>
               )}
-            </button>
-            <button
-              onClick={() => setAttendeeSection("wallet")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                attendeeSection === "wallet" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
-            >
-              <Smartphone className="w-5 h-5" />
-              <span>Wallet</span>
-            </button>
-            <button
-              onClick={() => setAttendeeSection("events")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                attendeeSection === "events" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            </NavLink>
+
+            <NavLink
+              to="/events"
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
               <Sparkles className="w-5 h-5" />
               <span>Events</span>
-            </button>
+            </NavLink>
           </>
         ) : (
           <>
-            <button
-              onClick={() => setOrganizerSection("workspace")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                organizerSection === "workspace" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            <NavLink
+              to="/organizer"
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
               <TrendingUp className="w-5 h-5" />
               <span>Control Room</span>
-            </button>
-            <button
-              onClick={() => setOrganizerSection("scanner")}
-              className={`flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                organizerSection === "scanner" ? "text-primary font-extrabold" : "text-on-surface-variant"
-              }`}
+            </NavLink>
+            <NavLink
+              to="/scanner"
+              className={({ isActive }) => 
+                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
             >
               <Smartphone className="w-5 h-5" />
               <span>Scanner Gate</span>
-            </button>
+            </NavLink>
           </>
         )}
       </nav>
