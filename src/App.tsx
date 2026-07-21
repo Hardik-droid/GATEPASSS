@@ -156,6 +156,29 @@ export default function App() {
   });
 
   const handleGoogleLoginSuccess = async (credentialResponse: any) => {
+    if (credentialResponse.userProfile) {
+      const profile = credentialResponse.userProfile;
+      const updatedUser = {
+        ...user,
+        id: profile.sub || profile.id || user.id,
+        name: profile.name || user.name,
+        email: profile.email || user.email,
+        avatarUrl: profile.picture || profile.avatarUrl || user.avatarUrl,
+      };
+      setUser(updatedUser);
+      setIsAuthenticated(true);
+      setAuthEmail(profile.email || null);
+      sessionStorage.setItem("gp_session_token", `gp_session_${profile.sub || profile.id}`);
+      if (profile.email) {
+        sessionStorage.setItem("gp_session_email", profile.email);
+      }
+      if (credentialResponse.credential) {
+        sessionStorage.setItem("gp_google_id_token", credentialResponse.credential);
+      }
+      addToast("success", `Signed in as ${profile.name || profile.email}`);
+      return;
+    }
+
     if (!credentialResponse.credential) {
       addToast("error", "Google sign-in did not return credentials. Please try again.");
       return;
