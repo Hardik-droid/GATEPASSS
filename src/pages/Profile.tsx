@@ -20,7 +20,10 @@ import {
   AlertTriangle,
   XCircle,
   ArrowLeft,
-  Smartphone
+  Smartphone,
+  Copy,
+  Check,
+  Sparkles
 } from "lucide-react";
 
 interface IdentityCardProps {
@@ -81,7 +84,6 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
   }
 
   if (text.includes("today")) {
-    // Check for "expires: today, 2:00 pm" or similar
     const expMatch = text.match(/expires:\s*today,\s*(\d{1,2}):(\d{2})\s*(am|pm)/) || text.match(/exp:\s*(\d{1,2}):(\d{2})/);
     if (expMatch) {
       const [_, h, m, ap] = expMatch;
@@ -100,7 +102,6 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
       return "ACTIVE";
     }
 
-    // Check for "valid: today, 2:00 pm - 6:00 pm"
     const rangeMatch = text.match(/(\d{1,2}):(\d{2})\s*(am|pm)\s*-\s*(\d{1,2}):(\d{2})\s*(am|pm)/);
     if (rangeMatch) {
       const [_, sh, sm, sap, eh, em, eap] = rangeMatch;
@@ -137,7 +138,6 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
     return "ACTIVE";
   }
 
-  // 24/7 gate entry
   if (text.includes("24/7") || text.includes("allowed") || text.includes("standard")) {
     return "ACTIVE";
   }
@@ -158,8 +158,6 @@ export default function IdentityCard({
 }: IdentityCardProps) {
   const [viewMode, setViewMode] = useState<"access" | "badge">("badge");
   const [copiedText, setCopiedText] = useState(false);
-
-  // Permanent QR code state
   const [permanentQr, setPermanentQr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -168,52 +166,68 @@ export default function IdentityCard({
       .catch((err) => console.error("Failed to load permanent QR code:", err));
   }, []);
 
-  // Combine hardcoded and dynamic passes
   const allPasses = [...SIMULATED_PASSES, ...invitePasses];
-
   const activePasses = allPasses.filter(p => getPassStatus(p) === "ACTIVE");
   const upcomingPasses = allPasses.filter(p => getPassStatus(p) === "UPCOMING");
   const expiredPasses = allPasses.filter(p => getPassStatus(p) === "EXPIRED");
 
   const handleCopyCode = (code: string) => {
+    if (!code) return;
     navigator.clipboard.writeText(code);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
   };
 
   return (
-    <div className="flex flex-col gap-6" id="identity-card-section">
-      {/* Page Header with Back Icon */}
-      <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-outline-variant/30 shadow-sm">
-        <Link to="/" className="p-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <h2 className="text-base font-black text-charcoal-dark uppercase tracking-tight">Digital Identity</h2>
-          <p className="text-[10px] text-outline uppercase font-semibold">Verified Member Badge &amp; Clearance Level</p>
+    <div className="flex flex-col gap-6 animate-fadeIn max-w-7xl mx-auto" id="identity-card-section">
+      {/* Page Header */}
+      <div className="flex items-center justify-between bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl p-4 md:p-5 rounded-3xl border border-neutral-200/60 dark:border-white/10 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex items-center gap-4 relative z-10">
+          <Link 
+            to="/" 
+            className="p-2.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white border border-neutral-200/50 dark:border-white/10 transition-all flex items-center justify-center shadow-sm active:scale-95"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-neutral-900 dark:text-white">
+                Digital Identity
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                PRO VERIFIED
+              </span>
+            </div>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
+              Verified Member Pass &amp; Campus Gate Credentials
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* View Switcher Bar */}
-      <div className="flex justify-between items-center bg-surface-container-high/60 p-1 rounded-xl">
+      {/* View Switcher Segmented Control */}
+      <div className="bg-neutral-200/70 dark:bg-neutral-900/80 p-1.5 rounded-2xl border border-neutral-300/50 dark:border-white/10 backdrop-blur-lg flex gap-2 shadow-inner">
         <button
           id="toggle-badge-view"
           onClick={() => setViewMode("badge")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${viewMode === "badge"
-              ? "bg-white text-primary shadow-sm font-bold"
-              : "text-on-secondary-fixed-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+            viewMode === "badge"
+              ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 scale-[1.01]"
+              : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+          }`}
         >
           <IdCard className="w-4 h-4" />
-          <span>Digital Identity Card</span>
+          <span>Identity Badge</span>
         </button>
         <button
           id="toggle-access-view"
           onClick={() => setViewMode("access")}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${viewMode === "access"
-              ? "bg-white text-primary shadow-sm font-bold"
-              : "text-on-secondary-fixed-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+            viewMode === "access"
+              ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 scale-[1.01]"
+              : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+          }`}
         >
           <Fingerprint className="w-4 h-4" />
           <span>Access Overview</span>
@@ -223,44 +237,53 @@ export default function IdentityCard({
       {viewMode === "badge" ? (
         /* SCREEN 2: DIGITAL ID HERO VIEW */
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6" id="badge-view-container">
-          {/* Left Column: Digital Identity Hero */}
-          <div className="md:col-span-5 lg:col-span-5">
-            <div className="bg-primary text-on-primary rounded-2xl overflow-hidden shadow-lg border border-white/10 flex flex-col">
-              {/* Verified Ribbon */}
-              <div className="bg-status-success px-4 py-2 flex justify-between items-center text-white">
-                <span className="text-xs font-bold uppercase tracking-wider">Verified Member</span>
-                <ShieldCheck className="w-4 h-4" />
+          {/* Left Column: Digital Identity Hero Pass */}
+          <div className="md:col-span-5 flex flex-col gap-5">
+            <div className="bg-gradient-to-b from-neutral-900 via-neutral-950 to-black text-white rounded-3xl overflow-hidden shadow-2xl border border-white/15 flex flex-col relative group">
+              {/* Decorative Holographic Glow Orbs */}
+              <div className="absolute top-[-20%] left-[-20%] w-60 h-60 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none group-hover:bg-cyan-500/30 transition-all duration-700" />
+              <div className="absolute bottom-[-20%] right-[-20%] w-60 h-60 bg-[#ff2bd6]/15 rounded-full blur-3xl pointer-events-none group-hover:bg-[#ff2bd6]/25 transition-all duration-700" />
+
+              {/* Holographic Top Banner */}
+              <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-2.5 flex justify-between items-center text-black font-black text-xs uppercase tracking-widest shadow-md">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-black animate-ping" />
+                  <span>Verified Member Pass</span>
+                </div>
+                <ShieldCheck className="w-4 h-4 text-black" />
               </div>
 
-              {/* Card Body */}
-              <div className="p-6 flex flex-col items-center text-center">
-                <div className="relative group mb-4">
+              {/* Card Main Body */}
+              <div className="p-6 md:p-8 flex flex-col items-center text-center relative z-10">
+                {/* Profile Avatar with Neon Ring */}
+                <div className="relative mb-4 group/avatar">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-cyan-400 via-purple-500 to-[#ff2bd6] blur-md opacity-70 group-hover/avatar:opacity-100 transition-opacity" />
                   <img
                     src={user.avatarUrl}
                     alt={user.name}
-                    className="w-24 h-24 rounded-full object-cover border-4 border-surface-container-low shadow-md"
+                    className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-black relative z-10 shadow-2xl"
                   />
-                  <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <span className="text-[10px] text-white font-medium uppercase tracking-wider">In Office</span>
-                  </div>
+                  <span className="absolute bottom-1 right-1 z-20 w-4 h-4 bg-emerald-400 border-2 border-black rounded-full shadow" title="Active Clearance" />
                 </div>
 
-                <h2 className="text-2xl font-bold tracking-tight text-white mb-1">{user.name}</h2>
-                <p className="text-sm text-primary-fixed opacity-90 mb-3">
+                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-1">
+                  {user.name}
+                </h2>
+                <p className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-4 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20">
                   Student • ID: {user.studentId}
                 </p>
 
-                {/* Google login state conditional display */}
+                {/* Google Sign In status info */}
                 {isAuthenticated && authEmail ? (
-                  <div className="mb-4 flex flex-col items-center gap-2 bg-white/10 px-4 py-2.5 rounded-xl border border-white/15 backdrop-blur-sm w-full max-w-[220px]">
-                    <div className="flex items-center gap-1.5 text-xs text-white/95 w-full justify-center">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <div className="mb-5 flex flex-col items-center gap-2 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10 backdrop-blur-md w-full max-w-[240px]">
+                    <div className="flex items-center gap-2 text-xs text-white/90 w-full justify-center">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
                       <span className="font-semibold truncate max-w-[170px]" title={authEmail}>{authEmail}</span>
                     </div>
                     {onLogout && (
                       <button
                         onClick={onLogout}
-                        className="flex items-center justify-center gap-1 text-[9px] uppercase font-black tracking-wider text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg transition-all w-full cursor-pointer"
+                        className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1 rounded-xl transition-all w-full cursor-pointer border border-white/10"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Sign Out</span>
@@ -268,168 +291,210 @@ export default function IdentityCard({
                     )}
                   </div>
                 ) : (
-                  onLoginSuccess && (
-                    <div className="mb-4 flex justify-center scale-90">
+                  onLoginSuccess ? (
+                    <div className="mb-5 flex justify-center scale-95">
                       <GoogleLogin
                         onSuccess={onLoginSuccess}
                         onError={onLoginError || (() => console.error("Google Login failed"))}
                       />
                     </div>
-                  )
+                  ) : null
                 )}
 
                 {/* Permanent QR Code Container */}
-                <div className="bg-white p-3.5 rounded-2xl shadow-sm mb-3 relative group w-48 flex flex-col items-center gap-2.5">
-                  <div className="w-40 h-40 bg-white flex items-center justify-center border border-outline-variant/30 rounded-xl overflow-hidden p-1 relative">
+                <div className="bg-white p-4 rounded-3xl shadow-2xl mb-4 relative group/qr flex flex-col items-center gap-3 border-4 border-white/20 transition-transform duration-300 hover:scale-[1.02]">
+                  <div className="w-44 h-44 bg-white flex items-center justify-center border border-neutral-200 rounded-2xl overflow-hidden p-2 relative shadow-inner">
                     {permanentQr ? (
                       <QRCodeSVG
                         value={permanentQr}
-                        size={144}
+                        size={160}
                         level="H"
                         includeMargin={false}
                       />
                     ) : (
-                      <div className="text-[10px] text-outline font-semibold animate-pulse">Loading QR...</div>
+                      <div className="text-xs text-neutral-400 font-bold uppercase tracking-wider animate-pulse flex flex-col items-center gap-2">
+                        <QrCode className="w-8 h-8 text-neutral-300" />
+                        <span>Loading QR...</span>
+                      </div>
                     )}
                   </div>
 
-                  <div className="text-center">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-status-success">
-                      ● Active Permanent QR
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-800">
+                      Permanent Clearance QR
                     </span>
                   </div>
                 </div>
 
+                {/* Copy QR payload button */}
                 <button
                   onClick={() => handleCopyCode(permanentQr || "")}
-                  className="font-mono text-sm tracking-widest text-white/80 hover:text-white transition-colors cursor-pointer"
+                  disabled={!permanentQr}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-mono text-xs font-black uppercase tracking-widest text-cyan-400 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
                   title="Click to copy QR payload"
                 >
-                  {copiedText ? "COPIED!" : (permanentQr ? "VIEW PAYLOAD" : "SECURE PASS")}
+                  {copiedText ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400">PAYLOAD COPIED!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-cyan-400" />
+                      <span>{permanentQr ? "COPY QR PAYLOAD" : "SECURE PASS LOAD"}</span>
+                    </>
+                  )}
                 </button>
               </div>
 
-              {/* Card Footer Quick Actions */}
-              <div className="bg-charcoal-dark/20 grid grid-cols-2 divide-x divide-white/15 border-t border-white/10 text-white/90">
+              {/* Quick Action Footer */}
+              <div className="bg-neutral-900/80 grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 text-white">
                 <button
                   id="action-show-id"
-                  className="py-3 flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-semibold tracking-wider uppercase cursor-pointer"
+                  className="py-3.5 flex items-center justify-center gap-2 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-black tracking-widest uppercase cursor-pointer text-neutral-300 hover:text-white"
                 >
-                  <IdCard className="w-4 h-4 text-white" />
-                  <span>Show ID</span>
+                  <IdCard className="w-4 h-4 text-cyan-400" />
+                  <span>Show Badge</span>
                 </button>
                 <button
                   id="action-view-logs"
-                  className="py-3 flex flex-col items-center justify-center gap-1 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-semibold tracking-wider uppercase cursor-pointer"
+                  className="py-3.5 flex items-center justify-center gap-2 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-black tracking-widest uppercase cursor-pointer text-neutral-300 hover:text-white"
                 >
-                  <History className="w-4 h-4 text-white" />
-                  <span>Logs</span>
+                  <History className="w-4 h-4 text-[#ff2bd6]" />
+                  <span>Audit Logs</span>
                 </button>
               </div>
             </div>
 
-            {/* Wallet Sync Quick Action Banner */}
-            <div className="mt-4 bg-white rounded-2xl p-4 shadow-sm border border-outline-variant/30 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-xl text-primary">
+            {/* Apple & Google Wallet Banner */}
+            <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-neutral-950 rounded-2xl p-4 border border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
+              <div className="flex items-center gap-3.5">
+                <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl text-white shadow-md shadow-cyan-500/20">
                   <Smartphone className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-charcoal-dark uppercase tracking-wider">Sync To Apple &amp; Google Wallet</h4>
-                  <p className="text-[10px] text-outline mt-0.5">Generate passes and push securely to your device</p>
+                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Sync To Apple &amp; Google Wallet</h4>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">Export passes directly to your phone wallet</p>
                 </div>
               </div>
               <Link 
                 to="/wallet" 
-                className="p-2 rounded-lg bg-surface-container hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center cursor-pointer"
+                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all flex items-center justify-center cursor-pointer hover:border-cyan-400"
                 title="Wallet Settings"
               >
-                <ChevronRight className="w-4 h-4 text-primary" />
+                <ChevronRight className="w-4 h-4 text-cyan-400" />
               </Link>
             </div>
           </div>
 
-          {/* Right Column: Today's Access Metrics & Active Pass Items */}
-          <div className="md:col-span-7 lg:col-span-7 flex flex-col gap-6">
-            {/* Today's Access Bento Bento Boxes */}
-            <div>
-              <h3 className="text-lg font-bold text-charcoal-dark mb-3">Today's Access</h3>
+          {/* Right Column: Access Metrics & Active Passes */}
+          <div className="md:col-span-7 flex flex-col gap-6">
+            {/* Today's Access Metrics Bento Grid */}
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-black uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Today's Access Overview</span>
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Metric 1: Current Zone */}
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col">
+                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-xl flex flex-col justify-between hover:border-cyan-500/30 transition-all group">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Current Zone</span>
-                    <MapPin className="w-4 h-4 text-primary" />
+                    <span className="text-[11px] font-black text-neutral-500 uppercase tracking-widest">Current Location</span>
+                    <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                      <MapPin className="w-4 h-4" />
+                    </div>
                   </div>
-                  <span className="text-xl font-extrabold text-charcoal-dark">{user.currentZone}</span>
-                  <span className="text-xs text-status-success font-medium mt-2 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" /> Since 08:32 AM
+                  <span className="text-2xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">
+                    {user.currentZone}
+                  </span>
+                  <span className="text-xs text-emerald-500 font-bold mt-3 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5" /> Logged Entry • 08:32 AM
                   </span>
                 </div>
 
                 {/* Metric 2: Clearance Level */}
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col">
+                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-xl flex flex-col justify-between hover:border-[#ff2bd6]/30 transition-all group">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Clearance Level</span>
-                    <ShieldCheck className="w-4 h-4 text-status-warning" />
+                    <span className="text-[11px] font-black text-neutral-500 uppercase tracking-widest">Clearance Level</span>
+                    <div className="p-2 rounded-xl bg-[#ff2bd6]/10 text-[#ff2bd6] border border-[#ff2bd6]/20 group-hover:scale-110 transition-transform">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
                   </div>
-                  <span className="text-xl font-extrabold text-charcoal-dark">{user.clearanceLevel || "Level 2"}</span>
-                  <span className="text-xs text-on-surface-variant mt-2 font-medium">Standard Academic</span>
+                  <span className="text-2xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">
+                    {user.clearanceLevel || "Level 2"}
+                  </span>
+                  <span className="text-xs text-neutral-400 font-bold mt-3">
+                    Standard Academic &amp; Event Clearance
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Active Passes Section */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-charcoal-dark">Active Passes</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-emerald-400" />
+                  <span>Active Passes ({activePasses.length})</span>
+                </h3>
                 <button
                   onClick={() => setViewMode("access")}
-                  className="text-xs font-bold text-primary hover:underline tracking-wider uppercase cursor-pointer"
+                  className="text-xs font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest cursor-pointer flex items-center gap-1"
                 >
-                  View All ({activePasses.length})
+                  <span>View All</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3.5">
                 {activePasses.length === 0 ? (
-                  <div className="bg-white rounded-xl p-6 shadow-sm border border-outline-variant/30 text-center flex flex-col items-center gap-2">
-                    <QrCode className="w-8 h-8 text-outline-variant" />
-                    <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">No Active Passes Today</p>
-                    <p className="text-[11px] text-outline">Request temporary access below to get started.</p>
+                  <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
+                    <QrCode className="w-10 h-10 text-neutral-400" />
+                    <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Active Passes Today</p>
+                    <p className="text-[11px] text-neutral-500">Request temporary access below to obtain gate passes.</p>
                   </div>
                 ) : (
                   activePasses.map((pass) => (
                     <div
                       key={pass.id}
                       onClick={() => onNavigateToWallet(pass)}
-                      className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex items-center justify-between group cursor-pointer hover:bg-surface-container-low transition-colors"
+                      className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between group cursor-pointer hover:border-emerald-500/50 hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-status-success/10 flex items-center justify-center text-status-success flex-shrink-0">
-                          <CheckCircle className="w-5 h-5" />
+                      <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-emerald-500 rounded-l-2xl" />
+
+                      <div className="flex items-center gap-4 pl-2">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
+                          <CheckCircle className="w-6 h-6" />
                         </div>
                         <div>
-                          <h4 className="font-semibold text-charcoal-dark">{pass.title} ({pass.subCategory})</h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="bg-emerald-50 border border-emerald-100 text-status-success px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
                               {pass.category}
                             </span>
-                            <span className="font-mono text-[11px] text-on-surface-variant">{pass.validityText}</span>
+                            <span className="text-xs font-bold text-neutral-500">{pass.subCategory}</span>
                           </div>
+                          <h4 className="font-black text-base text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h4>
+                          <p className="font-mono text-xs text-neutral-400 mt-0.5">{pass.validityText}</p>
                         </div>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-outline-variant group-hover:text-status-success transition-colors" />
+
+                      <div className="flex items-center gap-2">
+                        <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/20">
+                          {pass.usageText}
+                        </span>
+                        <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                      </div>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* Request Access Button — AnimatedButton with shimmer */}
+              {/* Request Access Button */}
               <AnimatedButton
                 id="btn-trigger-request-access"
                 onClick={onNavigateToRequest}
-                className="!mt-5 !w-full !bg-charcoal-dark !text-white !py-3.5 !px-6 !rounded-xl !font-bold !text-xs !tracking-wider !border-charcoal-dark [--shine:rgba(255,255,255,.66)]"
+                className="!mt-2 !w-full !bg-gradient-to-r !from-cyan-500 !to-blue-600 !text-white !py-4 !px-6 !rounded-2xl !font-black !text-xs !uppercase !tracking-widest !shadow-xl !shadow-cyan-500/20 hover:!opacity-95 active:!scale-[0.99] transition-all"
               >
                 <Plus className="w-4 h-4" />
                 <span>Request Temporary Access</span>
@@ -438,99 +503,99 @@ export default function IdentityCard({
           </div>
         </div>
       ) : (
-        /* SCREEN 1: ACCESS PASSS OVERVIEW VIEW */
-        <div className="flex flex-col gap-6 animate-fadeIn" id="access-view-container">
+        /* SCREEN 1: ACCESS PASSES OVERVIEW VIEW */
+        <div className="flex flex-col gap-8 animate-fadeIn" id="access-view-container">
           {/* Default Access Cards Row */}
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-primary" />
+          <section className="flex flex-col gap-4">
+            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-cyan-400" />
               <span>Default Campus Access Permissions</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Card 1: Main Gate */}
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-bold text-charcoal-dark text-sm">Main Gate</p>
-                    <p className="text-xs text-on-surface-variant">24/7 Gate Entry Allowed</p>
+                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Main Gate</p>
+                    <p className="text-xs text-neutral-400 font-medium">24/7 Gate Entry Allowed</p>
                   </div>
                 </div>
-                <CheckCircle className="w-5 h-5 text-status-success" />
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
               </div>
 
               {/* Card 2: Library */}
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-bold text-charcoal-dark text-sm">Library Complex</p>
-                    <p className="text-xs text-on-surface-variant">Standard Operating Hours</p>
+                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Library Complex</p>
+                    <p className="text-xs text-neutral-400 font-medium">Standard Operating Hours</p>
                   </div>
                 </div>
-                <CheckCircle className="w-5 h-5 text-status-success" />
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
               </div>
 
               {/* Card 3: Academic Block */}
-              <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                     <MapPin className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-bold text-charcoal-dark text-sm">Academic Block A/B</p>
-                    <p className="text-xs text-on-surface-variant">Authorized Student Zones</p>
+                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Academic Block A/B</p>
+                    <p className="text-xs text-neutral-400 font-medium">Authorized Student Zones</p>
                   </div>
                 </div>
-                <CheckCircle className="w-5 h-5 text-status-success" />
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
               </div>
             </div>
           </section>
 
           {/* Active Temporary Passes List */}
           <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-              <QrCode className="w-4 h-4 text-status-warning" />
+            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-emerald-400" />
               <span>Active Temporary &amp; Guest Passes ({activePasses.length})</span>
             </h2>
 
             <div className="flex flex-col gap-4">
               {activePasses.length === 0 ? (
-                <div className="bg-white rounded-xl p-8 shadow-sm border border-outline-variant/20 text-center flex flex-col items-center gap-2">
-                  <QrCode className="w-10 h-10 text-outline-variant" />
-                  <p className="text-sm font-bold text-on-surface-variant uppercase tracking-wide">No Active Passes</p>
+                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
+                  <QrCode className="w-10 h-10 text-neutral-400" />
+                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Active Passes</p>
                 </div>
               ) : (
                 activePasses.map((pass) => (
                   <div
                     key={pass.id}
                     onClick={() => onNavigateToWallet(pass)}
-                    className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-l-status-success transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden"
+                    className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border-l-4 border-l-emerald-500 border border-neutral-200/60 dark:border-white/10 shadow-xl transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group"
                   >
-                    <div className="absolute right-0 top-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none"></div>
+                    <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-emerald-500/20 transition-all"></div>
 
                     <div className="flex flex-col gap-1 z-10">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-emerald-50 text-status-success border border-emerald-100">
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
                           {pass.category}
                         </span>
-                        <p className="text-xs text-on-surface-variant font-medium">{pass.subCategory}</p>
+                        <p className="text-xs text-neutral-400 font-bold">{pass.subCategory}</p>
                       </div>
-                      <h3 className="text-lg font-bold text-charcoal-dark">{pass.title}</h3>
-                      <p className="text-xs font-mono text-primary font-semibold">ID: {pass.passIdCode}</p>
+                      <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h3>
+                      <p className="text-xs font-mono text-cyan-400 font-bold">ID: {pass.passIdCode}</p>
                     </div>
 
                     <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-1.5 font-semibold text-sm text-status-success">
+                      <div className="flex items-center gap-2 font-bold text-sm text-emerald-400">
                         <Clock className="w-4 h-4" />
                         <span>{pass.validityText}</span>
                       </div>
 
-                      <div className="bg-surface-container-low px-2.5 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant tracking-wider uppercase w-max">
+                      <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-300 tracking-widest uppercase w-max">
                         {pass.usageText}
                       </div>
                     </div>
@@ -542,44 +607,44 @@ export default function IdentityCard({
 
           {/* Upcoming Temporary Passes List */}
           <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" />
+            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <Clock className="w-4 h-4 text-cyan-400" />
               <span>Upcoming Passes ({upcomingPasses.length})</span>
             </h2>
 
             <div className="flex flex-col gap-4">
               {upcomingPasses.length === 0 ? (
-                <div className="bg-white rounded-xl p-8 shadow-sm border border-outline-variant/20 text-center flex flex-col items-center gap-2">
-                  <Clock className="w-10 h-10 text-outline-variant" />
-                  <p className="text-sm font-bold text-on-surface-variant uppercase tracking-wide">No Upcoming Passes</p>
+                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
+                  <Clock className="w-10 h-10 text-neutral-400" />
+                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Upcoming Passes</p>
                 </div>
               ) : (
                 upcomingPasses.map((pass) => (
                   <div
                     key={pass.id}
                     onClick={() => onNavigateToWallet(pass)}
-                    className="bg-white rounded-xl p-5 shadow-sm border-l-4 border-l-primary transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden"
+                    className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border-l-4 border-l-cyan-500 border border-neutral-200/60 dark:border-white/10 shadow-xl transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group"
                   >
-                    <div className="absolute right-0 top-0 w-24 h-24 bg-primary/5 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none"></div>
+                    <div className="absolute right-0 top-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-cyan-500/20 transition-all"></div>
 
                     <div className="flex flex-col gap-1 z-10">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-primary/5 text-primary border border-primary/10">
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-wider">
                           {pass.category}
                         </span>
-                        <p className="text-xs text-on-surface-variant font-medium">{pass.subCategory}</p>
+                        <p className="text-xs text-neutral-400 font-bold">{pass.subCategory}</p>
                       </div>
-                      <h3 className="text-lg font-bold text-charcoal-dark">{pass.title}</h3>
-                      <p className="text-xs font-mono text-primary font-semibold">ID: {pass.passIdCode}</p>
+                      <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h3>
+                      <p className="text-xs font-mono text-cyan-400 font-bold">ID: {pass.passIdCode}</p>
                     </div>
 
                     <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-1.5 font-semibold text-sm text-primary">
+                      <div className="flex items-center gap-2 font-bold text-sm text-cyan-400">
                         <Clock className="w-4 h-4" />
                         <span>{pass.validityText}</span>
                       </div>
 
-                      <div className="bg-surface-container-low px-2.5 py-1 rounded-lg text-[10px] font-bold text-on-surface-variant tracking-wider uppercase w-max">
+                      <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-300 tracking-widest uppercase w-max">
                         {pass.usageText}
                       </div>
                     </div>
@@ -591,43 +656,41 @@ export default function IdentityCard({
 
           {/* Expired / Revoked Passes List */}
           <section className="flex flex-col gap-4">
-            <h2 className="text-sm font-bold text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-status-danger" />
+            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-500" />
               <span>Expired &amp; Revoked Passes ({expiredPasses.length})</span>
             </h2>
 
             <div className="flex flex-col gap-4 font-sans">
               {expiredPasses.length === 0 ? (
-                <div className="bg-white rounded-xl p-8 shadow-sm border border-outline-variant/20 text-center flex flex-col items-center gap-2">
-                  <AlertTriangle className="w-10 h-10 text-outline-variant" />
-                  <p className="text-sm font-bold text-on-surface-variant uppercase tracking-wide">No Expired Passes</p>
+                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
+                  <AlertTriangle className="w-10 h-10 text-neutral-400" />
+                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Expired Passes</p>
                 </div>
               ) : (
                 expiredPasses.map((pass) => (
                   <div
                     key={pass.id}
-                    className="bg-white opacity-60 rounded-xl p-5 shadow-sm border-l-4 border-l-status-danger flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden"
+                    className="bg-white/50 dark:bg-neutral-900/40 opacity-70 rounded-2xl p-5 border-l-4 border-l-rose-500/60 border border-neutral-200/40 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden"
                   >
-                    <div className="absolute right-0 top-0 w-24 h-24 bg-red-500/5 rounded-full blur-xl -mr-8 -mt-8 pointer-events-none"></div>
-
                     <div className="flex flex-col gap-1 z-10">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-red-50 text-status-danger border border-red-100">
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-wider">
                           {pass.category}
                         </span>
-                        <p className="text-xs text-on-surface-variant font-medium">{pass.subCategory}</p>
+                        <p className="text-xs text-neutral-500 font-bold">{pass.subCategory}</p>
                       </div>
-                      <h3 className="text-lg font-bold text-charcoal-dark line-through">{pass.title}</h3>
-                      <p className="text-xs font-mono text-outline font-semibold">ID: {pass.passIdCode}</p>
+                      <h3 className="text-xl font-black text-neutral-900 dark:text-white line-through uppercase tracking-tight">{pass.title}</h3>
+                      <p className="text-xs font-mono text-neutral-500 font-bold">ID: {pass.passIdCode}</p>
                     </div>
 
                     <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-1.5 font-semibold text-sm text-status-danger">
+                      <div className="flex items-center gap-2 font-bold text-sm text-rose-400">
                         <XCircle className="w-4 h-4" />
                         <span>{pass.validityText}</span>
                       </div>
 
-                      <div className="bg-surface-container-low px-2.5 py-1 rounded-lg text-[10px] font-bold text-outline tracking-wider uppercase w-max">
+                      <div className="bg-white/5 border border-white/5 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-500 tracking-widest uppercase w-max">
                         {pass.usageText}
                       </div>
                     </div>
