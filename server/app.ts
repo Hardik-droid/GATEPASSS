@@ -9,14 +9,17 @@ import { config } from "./config";
 import { errorHandler, HttpError, notFoundHandler } from "./errors";
 import type { AppStateStore } from "./store";
 import { statePayloadSchema } from "./validation";
+import { createNeonVerifier, makeAuthenticateNeon, type NeonVerifier } from "./neonAuth";
 
 interface CreateAppOptions {
   store: AppStateStore;
   staticDir?: string;
+  neonVerifier?: NeonVerifier;
 }
 
-export function createApp({ store, staticDir }: CreateAppOptions) {
+export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) {
   const app = express();
+  const authenticateNeon = makeAuthenticateNeon(neonVerifier ?? createNeonVerifier());
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -48,66 +51,10 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
-  app.post("/api/auth/google-login", async (req, res, next) => {
-    try {
-      const { idToken } = req.body;
-      if (!idToken) {
-        throw new HttpError(400, "idToken is required");
-      }
+  // User identity is Neon Auth only. Google-token exchange and gp_session_*
+  // strings are gone; user endpoints verify a Neon Auth JWT via JWKS.
 
-      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`);
-      if (!response.ok) {
-        throw new HttpError(401, "Invalid Google ID token");
-      }
-
-      const payload = (await response.json()) as {
-        aud: string;
-        sub: string;
-        email: string;
-        name?: string;
-        picture?: string;
-      };
-
-      if (config.GOOGLE_CLIENT_ID && payload.aud !== config.GOOGLE_CLIENT_ID) {
-        throw new HttpError(401, "Audience mismatch");
-      }
-
-      // Allowed all emails to let anyone use it as attendee
-
-      const user = {
-        id: payload.sub,
-        name: payload.name || "Google User",
-        email: payload.email,
-        avatarUrl: payload.picture || "",
-      };
-
-      res.json({
-        success: true,
-        user,
-        token: `gp_session_${payload.sub}`,
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  const authenticateSession = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      next(new HttpError(401, "Unauthorized: Session token is missing. Please sign in with Google."));
-      return;
-    }
-
-    const token = authHeader.split(" ")[1];
-    if (!token.startsWith("gp_session_")) {
-      next(new HttpError(403, "Forbidden: Invalid session token."));
-      return;
-    }
-
-    next();
-  };
-
-  app.get("/api/state", authenticateSession, async (_req, res, next) => {
+  app.get("/api/state", authenticateNeon, async (_req, res, next) => {
     try {
       const state = await store.load();
       res.json({ state: state ?? createInitialAppState() });
@@ -116,7 +63,7 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
-  app.put("/api/state", authenticateSession, async (req, res, next) => {
+  app.put("/api/state", authenticateNeon, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
       await store.save(state as AppStateSnapshot);
@@ -126,57 +73,10 @@ export function createApp({ store, staticDir }: CreateAppOptions) {
     }
   });
 
-  app.get("/api/qr/me", authenticateSession, (_req, res) => {
-    res.json({
-      status: "active",
-      qr_payload: "gp:v1:mock_token_payload"
-    });
-  });
-
-  app.post("/api/qr/reissue", authenticateSession, (_req, res) => {
-    res.json({
-      status: "active",
-      qr_payload: "gp:v1:mock_token_payload_reissued"
-    });
-  });
-
-  app.post("/api/scanner/pair", (req, res, next) => {
-    try {
-      const { pairing_code } = req.body;
-      if (pairing_code !== "123456") {
-        throw new HttpError(400, "Invalid pairing code");
-      }
-      res.json({
-        scanner_id: "scanner_main_gate",
-        token: "gp_scanner_session_token"
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.get("/api/scanner/me", (_req, res) => {
-    res.json({
-      scanner_id: "scanner_main_gate",
-      paired: true
-    });
-  });
-
-  app.post("/api/scanner/scan", (req, res, next) => {
-    try {
-      const { payload } = req.body;
-      if (!payload || !payload.startsWith("gp:v1:")) {
-        throw new HttpError(400, "Invalid scan payload format");
-      }
-      res.json({
-        success: true,
-        result: "VALID",
-        message: "Check-in successful"
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+  // QR and scanner endpoints are served exclusively by the FastAPI scanner
+  // service (the sole QR/scan authority). The former Node mock routes
+  // (gp:v1:mock_token_payload, hardcoded pairing code, fixed session token)
+  // have been removed intentionally.
 
   if (staticDir) {
     app.use(express.static(staticDir, { index: false, maxAge: "1h" }));

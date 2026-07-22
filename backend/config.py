@@ -13,7 +13,9 @@ class Settings:
     public_app_url: str
     scanner_session_hours: int
     scanner_pairing_minutes: int
-    google_client_id: str
+    app_env: str
+    neon_auth_url: str
+    neon_auth_audience: str
     admin_emails: frozenset[str]
     scanner_database_url: str
     scanner_migrations_database_url: str
@@ -38,12 +40,29 @@ def load_settings() -> Settings:
         for email in os.environ.get("GATEPASS_ADMIN_EMAILS", "").split(",")
         if email.strip()
     )
+    neon_auth_url = os.environ.get(
+        "NEON_AUTH_URL",
+        os.environ.get(
+            "VITE_NEON_AUTH_URL",
+            "https://ep-wild-mud-au7ksl38.neonauth.c-10.us-east-1.aws.neon.tech/neondb/auth",
+        ),
+    )
+    app_env = os.environ.get("APP_ENV", os.environ.get("NODE_ENV", "development")).lower()
+    neon_auth_audience = os.environ.get("NEON_AUTH_AUDIENCE", "")
+    # Production/staging must verify JWT audience; fail closed at startup if missing.
+    if app_env in {"staging", "production"} and not neon_auth_audience:
+        raise RuntimeError(
+            "NEON_AUTH_AUDIENCE is mandatory when APP_ENV is staging or production "
+            "(production JWT verification must not skip the audience check)"
+        )
     return Settings(
         qr_signing_key=signing_key,
         public_app_url=os.environ.get("GATEPASS_PUBLIC_APP_URL", "http://localhost:5173"),
         scanner_session_hours=int(os.environ.get("GATEPASS_SCANNER_SESSION_HOURS", "12")),
         scanner_pairing_minutes=int(os.environ.get("GATEPASS_SCANNER_PAIRING_MINUTES", "10")),
-        google_client_id=os.environ.get("GATEPASS_GOOGLE_CLIENT_ID", ""),
+        app_env=app_env,
+        neon_auth_url=neon_auth_url,
+        neon_auth_audience=neon_auth_audience,
         admin_emails=admin_emails,
         scanner_database_url=_require("SCANNER_DATABASE_URL"),
         scanner_migrations_database_url=os.environ.get("SCANNER_MIGRATIONS_DATABASE_URL", ""),

@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { GoogleLogin, useGoogleLogin } from "@react-oauth/google";
 import { 
   Shield, 
   Smartphone, 
@@ -14,6 +13,7 @@ import {
 import { motion } from "motion/react";
 import { MorphText } from "../components/ui/morph-text";
 import { AnimatedNumber } from "../components/ui/animated-number";
+import { authClient } from "../auth";
 
 interface LandingPageProps {
   onLoginSuccess: (credentialResponse: any) => void;
@@ -24,31 +24,20 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
   const ease = [0.22, 1, 0.36, 1] as const;
   const [loadingProfile, setLoadingProfile] = useState(false);
 
-  const customLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      setLoadingProfile(true);
-      try {
-        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        });
-        if (userInfoRes.ok) {
-          const profile = await userInfoRes.json();
-          onLoginSuccess({
-            credential: tokenResponse.access_token,
-            userProfile: profile,
-          });
-        } else {
-          onLoginError();
-        }
-      } catch (err) {
-        console.error("Failed to fetch Google user info:", err);
-        onLoginError();
-      } finally {
-        setLoadingProfile(false);
-      }
-    },
-    onError: onLoginError,
-  });
+  const handleNeonGoogleSignIn = async () => {
+    setLoadingProfile(true);
+    try {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: `${window.location.origin}/identity`,
+      });
+    } catch (err) {
+      console.error("Neon Auth Google sign-in failed:", err);
+      onLoginError();
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-white flex flex-col justify-between font-sans selection:bg-cyan-500 selection:text-white relative overflow-hidden">
@@ -97,13 +86,13 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
           <div className="bg-neutral-900/50 border border-white/15 rounded-3xl p-6 backdrop-blur-md shadow-2xl flex flex-col gap-4 mt-2">
             <div>
               <h3 className="text-sm font-bold uppercase tracking-wider text-white">Sign In &amp; Join GatePass</h3>
-              <p className="text-[11px] text-neutral-400 font-medium mt-1">Use your verified Google Student/Staff account to gain instant entry.</p>
+              <p className="text-[11px] text-neutral-400 font-medium mt-1">Use your Google account via Neon Auth to gain instant entry.</p>
             </div>
             
             <div className="flex flex-col gap-3 pt-1">
-              {/* Primary Custom Glassmorphic Google Sign In Button */}
+              {/* Neon Auth Google Sign In Button */}
               <button
-                onClick={() => customLogin()}
+                onClick={handleNeonGoogleSignIn}
                 disabled={loadingProfile}
                 className="w-full py-3.5 px-6 rounded-2xl bg-white text-black font-extrabold text-sm uppercase tracking-wider hover:bg-neutral-200 transition-all cursor-pointer flex items-center justify-center gap-3 shadow-lg active:scale-[0.99]"
               >
@@ -125,20 +114,8 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>{loadingProfile ? "Authenticating..." : "Sign in with Google"}</span>
+                <span>{loadingProfile ? "Redirecting to Neon Auth..." : "Sign in with Google"}</span>
               </button>
-
-              {/* Standard Google GSI iframe component for native one-tap / standard iframe fallback */}
-              <div className="opacity-80 hover:opacity-100 transition-opacity flex justify-center">
-                <GoogleLogin
-                  onSuccess={onLoginSuccess}
-                  onError={onLoginError}
-                  theme="filled_black"
-                  shape="pill"
-                  size="large"
-                  width="100%"
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -149,94 +126,59 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
           <div className="w-full bg-gradient-to-b from-white/10 to-white/[0.02] border border-white/15 rounded-[32px] p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-[#ff2bd6] to-cyan-400 opacity-60" />
             
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-cyan-400 to-[#ff2bd6] flex items-center justify-center font-black text-[10px] text-black">
-                  GP
-                </div>
-                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-300">Identity Pass</span>
+                <Shield className="w-5 h-5 text-cyan-400" />
+                <span className="text-xs font-black uppercase tracking-wider text-neutral-300">Identity Preview</span>
               </div>
-              <Shield className="w-5 h-5 text-cyan-400" />
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                ACTIVE
+              </span>
             </div>
 
-            <div className="flex flex-col gap-1 mb-8">
-              <span className="text-[10px] uppercase text-neutral-400 font-semibold tracking-wider">Pass Holder</span>
-              <h4 className="text-lg font-black uppercase text-white tracking-tight">Hardik Jain</h4>
-              <span className="text-[9px] uppercase font-bold text-cyan-400 tracking-widest">Verified Member</span>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-white/10 pt-4 text-[10px] uppercase text-neutral-400 font-bold">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-black text-xl text-white shadow-lg">
+                HJ
+              </div>
               <div>
-                <p className="text-[8px] text-neutral-500 font-bold">Campus Clearance</p>
-                <p className="text-white mt-0.5">All Zones Granted</p>
+                <h3 className="font-black text-lg text-white uppercase tracking-tight">Hardik Jain</h3>
+                <p className="text-xs text-cyan-400 font-bold uppercase tracking-wider">Student ID: GP-8842-X</p>
               </div>
-              <div className="text-right">
-                <p className="text-[8px] text-neutral-500 font-bold">Gate Station</p>
-                <p className="text-[#ff2bd6] mt-0.5">Validated</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 text-xs">
+              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-wider block">Access Level</span>
+                <span className="font-bold text-white mt-0.5 block">Full Campus</span>
+              </div>
+              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-wider block">Auth Status</span>
+                <span className="font-bold text-emerald-400 mt-0.5 block">Neon Verified</span>
               </div>
             </div>
           </div>
 
-          {/* Grid list of Features */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-2">
-              <Smartphone className="w-5 h-5 text-cyan-400" />
-              <h4 className="text-[11px] font-black uppercase tracking-wider text-white">Universal QR</h4>
-              <p className="text-[10px] text-neutral-400 leading-normal">Permanent scannable credential for tickets, identity, and gate entry.</p>
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-3.5 text-center">
+              <span className="text-lg font-black text-white block">100%</span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400 block mt-0.5">Automated</span>
             </div>
-            
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-2">
-              <Lock className="w-5 h-5 text-cyan-400" />
-              <h4 className="text-[11px] font-black uppercase tracking-wider text-white">Secure Check-in</h4>
-              <p className="text-[10px] text-neutral-400 leading-normal">Validation checks with backend row locking and double-scan security.</p>
+            <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-3.5 text-center">
+              <span className="text-lg font-black text-cyan-400 block">&lt; 1s</span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400 block mt-0.5">Verification</span>
             </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-2">
-              <TicketIcon className="w-5 h-5 text-[#ff2bd6]" />
-              <h4 className="text-[11px] font-black uppercase tracking-wider text-white">Razorpay Tickets</h4>
-              <p className="text-[10px] text-neutral-400 leading-normal">Premium booking checkout sheets to secure concert passes instantly.</p>
-            </div>
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-2">
-              <Users className="w-5 h-5 text-[#ffbe1a]" />
-              <h4 className="text-[11px] font-black uppercase tracking-wider text-white">Staff Dashboard</h4>
-              <p className="text-[10px] text-neutral-400 leading-normal">Unified organizer control center to review entry requests and logs.</p>
+            <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-3.5 text-center">
+              <span className="text-lg font-black text-[#ff2bd6] block">256-bit</span>
+              <span className="text-[9px] font-black uppercase tracking-wider text-neutral-400 block mt-0.5">Encryption</span>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Statistics and Footer */}
-      <footer className="bg-black/80 border-t border-white/5 py-8 px-6 md:px-16 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex gap-8 md:gap-16">
-            <div className="text-center md:text-left">
-              <div className="text-xl md:text-2xl font-black text-white">
-                <AnimatedNumber value={15} />
-                <span>K+</span>
-              </div>
-              <p className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold mt-1">Active Students</p>
-            </div>
-            <div className="text-center md:text-left">
-              <div className="text-xl md:text-2xl font-black text-white">
-                <AnimatedNumber value={45} />
-                <span>+</span>
-              </div>
-              <p className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold mt-1">Events Hosted</p>
-            </div>
-            <div className="text-center md:text-left">
-              <div className="text-xl md:text-2xl font-black text-white">
-                <AnimatedNumber value={12} />
-                <span>+</span>
-              </div>
-              <p className="text-[9px] uppercase tracking-wider text-neutral-500 font-bold mt-1">Access Gates</p>
-            </div>
-          </div>
-
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-            &copy; 2026 GatePass Security Inc. All Rights Reserved.
-          </div>
-        </div>
+      {/* Footer */}
+      <footer className="px-6 py-4 md:px-16 border-t border-white/5 text-center text-xs text-neutral-500 font-medium relative z-10">
+        GatePass Access System • Secured by Neon Auth &amp; FastAPI
       </footer>
     </div>
   );

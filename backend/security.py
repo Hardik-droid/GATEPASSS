@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+import urllib.parse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -14,19 +15,31 @@ from backend.config import settings
 from backend.db import get_db
 from backend.models import Scanner, ScannerSession, User
 
-GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
-GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 QR_PREFIX = "gp:v1:"
+ALLOWED_ALGORITHMS = ["EdDSA"]  # Neon Auth JWKS publishes Ed25519/EdDSA keys
 
-_jwks_client = PyJWKClient(GOOGLE_JWKS_URL)
+_jwks_client: PyJWKClient | None = None
 
 
-class InvalidGoogleToken(Exception):
+def _reset_jwks_client() -> None:
+    global _jwks_client
+    _jwks_client = None
+
+
+def _get_signing_key(token: str):
+    global _jwks_client
+    if _jwks_client is None:
+        jwks_url = f"{settings.neon_auth_url.rstrip('/')}/.well-known/jwks.json"
+        _jwks_client = PyJWKClient(jwks_url)
+    return _jwks_client.get_signing_key_from_jwt(token)
+
+
+class InvalidNeonToken(Exception):
     pass
 
 
 @dataclass(frozen=True)
-class GoogleIdentity:
+class NeonAuthIdentity:
     issuer: str
     subject: str
     email: str
@@ -34,35 +47,47 @@ class GoogleIdentity:
     picture: str | None
 
 
-def verify_google_id_token(token: str) -> GoogleIdentity:
-    if not settings.google_client_id or settings.google_client_id.startswith("REPLACE_"):
-        raise InvalidGoogleToken(
-            "GATEPASS_GOOGLE_CLIENT_ID is not configured with a real Google OAuth client id"
-        )
+def verify_neon_auth_token(token: str) -> NeonAuthIdentity:
+    if not token or not settings.neon_auth_url:
+        raise InvalidNeonToken("Neon Auth is not configured or token is missing")
     try:
-        signing_key = _jwks_client.get_signing_key_from_jwt(token)
-        claims = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["RS256"],
-            audience=settings.google_client_id,
-            options={"require": ["exp", "iss", "sub", "email"]},
+        try:
+            signing_key = _get_signing_key(token)
+        except Exception:
+            _reset_jwks_client()  # unknown kid / rotated key → refresh JWKS once
+            signing_key = _get_signing_key(token)
+
+        base_iss = settings.neon_auth_url.rstrip("/")
+        parsed = urllib.parse.urlparse(base_iss)
+        origin_iss = f"{parsed.scheme}://{parsed.netloc}"
+        allowed_issuers = list(dict.fromkeys([base_iss, origin_iss]))
+
+        decode_kwargs = dict(
+            algorithms=ALLOWED_ALGORITHMS,
+            issuer=allowed_issuers,
+            options={
+                "require": ["exp", "iss", "sub"],
+                "verify_aud": bool(settings.neon_auth_audience),
+            },
         )
-    except jwt.PyJWTError as exc:
-        raise InvalidGoogleToken(str(exc)) from exc
+        if settings.neon_auth_audience:
+            decode_kwargs["audience"] = settings.neon_auth_audience
+        claims = jwt.decode(token, signing_key.key, **decode_kwargs)
+    except InvalidNeonToken:
+        raise
+    except Exception as exc:  # PyJWT errors, key errors, network — fail closed
+        raise InvalidNeonToken(str(exc)) from exc
 
-    issuer = claims.get("iss", "")
-    if issuer not in GOOGLE_ISSUERS:
-        raise InvalidGoogleToken(f"unexpected issuer: {issuer}")
-    if not claims.get("email_verified"):
-        raise InvalidGoogleToken("email not verified")
-
-    return GoogleIdentity(
-        issuer=issuer,
-        subject=claims["sub"],
-        email=claims["email"],
-        name=claims.get("name", claims["email"]),
-        picture=claims.get("picture"),
+    subject = claims.get("sub")
+    if not subject:
+        raise InvalidNeonToken("missing subject")
+    email = claims.get("email") or f"{subject}@neon.auth"
+    return NeonAuthIdentity(
+        issuer=claims["iss"].rstrip("/"),
+        subject=subject,
+        email=email,
+        name=claims.get("name") or claims.get("display_name") or email,
+        picture=claims.get("picture") or claims.get("image"),
     )
 
 
@@ -74,9 +99,9 @@ def get_current_user(
         raise HTTPException(401, "Missing bearer token")
     token = authorization.removeprefix("Bearer ").strip()
     try:
-        identity = verify_google_id_token(token)
-    except InvalidGoogleToken as exc:
-        raise HTTPException(401, f"Invalid Google token: {exc}") from exc
+        identity = verify_neon_auth_token(token)
+    except InvalidNeonToken as exc:
+        raise HTTPException(401, f"Invalid Neon Auth token: {exc}") from exc
 
     user = (
         db.query(User)

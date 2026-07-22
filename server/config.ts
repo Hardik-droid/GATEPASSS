@@ -16,6 +16,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   GOOGLE_CLIENT_ID: z.string().default(process.env.GOOGLE_CLIENT_ID || process.env.GoogleAuth__ClientId || process.env.VITE_GOOGLE_CLIENT_ID || ""),
+  NEON_AUTH_URL: z.string().default(process.env.NEON_AUTH_URL || process.env.VITE_NEON_AUTH_URL || ""),
 });
 
 export const config = envSchema.parse(process.env);

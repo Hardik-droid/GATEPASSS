@@ -18,6 +18,7 @@ import {
   TicketStatus,
   UserRole
 } from "./types";
+import { authClient, getAuthToken } from "./auth";
 import IdentityCard from "./pages/Profile";
 import RequestAccessForm from "./pages/RequestAccess";
 import ApprovalsInvites from "./pages/Approvals";
@@ -156,113 +157,27 @@ export default function App() {
   });
 
   const handleGoogleLoginSuccess = async (credentialResponse: any) => {
-    if (credentialResponse.userProfile) {
-      const profile = credentialResponse.userProfile;
-      const updatedUser = {
-        ...user,
-        id: profile.sub || profile.id || user.id,
-        name: profile.name || user.name,
-        email: profile.email || user.email,
-        avatarUrl: profile.picture || profile.avatarUrl || user.avatarUrl,
-      };
-      setUser(updatedUser);
-      setIsAuthenticated(true);
-      setAuthEmail(profile.email || null);
-      sessionStorage.setItem("gp_session_token", `gp_session_${profile.sub || profile.id}`);
-      if (profile.email) {
-        sessionStorage.setItem("gp_session_email", profile.email);
-      }
-      if (credentialResponse.credential) {
-        sessionStorage.setItem("gp_google_id_token", credentialResponse.credential);
-      }
-      addToast("success", `Signed in as ${profile.name || profile.email}`);
-      return;
-    }
-
-    if (!credentialResponse.credential) {
-      addToast("error", "Google sign-in did not return credentials. Please try again.");
-      return;
-    }
-    // Retain the raw Google ID token so the FastAPI scanner service (the QR
-    // authority) can verify identity for the permanent QR endpoint.
-    sessionStorage.setItem("gp_google_id_token", credentialResponse.credential);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/google-login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ idToken: credentialResponse.credential }),
-      });
-      if (!res.ok) {
-        if (res.status === 403) {
-          throw new Error("Access Forbidden: Your Google account is not authorized to access this profile.");
-        }
-        throw new Error(`Auth verification failed: ${res.status}`);
-      }
-      const data = await res.json();
-      if (data.success && data.user) {
-        const profile = data.user;
-        const updatedUser = {
-          ...user,
-          id: profile.id || user.id,
-          name: profile.name || user.name,
-          email: profile.email || user.email,
-          avatarUrl: profile.avatarUrl || user.avatarUrl,
-        };
-        setUser(updatedUser);
-        setIsAuthenticated(true);
-        setAuthEmail(profile.email || null);
-        if (data.token) {
-          sessionStorage.setItem("gp_session_token", data.token);
-        }
-        if (profile.email) {
-          sessionStorage.setItem("gp_session_email", profile.email);
-        }
-
-        // Fetch database state using the newly acquired session token
-        try {
-          const remoteState = await loadAppState();
-          if (remoteState) {
-            applyStateSnapshot(remoteState);
-            setBackendStatus("connected");
-          }
-        } catch (error) {
-          console.error("Backend state load failed after login, using local fallback state.", error);
-        }
-
-        addToast("success", `Signed in as ${profile.name || profile.email}`);
-
-        // Log to audit logs
-        const addedAudit: AuditLog = {
-          id: "aud_" + Date.now(),
-          timestamp: new Date().toISOString(),
-          actor: profile.name || "Google User",
-          action: "OAuth Authenticated",
-          details: `Successfully logged in and verified via Google OAuth. Email: ${profile.email}. User profile state hydrated.`
-        };
-        persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
-      }
-    } catch (error: any) {
-      console.error("Failed Google OAuth Login verification:", error);
-      addToast("error", error.message || "Login failed. Server could not verify your Google account.");
-    }
+    addToast("info", "Authenticating via Neon Auth...");
   };
 
   const handleGoogleLoginError = () => {
-    addToast("error", "Google sign-in was cancelled or failed. Please try again.");
+    addToast("error", "Neon Auth Google sign-in failed or was cancelled.");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut();
+    } catch (err) {
+      console.error("Neon Auth sign out error:", err);
+    }
     setIsAuthenticated(false);
     setAuthEmail(null);
-    sessionStorage.removeItem("gp_session_token");
-    sessionStorage.removeItem("gp_session_email");
-    sessionStorage.removeItem("gp_google_id_token");
+    sessionStorage.removeItem("neon_auth_token");
+    sessionStorage.removeItem("neon_auth_email");
     addToast("info", "You have been signed out.");
   };
 
-  // Role gating for organizer toggle (Issue #7)
+  // Role gating for organizer toggle
   const canAccessOrganizer = IS_DEMO_MODE || ORGANIZER_ROLES.includes(user.role);
 
   const handlePerspectiveSwitch = (target: "attendee" | "organizer") => {
@@ -278,13 +193,49 @@ export default function App() {
     }
   };
 
-  // Load from PostgreSQL through the backend API. If unavailable, keep the app usable with demo data.
+  // Neon Auth Session Synchronization Effect
   useEffect(() => {
     let cancelled = false;
 
-    // Restore session states from sessionStorage if available (Issue #3)
-    const storedToken = sessionStorage.getItem("gp_session_token");
-    const storedEmail = sessionStorage.getItem("gp_session_email");
+    const syncNeonSession = async () => {
+      try {
+        const sessionRes = await authClient.getSession();
+        if (cancelled) return;
+        if (sessionRes?.data?.user) {
+          const u = sessionRes.data.user;
+          // Store the verifiable Neon Auth JWT (from /token), never the opaque
+          // session-cookie string. Backends verify this via JWKS.
+          const jwt = await getAuthToken();
+          if (cancelled) return;
+          if (jwt) sessionStorage.setItem("neon_auth_token", jwt);
+          setUser((prev) => ({
+            ...prev,
+            id: u.id || prev.id,
+            name: u.name || prev.name,
+            email: u.email || prev.email,
+            avatarUrl: u.image || prev.avatarUrl,
+          }));
+          setIsAuthenticated(true);
+          setAuthEmail(u.email || null);
+          if (u.email) sessionStorage.setItem("neon_auth_email", u.email);
+        }
+      } catch (err) {
+        console.warn("Neon Auth session check warning:", err);
+      }
+    };
+
+    syncNeonSession();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load app state
+  useEffect(() => {
+    let cancelled = false;
+    const storedToken = sessionStorage.getItem("neon_auth_token");
+    const storedEmail = sessionStorage.getItem("neon_auth_email");
+
     if (storedToken && storedEmail) {
       setIsAuthenticated(true);
       setAuthEmail(storedEmail);
@@ -292,8 +243,6 @@ export default function App() {
 
     const hydrate = async () => {
       try {
-        // If not authenticated yet, we don't try to query the protected backend,
-        // we just fall back to mock data so the user can see the UI and log in.
         if (!storedToken) {
           applyStateSnapshot(createInitialAppState());
           setBackendStatus("connected");
@@ -306,7 +255,7 @@ export default function App() {
         applyStateSnapshot(remoteState ?? createInitialAppState());
         setBackendStatus("connected");
       } catch (error) {
-        console.error("Backend state load failed, using demo data.", error);
+        console.error("Backend state load failed, using fallback data.", error);
         if (cancelled) return;
         applyStateSnapshot(createInitialAppState());
         setBackendStatus("offline");
@@ -323,10 +272,10 @@ export default function App() {
     };
   }, []);
 
-  // Persist state changes to PostgreSQL with a small debounce to collapse multi-step UI updates.
+  // Persist state changes
   useEffect(() => {
     if (!isHydrated || backendStatus !== "connected") return;
-    if (!sessionStorage.getItem("gp_session_token")) return;
+    if (!sessionStorage.getItem("neon_auth_token")) return;
 
     const timeoutId = window.setTimeout(() => {
       saveAppState(currentStateSnapshot()).catch((error) => {

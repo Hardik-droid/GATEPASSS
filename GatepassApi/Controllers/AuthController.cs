@@ -4,6 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace GatepassApi.Controllers;
 
+// LEGACY / OUT OF THE AUTHENTICATED PRODUCTION PATH.
+// Neon Auth is the sole production identity authority (Phase 2). This
+// controller's Google-ID-token exchange is not called by the SPA and must NOT
+// be wired into any protected production route. Do not introduce a new token
+// format here. If .NET ever guards a production route, it must verify Neon
+// Auth JWTs via JWKS (matching the FastAPI/Node verifiers), not Google tokens.
+// See GatepassApi/README-auth.md.
 [ApiController]
 [Route("api/auth")]
 public sealed class AuthController(IConfiguration configuration) : ControllerBase
