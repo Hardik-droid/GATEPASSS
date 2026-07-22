@@ -157,18 +157,11 @@ export default function App() {
   });
 
   const handleGoogleLoginSuccess = async (credentialResponse: any) => {
-    addToast("success", "Authenticated via Neon Auth!");
+    addToast("info", "Authenticating via Neon Auth...");
   };
 
   const handleGoogleLoginError = () => {
-    const email = "h34513684@gmail.com";
-    const token = "neon_auth_session_" + Date.now();
-    sessionStorage.setItem("neon_auth_token", token);
-    sessionStorage.setItem("neon_auth_email", email);
-    setIsAuthenticated(true);
-    setAuthEmail(email);
-    setUser((prev) => ({ ...prev, email, name: prev.name || "Hardik Jain" }));
-    addToast("success", "Signed in to GatePass Identity!");
+    addToast("error", "Neon Auth Google sign-in failed or was cancelled.");
   };
 
   const handleLogout = async () => {

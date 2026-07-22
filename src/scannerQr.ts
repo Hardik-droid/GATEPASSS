@@ -5,17 +5,8 @@ import { authFetch, AuthExpiredError } from "./authFetch";
 const SCANNER_API_BASE_URL = (import.meta.env.VITE_SCANNER_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export async function fetchMyQrPayload(): Promise<string> {
-  const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
-  const isLocalhostApi = !SCANNER_API_BASE_URL || SCANNER_API_BASE_URL.startsWith("http://127.0.0.1") || SCANNER_API_BASE_URL.startsWith("http://localhost");
-
-  if (isHttps && isLocalhostApi) {
-    const email = sessionStorage.getItem("neon_auth_email") || "user";
-    const userHash = btoa(email).replace(/=/g, "").slice(0, 16);
-    return `gp:v1:demo_${userHash}.verifiable_pass_token_vercel`;
-  }
-
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
   try {
     const res = await authFetch(`${SCANNER_API_BASE_URL}/api/qr/me`, {
@@ -24,28 +15,23 @@ export async function fetchMyQrPayload(): Promise<string> {
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      throw new Error("QR_LOAD_FAILED: Unable to retrieve your permanent QR.");
-    }
-    const contentType = res.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      throw new Error("INVALID_RESPONSE: Backend returned non-JSON response.");
+      if (res.status === 401) {
+        throw new AuthExpiredError("Session expired or invalid token.");
+      }
+      throw new Error(`QR_LOAD_FAILED: Scanner backend returned status ${res.status}`);
     }
     const data = (await res.json()) as { qr_payload: string; status: string };
+    if (!data.qr_payload) {
+      throw new Error("QR_LOAD_FAILED: Empty QR payload received.");
+    }
     return data.qr_payload;
   } catch (err: any) {
     clearTimeout(timeoutId);
     if (err.name === "AbortError") {
-      const email = sessionStorage.getItem("neon_auth_email") || "user";
-      const userHash = btoa(email).replace(/=/g, "").slice(0, 16);
-      return `gp:v1:demo_${userHash}.verifiable_pass_token_vercel`;
+      throw new Error("TIMEOUT: Scanner API request timed out. Please verify VITE_SCANNER_API_BASE_URL is accessible.");
     }
     if (err instanceof AuthExpiredError) {
       throw new Error("USER_NOT_AUTHENTICATED: Please sign in with Neon Auth to view your QR.");
-    }
-    if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-      const email = sessionStorage.getItem("neon_auth_email") || "user";
-      const userHash = btoa(email).replace(/=/g, "").slice(0, 16);
-      return `gp:v1:demo_${userHash}.verifiable_pass_token_vercel`;
     }
     throw err;
   }
