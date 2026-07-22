@@ -116,6 +116,15 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
                 </svg>
                 <span>{loadingProfile ? "Redirecting to Neon Auth..." : "Sign in with Google"}</span>
               </button>
+
+              {/* One-Click Instant Demo Pass */}
+              <button
+                onClick={() => onLoginError()}
+                className="w-full py-3 px-6 rounded-2xl bg-white/10 hover:bg-white/15 text-cyan-400 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 border border-cyan-500/20 shadow-md active:scale-[0.99]"
+              >
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>Instant Demo Access</span>
+              </button>
             </div>
           </div>
         </div>
