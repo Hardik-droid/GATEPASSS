@@ -44,7 +44,7 @@ def load_settings() -> Settings:
         "NEON_AUTH_URL",
         os.environ.get(
             "VITE_NEON_AUTH_URL",
-            "https://ep-wild-mud-au7ksl38.neonauth.c-10.us-east-1.aws.neon.tech/neondb/auth",
+            "https://ep-spring-brook-au0wvirq.neonauth.c-10.us-east-1.aws.neon.tech/neondb/auth",
         ),
     )
     app_env = os.environ.get("APP_ENV", os.environ.get("NODE_ENV", "development")).lower()

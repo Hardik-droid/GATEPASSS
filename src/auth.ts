@@ -2,7 +2,7 @@ import { createInternalNeonAuth } from "@neondatabase/neon-js/auth";
 
 export const neonAuthUrl =
   import.meta.env.VITE_NEON_AUTH_URL?.trim() ||
-  "https://ep-wild-mud-au7ksl38.neonauth.c-10.us-east-1.aws.neon.tech/neondb/auth";
+  "https://ep-spring-brook-au0wvirq.neonauth.c-10.us-east-1.aws.neon.tech/neondb/auth";
 
 if (!neonAuthUrl) {
   throw new Error("VITE_NEON_AUTH_URL is required.");
