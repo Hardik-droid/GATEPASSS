@@ -246,7 +246,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   };
 
   return (
-    <div className="flex flex-col gap-6 font-sans bg-[#050509] text-white p-6 rounded-3xl min-h-screen border border-neutral-900 shadow-2xl relative overflow-hidden" id="events-explore-panel">
+    <div className="min-h-screen w-full overflow-hidden bg-[#050509] font-sans text-white" id="events-explore-panel">
       
       {/* Toast Alert overlay */}
       {showToastMessage && (
@@ -257,12 +257,12 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
       )}
 
       {/* Dynamic Top Location Bar & Greeting */}
-      <div className="flex justify-between items-center bg-neutral-900/40 p-4 rounded-2xl border border-neutral-800/60 shadow-sm z-20">
-        <div className="flex items-center gap-4">
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-[#08080d]/90 px-4 py-4 shadow-xl backdrop-blur-xl sm:px-6 md:px-10">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <Link to="/" className="p-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-800 transition-all flex items-center justify-center">
             <ArrowLeft className="w-4 h-4 text-pink-500" />
           </Link>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-1.5 text-neutral-400">
               <MapPin className="w-4 h-4 text-[#ff2bd6]" />
               <select 
@@ -279,8 +279,8 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                 <option value="New York">New York, USA</option>
               </select>
             </div>
-            <h2 className="text-xl md:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-              <span>{getGreeting()} {user.name.split(" ")[0]}</span>
+            <h2 className="flex items-center gap-2 truncate text-base font-black tracking-tight text-white sm:text-xl md:text-2xl">
+              <span className="truncate">{getGreeting()} {user.name.split(" ")[0]}</span>
               <span>👋</span>
             </h2>
           </div>
@@ -303,7 +303,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
       </div>
 
       {/* STUNNING VIDEO HERO SECTION FROM PARTIES PAGE */}
-      <section className="relative min-h-[50vh] md:min-h-[60vh] overflow-hidden rounded-2xl px-4 py-16 md:px-8 md:py-24 border border-neutral-800/60 shadow-inner">
+      <section className="relative flex min-h-[68svh] items-center justify-center overflow-hidden border-b border-white/10 px-4 py-16 sm:px-6 md:min-h-[calc(100vh-12rem)] md:px-10 md:py-24">
         <video
           className="absolute inset-0 h-full w-full object-cover object-center z-0"
           autoPlay
@@ -361,7 +361,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
       </section>
 
       {/* TONIGHT ROOM LIST / CLUB HEAT SECTION */}
-      <section className="mx-auto w-full py-4">
+      <section className="mx-auto w-full px-4 py-12 sm:px-6 md:px-10 md:py-16 lg:px-14">
         <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between" id="tonight-room-list">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[#ff2bd6]">Tonight&apos;s room list</p>
@@ -429,7 +429,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
       </section>
 
       {/* SECTION 2: TODAY SPOTLIGHT EXPERIENCE (Afterlife) */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-12 sm:px-6 md:px-10 md:py-16 lg:px-14">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-black tracking-widest uppercase text-white flex items-center gap-1.5">
             <span>TODAY SPECIAL</span>
@@ -495,7 +495,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
       </div>
 
       {/* SECTION 3: SEARCH & FILTER THE ALL EXPERIENCES GRID */}
-      <div className="flex flex-col gap-4 mt-4 pt-4 border-t border-neutral-800/80">
+      <div className="flex flex-col gap-4 border-t border-neutral-800/80 px-4 py-12 sm:px-6 md:px-10 md:py-16 lg:px-14">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <h3 className="text-sm font-black tracking-widest uppercase text-white">
             ALL EXPERIENCES

@@ -965,7 +965,7 @@ export default function App() {
       )}
 
       {/* Primary Layout Center */}
-      <main className={`flex-1 max-w-full overflow-x-hidden md:overflow-y-auto ${location.pathname === "/" ? "p-0" : "px-6 py-6 md:py-10 md:px-10"}`}>
+      <main className={`flex-1 max-w-full overflow-x-hidden md:overflow-y-auto ${location.pathname === "/" || location.pathname === "/events" ? "p-0" : "px-6 py-6 md:py-10 md:px-10"}`}>
         
         {/* Dynamic Route Switching block */}
         <Routes>
