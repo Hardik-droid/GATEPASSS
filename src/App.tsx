@@ -15,10 +15,10 @@ import {
   ScanLog, 
   Settlement, 
   AuditLog, 
-  TicketStatus,
-  UserRole
+  TicketStatus
 } from "./types";
 import { authClient, getAuthToken } from "./auth";
+import { hasOrganizerAccess } from "./permissions";
 import IdentityCard from "./pages/Profile";
 import RequestAccessForm from "./pages/RequestAccess";
 import ApprovalsInvites from "./pages/Approvals";
@@ -51,7 +51,6 @@ import {
   ChevronRight,
   Sparkles,
   Info,
-  Lock,
   CheckCircle,
   AlertTriangle,
   XCircle,
@@ -61,17 +60,6 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-
-const IS_DEMO_MODE = false;
-
-// Organizer-capable roles
-const ORGANIZER_ROLES: UserRole[] = [
-  UserRole.OWNER,
-  UserRole.EVENT_MANAGER,
-  UserRole.FINANCE_MANAGER,
-  UserRole.GATE_STAFF,
-  UserRole.SCANNER_STAFF,
-];
 
 interface ToastMessage {
   id: number;
@@ -86,15 +74,6 @@ export default function App() {
   // Perspectives
   const [perspective, setPerspective] = useState<"attendee" | "organizer">("attendee");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Sync perspective layout with active URL path
-  useEffect(() => {
-    if (location.pathname.startsWith("/organizer") || location.pathname.startsWith("/scanner")) {
-      setPerspective("organizer");
-    } else {
-      setPerspective("attendee");
-    }
-  }, [location.pathname]);
 
   // Database states
   const [user, setUser] = useState<UserProfile>(INITIAL_USER);
@@ -172,8 +151,13 @@ export default function App() {
     addToast("info", "You have been signed out.");
   };
 
-  // Role gating for organizer toggle
-  const canAccessOrganizer = IS_DEMO_MODE || ORGANIZER_ROLES.includes(user.role);
+  const canAccessOrganizer = hasOrganizerAccess(user, authEmail);
+
+  useEffect(() => {
+    const organizerPath = location.pathname.startsWith("/organizer")
+      || location.pathname.startsWith("/scanner");
+    setPerspective(organizerPath && canAccessOrganizer ? "organizer" : "attendee");
+  }, [location.pathname, canAccessOrganizer]);
 
   const handlePerspectiveSwitch = (target: "attendee" | "organizer") => {
     if (target === "organizer" && !canAccessOrganizer) {
@@ -757,18 +741,14 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Quick Perspective Toggle on Mobile header */}
-          <button 
-            onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
-            className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1 ${
-              perspective === "attendee" && !canAccessOrganizer
-                ? "bg-surface-container text-on-surface-variant opacity-60"
-                : "bg-primary-container text-on-primary-container"
-            }`}
-          >
-            {perspective === "attendee" && !canAccessOrganizer && <Lock className="w-3 h-3" />}
-            {perspective === "attendee" ? "Organizer Mode" : "User Mode"}
-          </button>
+          {canAccessOrganizer && (
+            <button
+              onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
+              className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1 bg-primary-container text-on-primary-container"
+            >
+              {perspective === "attendee" ? "Organizer Mode" : "User Mode"}
+            </button>
+          )}
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-1.5 rounded-lg hover:bg-surface-container text-charcoal-dark"
@@ -795,39 +775,37 @@ export default function App() {
           </div>
 
           {/* Perspective Selector Swapper */}
-          <div className="bg-surface-container p-1 rounded-xl flex flex-col md:flex-row md:items-center gap-1 md:ml-4 border-2 border-outline-variant/30">
-            <span className="text-[9px] font-black text-outline uppercase px-2 py-1 tracking-wider md:hidden">Perspective Node</span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => {
-                  handlePerspectiveSwitch("attendee");
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  perspective === "attendee" ? "bg-primary text-white shadow font-bold" : "text-on-surface-variant hover:text-charcoal-dark"
-                }`}
-              >
-                Attendee
-              </button>
-              <button
-                onClick={() => {
-                  handlePerspectiveSwitch("organizer");
-                  setMobileMenuOpen(false);
-                }}
-                className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  perspective === "organizer"
-                    ? "bg-primary text-white shadow font-bold"
-                    : !canAccessOrganizer
-                    ? "text-on-surface-variant opacity-50 cursor-not-allowed"
-                    : "text-on-surface-variant hover:text-charcoal-dark"
-                }`}
-                disabled={!canAccessOrganizer && perspective !== "organizer"}
-              >
-                {!canAccessOrganizer && <Lock className="w-3 h-3 inline mr-1" />}
-                Organizer
-              </button>
+          {canAccessOrganizer && (
+            <div className="bg-surface-container p-1 rounded-xl flex flex-col md:flex-row md:items-center gap-1 md:ml-4 border-2 border-outline-variant/30">
+              <span className="text-[9px] font-black text-outline uppercase px-2 py-1 tracking-wider md:hidden">Perspective Node</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    handlePerspectiveSwitch("attendee");
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    perspective === "attendee" ? "bg-primary text-white shadow font-bold" : "text-on-surface-variant hover:text-charcoal-dark"
+                  }`}
+                >
+                  Attendee
+                </button>
+                <button
+                  onClick={() => {
+                    handlePerspectiveSwitch("organizer");
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    perspective === "organizer"
+                      ? "bg-primary text-white shadow font-bold"
+                      : "text-on-surface-variant hover:text-charcoal-dark"
+                  }`}
+                >
+                  Organizer
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Perspective specific Navigation Routes */}
           <nav className="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-6 mt-2 md:mt-0">
@@ -1055,7 +1033,7 @@ export default function App() {
           <Route 
             path="/organizer" 
             element={
-              <OrganizerWorkspace 
+              canAccessOrganizer ? <OrganizerWorkspace
                 events={events}
                 orders={orders}
                 tickets={tickets}
@@ -1065,18 +1043,18 @@ export default function App() {
                 onAddNewEvent={handleAddNewEvent}
                 onIssueManualTicket={handleIssueManualTicket}
                 onProcessRefund={handleProcessRefund}
-              />
+              /> : <Navigate to="/" replace />
             } 
           />
           <Route 
             path="/scanner" 
             element={
-              <QRScannerSimulation 
+              canAccessOrganizer ? <QRScannerSimulation
                 tickets={tickets}
                 events={events}
                 scanLogs={scanLogs}
                 onLogScan={handleLogScan}
-              />
+              /> : <Navigate to="/" replace />
             } 
           />
           {/* Catch-all redirect to / */}
