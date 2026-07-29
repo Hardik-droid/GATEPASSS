@@ -1,7 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import UniversalQrCard from "./UniversalQrCard";
+import { formatLocation } from "../location";
 import { 
   EventItem, 
   Ticket, 
@@ -47,7 +48,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
   
   // Custom states matching Shotgun visual uploads
-  const [currentLocation, setCurrentLocation] = useState<string>("Paris");
+  const [currentLocation, setCurrentLocation] = useState("Detecting location…");
   const [favorites, setFavorites] = useState<string[]>(["ev4"]); // Default rock-en-seine pre-favorited as in mockup
   const [interestMap, setInterestMap] = useState<Record<string, boolean>>({
     ev5: true // We Love Green pre-interested as in mockup
@@ -74,6 +75,54 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
     setShowToastMessage(msg);
     setTimeout(() => setShowToastMessage(null), 3000);
   };
+
+  useEffect(() => {
+    const cachedLocation = sessionStorage.getItem("gatepass_location");
+    if (cachedLocation) {
+      setCurrentLocation(cachedLocation);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setCurrentLocation("Select location");
+      return;
+    }
+
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const endpoint = import.meta.env.VITE_GEOCODING_URL
+            || "https://nominatim.openstreetmap.org/reverse";
+          const url = new URL(endpoint);
+          url.searchParams.set("format", "jsonv2");
+          url.searchParams.set("lat", String(coords.latitude));
+          url.searchParams.set("lon", String(coords.longitude));
+          url.searchParams.set("zoom", "10");
+          url.searchParams.set("addressdetails", "1");
+
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`Location lookup failed: ${response.status}`);
+          const location = formatLocation(await response.json());
+          if (!location) throw new Error("Location lookup returned no city");
+          if (cancelled) return;
+
+          sessionStorage.setItem("gatepass_location", location);
+          setCurrentLocation(location);
+        } catch {
+          if (!cancelled) setCurrentLocation("Select location");
+        }
+      },
+      () => {
+        if (!cancelled) setCurrentLocation("Select location");
+      },
+      { enableHighAccuracy: false, maximumAge: 3_600_000, timeout: 10_000 },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleFavorite = (eventId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -237,7 +286,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const weLoveGreen = events.find(e => e.id === "ev5") || events[1];
   const afterlifeSpotlight = events.find(e => e.id === "ev6") || events[2];
 
-  // Welcome greeting logic based on Paris local time or device local time
+  // Welcome greeting logic based on device local time
   const getGreeting = () => {
     const hr = new Date().getHours();
     if (hr < 12) return "Good morning";
@@ -269,15 +318,27 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                 value={currentLocation} 
                 onChange={(e) => {
                   setCurrentLocation(e.target.value);
+                  sessionStorage.setItem("gatepass_location", e.target.value);
                   triggerToast(`Switched location node to ${e.target.value}`);
                 }}
                 className="bg-transparent border-none text-xs font-black uppercase tracking-wider text-neutral-300 focus:outline-none cursor-pointer"
               >
-                <option value="Paris">Paris, France</option>
-                <option value="Delhi">Delhi, India</option>
-                <option value="London">London, UK</option>
-                <option value="New York">New York, USA</option>
+                {!["Paris, France", "Delhi, India", "London, UK", "New York, USA"].includes(currentLocation) && (
+                  <option value={currentLocation}>{currentLocation}</option>
+                )}
+                <option value="Paris, France">Paris, France</option>
+                <option value="Delhi, India">Delhi, India</option>
+                <option value="London, UK">London, UK</option>
+                <option value="New York, USA">New York, USA</option>
               </select>
+              <a
+                href="https://www.openstreetmap.org/copyright"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[8px] font-bold uppercase tracking-wide text-neutral-600 hover:text-neutral-400"
+              >
+                © OSM
+              </a>
             </div>
             <h2 className="flex items-center gap-2 truncate text-base font-black tracking-tight text-white sm:text-xl md:text-2xl">
               <span className="truncate">{getGreeting()} {user.name.split(" ")[0]}</span>
