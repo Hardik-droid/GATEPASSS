@@ -55,7 +55,6 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  WifiOff,
   Loader2,
   LogOut,
   Ticket as TicketIcon
@@ -63,8 +62,7 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
-// Demo mode bypass — set to false in production to enforce role-based access
-const IS_DEMO_MODE = true;
+const IS_DEMO_MODE = false;
 
 // Organizer-capable roles
 const ORGANIZER_ROLES: UserRole[] = [
@@ -117,9 +115,6 @@ export default function App() {
 
   // Toast notifications (Issue #2)
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  // Offline banner dismissed
-  const [offlineBannerDismissed, setOfflineBannerDismissed] = useState(false);
 
   // Selected pass for Wallet details
   const [selectedWalletPass, setSelectedWalletPass] = useState<InvitePass | undefined>(undefined);
@@ -994,27 +989,6 @@ export default function App() {
       {/* Primary Layout Center */}
       <main className={`flex-1 max-w-full overflow-x-hidden md:overflow-y-auto ${location.pathname === "/" ? "p-0" : "px-6 py-6 md:py-10 md:px-10"}`}>
         
-        {/* Offline mode banner (Issue #9) */}
-        {backendStatus === "offline" && !offlineBannerDismissed && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-4 mx-6 mt-6 md:mx-10 md:mt-10">
-            <div className="flex items-center gap-3">
-              <WifiOff className="w-5 h-5 text-amber-500 flex-shrink-0" />
-              <div>
-                <h4 className="text-xs font-bold uppercase text-amber-800 tracking-wide">Offline Demo Mode</h4>
-                <p className="text-xs text-amber-700 leading-relaxed mt-0.5">
-                  Backend server is unreachable. Running with local demo data — changes won't be saved.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setOfflineBannerDismissed(true)}
-              className="text-amber-500 hover:text-amber-700 transition-colors flex-shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         {/* Dynamic Route Switching block */}
         <Routes>
           <Route path="/" element={<HomeUpdates onViewEvent={() => navigate("/events")} />} />
