@@ -1,7 +1,17 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.py": {
+      "maxDuration": 30,
+      "excludeFiles": "{.venv/**,node_modules/**,dist/**,dist-server/**,src/**,server/**,lib/**,docs/**,tests/**,alembic/**,GatepassApi/**,loop-engineering/**,**/__pycache__/**,**/*.db,**/*.md}"
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
