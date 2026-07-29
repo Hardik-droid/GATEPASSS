@@ -18,7 +18,7 @@ import {
   TicketStatus
 } from "./types";
 import { authClient, getAuthToken } from "./auth";
-import { hasOrganizerAccess } from "./permissions";
+import { hasOrganizerAccess, roleForAuthenticatedEmail } from "./permissions";
 import IdentityCard from "./pages/Profile";
 import RequestAccessForm from "./pages/RequestAccess";
 import ApprovalsInvites from "./pages/Approvals";
@@ -154,6 +154,13 @@ export default function App() {
   const canAccessOrganizer = hasOrganizerAccess(user, authEmail);
 
   useEffect(() => {
+    if (!authEmail) return;
+    const role = roleForAuthenticatedEmail(authEmail);
+    if (user.email === authEmail && user.role === role) return;
+    setUser((current) => ({ ...current, email: authEmail, role }));
+  }, [authEmail, user.email, user.role]);
+
+  useEffect(() => {
     const organizerPath = location.pathname.startsWith("/organizer")
       || location.pathname.startsWith("/scanner");
     setPerspective(organizerPath && canAccessOrganizer ? "organizer" : "attendee");
@@ -192,6 +199,7 @@ export default function App() {
             id: u.id || prev.id,
             name: u.name || prev.name,
             email: u.email || prev.email,
+            role: roleForAuthenticatedEmail(u.email),
             avatarUrl: u.image || prev.avatarUrl,
           }));
           setIsAuthenticated(true);
@@ -213,12 +221,6 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const storedToken = sessionStorage.getItem("neon_auth_token");
-    const storedEmail = sessionStorage.getItem("neon_auth_email");
-
-    if (storedToken && storedEmail) {
-      setIsAuthenticated(true);
-      setAuthEmail(storedEmail);
-    }
 
     const hydrate = async () => {
       try {

@@ -5,16 +5,33 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
+import { roleForAuthenticatedEmail } from "../src/permissions";
 import { config } from "./config";
 import { errorHandler, HttpError, notFoundHandler } from "./errors";
 import type { AppStateStore } from "./store";
 import { statePayloadSchema } from "./validation";
-import { createNeonVerifier, makeAuthenticateNeon, type NeonVerifier } from "./neonAuth";
+import {
+  createNeonVerifier,
+  makeAuthenticateNeon,
+  type AuthenticatedRequest,
+  type NeonVerifier,
+} from "./neonAuth";
 
 interface CreateAppOptions {
   store: AppStateStore;
   staticDir?: string;
   neonVerifier?: NeonVerifier;
+}
+
+function applyOAuthRole(state: AppStateSnapshot, email?: string): AppStateSnapshot {
+  return {
+    ...state,
+    user: {
+      ...state.user,
+      ...(email ? { email } : {}),
+      role: roleForAuthenticatedEmail(email),
+    },
+  };
 }
 
 export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) {
@@ -54,10 +71,12 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   // User identity is Neon Auth only. Google-token exchange and gp_session_*
   // strings are gone; user endpoints verify a Neon Auth JWT via JWKS.
 
-  app.get("/api/state", authenticateNeon, async (_req, res, next) => {
+  app.get("/api/state", authenticateNeon, async (req, res, next) => {
     try {
-      const state = await store.load();
-      res.json({ state: state ?? createInitialAppState() });
+      const state = (await store.load()) ?? createInitialAppState();
+      res.json({
+        state: applyOAuthRole(state, (req as AuthenticatedRequest).authEmail),
+      });
     } catch (error) {
       next(error);
     }
@@ -66,7 +85,12 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.put("/api/state", authenticateNeon, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
-      await store.save(state as AppStateSnapshot);
+      await store.save(
+        applyOAuthRole(
+          state as AppStateSnapshot,
+          (req as AuthenticatedRequest).authEmail,
+        ),
+      );
       res.status(204).send();
     } catch (error) {
       next(error);

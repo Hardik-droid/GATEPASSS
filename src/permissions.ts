@@ -1,20 +1,21 @@
 import { UserRole, type UserProfile } from "./types";
 
-const ORGANIZER_ROLES = new Set([
-  UserRole.OWNER,
-  UserRole.EVENT_MANAGER,
-  UserRole.FINANCE_MANAGER,
-  UserRole.GATE_STAFF,
-  UserRole.SCANNER_STAFF,
-]);
+export const OWNER_EMAIL = "ophardik001@gmail.com";
+
+export function roleForAuthenticatedEmail(email: string | null | undefined): UserRole {
+  return email?.trim().toLowerCase() === OWNER_EMAIL
+    ? UserRole.OWNER
+    : UserRole.ATTENDEE;
+}
 
 export function hasOrganizerAccess(
   user: UserProfile,
   authenticatedEmail: string | null,
 ): boolean {
+  const email = authenticatedEmail?.trim().toLowerCase();
   return Boolean(
-    authenticatedEmail
-    && authenticatedEmail.trim().toLowerCase() === user.email.trim().toLowerCase()
-    && ORGANIZER_ROLES.has(user.role),
+    email
+    && email === user.email.trim().toLowerCase()
+    && roleForAuthenticatedEmail(email) === UserRole.OWNER,
   );
 }

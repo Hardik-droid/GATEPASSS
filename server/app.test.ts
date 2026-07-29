@@ -3,6 +3,7 @@ import test from "node:test";
 import request from "supertest";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
+import { UserRole } from "../src/types";
 import { createApp } from "./app";
 import { createNeonVerifier } from "./neonAuth";
 import type { AppStateStore } from "./store";
@@ -57,7 +58,20 @@ test("GET /api/state accepts a valid Neon JWT", async () => {
     .set("Authorization", `Bearer ${token}`)
     .expect(200);
   assert.equal(response.body.state.user.name, "Hardik Jain");
+  assert.equal(response.body.state.user.email, "n@x.com");
+  assert.equal(response.body.state.user.role, "Attendee");
   assert.ok(Array.isArray(response.body.state.events));
+});
+
+test("GET /api/state assigns Owner only to the configured OAuth email", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint({ email: "ophardik001@gmail.com" });
+  const response = await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+  assert.equal(response.body.state.user.email, "ophardik001@gmail.com");
+  assert.equal(response.body.state.user.role, "Owner");
 });
 
 test("GET /api/state rejects a missing token", async () => {
@@ -88,9 +102,10 @@ test("PUT /api/state validates payloads before persisting", async () => {
 
 test("PUT /api/state persists a valid snapshot", async () => {
   const { app, mint } = await authedApp();
-  const token = await mint();
+  const token = await mint({ email: "attendee@example.com" });
   const state = createInitialAppState();
   state.user.name = "Production Test User";
+  state.user.role = UserRole.OWNER;
   await request(app)
     .put("/api/state")
     .set("Authorization", `Bearer ${token}`)
@@ -101,6 +116,8 @@ test("PUT /api/state persists a valid snapshot", async () => {
     .set("Authorization", `Bearer ${token}`)
     .expect(200);
   assert.equal(response.body.state.user.name, "Production Test User");
+  assert.equal(response.body.state.user.email, "attendee@example.com");
+  assert.equal(response.body.state.user.role, "Attendee");
 });
 
 test("removed Node mock QR route now 404s", async () => {
