@@ -77,14 +77,14 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   };
 
   useEffect(() => {
-    const cachedLocation = sessionStorage.getItem("gatepass_location");
+    const cachedLocation = sessionStorage.getItem("gatepass_detected_location");
     if (cachedLocation) {
       setCurrentLocation(cachedLocation);
       return;
     }
 
     if (!navigator.geolocation) {
-      setCurrentLocation("Select location");
+      setCurrentLocation("Location unavailable");
       return;
     }
 
@@ -107,14 +107,14 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
           if (!location) throw new Error("Location lookup returned no city");
           if (cancelled) return;
 
-          sessionStorage.setItem("gatepass_location", location);
+          sessionStorage.setItem("gatepass_detected_location", location);
           setCurrentLocation(location);
         } catch {
-          if (!cancelled) setCurrentLocation("Select location");
+          if (!cancelled) setCurrentLocation("Location unavailable");
         }
       },
       () => {
-        if (!cancelled) setCurrentLocation("Select location");
+        if (!cancelled) setCurrentLocation("Location unavailable");
       },
       { enableHighAccuracy: false, maximumAge: 3_600_000, timeout: 10_000 },
     );
@@ -314,23 +314,12 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-1.5 text-neutral-400">
               <MapPin className="w-4 h-4 text-[#ff2bd6]" />
-              <select 
-                value={currentLocation} 
-                onChange={(e) => {
-                  setCurrentLocation(e.target.value);
-                  sessionStorage.setItem("gatepass_location", e.target.value);
-                  triggerToast(`Switched location node to ${e.target.value}`);
-                }}
-                className="bg-transparent border-none text-xs font-black uppercase tracking-wider text-neutral-300 focus:outline-none cursor-pointer"
+              <span
+                aria-live="polite"
+                className="truncate text-xs font-black uppercase tracking-wider text-neutral-300"
               >
-                {!["Paris, France", "Delhi, India", "London, UK", "New York, USA"].includes(currentLocation) && (
-                  <option value={currentLocation}>{currentLocation}</option>
-                )}
-                <option value="Paris, France">Paris, France</option>
-                <option value="Delhi, India">Delhi, India</option>
-                <option value="London, UK">London, UK</option>
-                <option value="New York, USA">New York, USA</option>
-              </select>
+                {currentLocation}
+              </span>
               <a
                 href="https://www.openstreetmap.org/copyright"
                 target="_blank"
