@@ -11,6 +11,7 @@ permanent QR pass that can be loaded and scanned across devices.
 | --- | --- |
 | Web app | Vite/React static site on Vercel |
 | Permanent QR pass | Vercel Python Function: `GET /api/qr/me` |
+| Mobile entry scanner | Vercel Python Functions under `/api/scanner/*` |
 | QR credential security | FastAPI in `backend/` with Neon Postgres |
 | Operations state | Node/Express service in `server/` (deploy separately when state persistence is used) |
 | Identity | Neon Auth JWTs verified server-side |
@@ -70,6 +71,7 @@ never in Git or browser-visible `VITE_*` variables.
 | `NEON_AUTH_URL` | Server services | Neon Auth issuer URL |
 | `NEON_AUTH_AUDIENCE` | Production FastAPI | Expected JWT audience; required in staging and production |
 | `GATEPASS_PUBLIC_APP_URL` | QR function / FastAPI | Public web origin, for example `https://gatepasss.vercel.app` |
+| `GATEPASS_OWNER_EMAIL` | FastAPI | Exact OAuth email allowed to grant or revoke scanner access |
 | `GATEPASS_ADMIN_EMAILS` | FastAPI | Reserved comma-separated authorised scanner-admin emails |
 | `DATABASE_URL` | Node state API | Postgres URL used for app state |
 | `CORS_ORIGIN` | Node state API | Exact public web origin |
@@ -94,8 +96,9 @@ never work on a visitor's phone.
 5. Redeploy after changing any `VITE_*` value; Vite embeds those values during
    the build.
 
-The `api/qr/me.py` filesystem function handles `/api/qr/me`; the SPA rewrite
-intentionally excludes `/api/*` so API requests do not return `index.html`.
+The filesystem functions in `api/qr/` and `api/scanner/` expose the FastAPI
+routes. The SPA rewrite intentionally excludes `/api/*` so API requests do not
+return `index.html`.
 
 ### Node state API
 
@@ -104,15 +107,31 @@ Deploy the repository with Nixpacks/Railway using the committed
 the Neon Auth settings. Railway builds `server/index.ts` and starts
 `dist-server/index.js`; it must not run a .NET Docker image.
 
-## Scanner release gate
+## Mobile scanner
 
-This repository currently ships the permanent QR credential endpoint, but it
-does **not** ship `/api/scanner/pair`, `/api/scanner/me`, or
-`/api/scanner/scan`. The former Node mock routes were intentionally removed,
-and the remaining Scanner UI must stay out of a production entry workflow until
-a server-backed scanner service implements assignment, validation, audit logs,
-and device authorisation. Do not replace those controls with local or demo
-validation.
+The mobile scanner uses the signed permanent GatePass QR and validates every
+scan on the FastAPI service:
+
+- `GET /api/scanner/assignments` returns only events and gates the signed-in
+  operator is allowed to scan.
+- `PUT /api/scanner/access` lets the configured Owner grant or revoke
+  event-scoped scanner access by verified OAuth email.
+- `POST /api/scanner/validate` verifies the signed QR, operator assignment,
+  event window, ticket status, current holder, transfer history, remaining
+  entries, and idempotency before approving entry.
+
+Delegated scanner operators remain Attendees. Scanner access never grants
+organiser tools or changes an OAuth role.
+
+Production ticket issuance must write an active row to
+`public.gp_ticket_entitlements` and one active current-holder row to
+`public.gp_ticket_assignments`. Accepted transfers are read from
+`public.gp_ticket_transfers`. The scanner deliberately has no client-side,
+legacy-ticket, or demo-data fallback.
+
+On mobile, use the HTTPS deployment so the browser can open the rear camera.
+The scanner stops decoding after the first QR result and resumes only when the
+operator taps **Scan next ticket**, preventing duplicate frame submissions.
 
 ## Verify before release
 
@@ -125,10 +144,10 @@ npm run build
 python -m pytest tests -q
 ```
 
-After deployment, check that the public QR route returns JSON (an unauthenticated
-request should be a JSON `401`, not HTML), then sign in on a real phone and
-confirm that the QR code renders. Add a real scanner validation test only after
-the server-backed scanner service described above is deployed.
+After deployment, check that the public QR and scanner routes return JSON (an
+unauthenticated request should be a JSON `401`, not HTML). Then sign in on a
+real phone, confirm that the permanent QR renders, grant one Attendee scanner
+access, and scan an original and transferred ticket through the rear camera.
 
 ## Security rules
 

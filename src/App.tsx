@@ -19,6 +19,7 @@ import {
 } from "./types";
 import { authClient, getAuthToken } from "./auth";
 import { hasOrganizerAccess, roleForAuthenticatedEmail } from "./permissions";
+import { fetchScannerAccess } from "./scannerApi";
 import IdentityCard from "./pages/Profile";
 import RequestAccessForm from "./pages/RequestAccess";
 import ApprovalsInvites from "./pages/Approvals";
@@ -91,6 +92,7 @@ export default function App() {
   // Auth state (Issue #1 & #4)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authEmail, setAuthEmail] = useState<string | null>(null);
+  const [canAccessScanner, setCanAccessScanner] = useState(false);
 
   // Toast notifications (Issue #2)
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -146,12 +148,14 @@ export default function App() {
     }
     setIsAuthenticated(false);
     setAuthEmail(null);
+    setCanAccessScanner(false);
     sessionStorage.removeItem("neon_auth_token");
     sessionStorage.removeItem("neon_auth_email");
     addToast("info", "You have been signed out.");
   };
 
   const canAccessOrganizer = hasOrganizerAccess(user, authEmail);
+  const hasScannerAccess = canAccessOrganizer || canAccessScanner;
 
   useEffect(() => {
     if (!authEmail) return;
@@ -159,6 +163,24 @@ export default function App() {
     if (user.email === authEmail && user.role === role) return;
     setUser((current) => ({ ...current, email: authEmail, role }));
   }, [authEmail, user.email, user.role]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAuthenticated || !authEmail) {
+      setCanAccessScanner(false);
+      return;
+    }
+    fetchScannerAccess()
+      .then((access) => {
+        if (!cancelled) setCanAccessScanner(access.can_scan);
+      })
+      .catch(() => {
+        if (!cancelled) setCanAccessScanner(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authEmail]);
 
   useEffect(() => {
     const organizerPath = location.pathname.startsWith("/organizer")
@@ -880,6 +902,22 @@ export default function App() {
                   <TicketIcon className="w-4 h-4 md:hidden" />
                   <span>Events &amp; Concerts</span>
                 </NavLink>
+                {hasScannerAccess && (
+                  <NavLink
+                    to="/scanner"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                        isActive
+                          ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary"
+                          : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                      }`
+                    }
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>Scanner</span>
+                  </NavLink>
+                )}
               </>
             ) : (
               /* ORGANIZER ROUTES */
@@ -1050,14 +1088,7 @@ export default function App() {
           />
           <Route 
             path="/scanner" 
-            element={
-              canAccessOrganizer ? <QRScannerSimulation
-                tickets={tickets}
-                events={events}
-                scanLogs={scanLogs}
-                onLogScan={handleLogScan}
-              /> : <Navigate to="/" replace />
-            } 
+            element={<QRScannerSimulation />}
           />
           {/* Catch-all redirect to / */}
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -1119,6 +1150,19 @@ export default function App() {
               <Sparkles className="w-5 h-5" />
               <span>Events</span>
             </NavLink>
+            {hasScannerAccess && (
+              <NavLink
+                to="/scanner"
+                className={({ isActive }) =>
+                  `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                    isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                  }`
+                }
+              >
+                <Smartphone className="w-5 h-5" />
+                <span>Scanner</span>
+              </NavLink>
+            )}
           </>
         ) : (
           <>

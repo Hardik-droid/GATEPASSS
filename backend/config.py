@@ -10,6 +10,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 @dataclass(frozen=True)
 class Settings:
     qr_signing_key: str
+    owner_email: str
     public_app_url: str
     scanner_session_hours: int
     scanner_pairing_minutes: int
@@ -57,6 +58,9 @@ def load_settings() -> Settings:
         )
     return Settings(
         qr_signing_key=signing_key,
+        owner_email=os.environ.get(
+            "GATEPASS_OWNER_EMAIL", "ophardik001@gmail.com"
+        ).strip().lower(),
         public_app_url=os.environ.get("GATEPASS_PUBLIC_APP_URL", "http://localhost:5173"),
         scanner_session_hours=int(os.environ.get("GATEPASS_SCANNER_SESSION_HOURS", "12")),
         scanner_pairing_minutes=int(os.environ.get("GATEPASS_SCANNER_PAIRING_MINUTES", "10")),

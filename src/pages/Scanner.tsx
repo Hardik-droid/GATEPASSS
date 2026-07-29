@@ -1,389 +1,581 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BrowserQRCodeReader, IScannerControls } from "@zxing/browser";
-import { 
-  Smartphone, 
-  Camera, 
-  Volume2, 
-  MapPin, 
+import { BrowserQRCodeReader, type IScannerControls } from "@zxing/browser";
+import {
   ArrowLeft,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
+  Camera,
+  CheckCircle2,
+  Flashlight,
+  LockKeyhole,
+  MapPin,
   RefreshCw,
-  QrCode,
-  Lock
+  ShieldCheck,
+  Ticket,
+  Trash2,
+  UserPlus,
+  Users,
+  XCircle,
 } from "lucide-react";
+import {
+  fetchScannerAccess,
+  type ScanResult,
+  type ScannerAccess,
+  type ScannerGrant,
+  updateScannerAccess,
+  validateScannerQr,
+} from "../scannerApi";
 
-// Generate a quick RFC4122 v4 UUID for idempotency keys
-function generateUuid() {
-  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === "x" ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
+function cameraErrorMessage(error: unknown): string {
+  if (!window.isSecureContext) {
+    return "Camera access requires HTTPS. Open the secure GatePass URL.";
+  }
+  if (error instanceof DOMException) {
+    if (error.name === "NotAllowedError") {
+      return "Camera permission is blocked. Allow it in your browser settings, then try again.";
+    }
+    if (error.name === "NotFoundError") {
+      return "No camera was found on this device.";
+    }
+    if (error.name === "NotReadableError") {
+      return "The camera is being used by another app. Close it there and retry.";
+    }
+  }
+  return "The camera could not start. Check permission and try again.";
 }
 
-export default function QRScannerSimulation() {
-  const [pairingCode, setPairingCode] = useState("123456");
-  const [paired, setPaired] = useState(false);
-  const [scannerInfo, setScannerInfo] = useState<{
-    scanner_id: string;
-    name: string;
-    purpose: string;
-    gate: string;
-  } | null>(null);
-
+export default function Scanner() {
+  const [access, setAccess] = useState<ScannerAccess | null>(null);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState("");
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [torchActive, setTorchActive] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  
-  const [scanResult, setScanResult] = useState<{
-    status: "APPROVED" | "REJECTED";
-    message: string;
-    ticket?: {
-      attendeeName: string;
-      categoryName: string;
-      qrToken: string;
-    };
-  } | null>(null);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [grantEmail, setGrantEmail] = useState("");
+  const [grantEventId, setGrantEventId] = useState("");
+  const [grantGate, setGrantGate] = useState("Main Gate");
+  const [grantBusy, setGrantBusy] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const codeReaderRef = useRef<BrowserQRCodeReader | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
+  const cameraStartInFlightRef = useRef(false);
+  const scanInFlightRef = useRef(false);
 
-  // Auto-pair using the singleton backend code "123456"
-  const handlePairScanner = async () => {
+  const selectedAssignment = access?.assignments.find(
+    (assignment) => assignment.event_id === selectedEventId,
+  );
+
+  const loadAccess = async () => {
+    setAccessLoading(true);
+    setAccessError(null);
     try {
-      setError(null);
-      const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-      const response = await fetch(`${API_BASE_URL}/api/scanner/pair`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pairing_code: pairingCode })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || "Failed to pair scanner.");
-      }
-
-      // Load paired info
-      const meResponse = await fetch(`${API_BASE_URL}/api/scanner/me`);
-      if (!meResponse.ok) {
-        throw new Error("Failed to fetch scanner configuration.");
-      }
-
-      const meData = await meResponse.json();
-      setScannerInfo(meData);
-      setPaired(true);
-    } catch (err: any) {
-      setError(err.message || "Error pairing scanner.");
+      const next = await fetchScannerAccess();
+      setAccess(next);
+      setSelectedEventId((current) =>
+        next.assignments.some((assignment) => assignment.event_id === current)
+          ? current
+          : next.assignments[0]?.event_id ?? "",
+      );
+      setGrantEventId((current) =>
+        next.assignments.some((assignment) => assignment.event_id === current)
+          ? current
+          : next.assignments[0]?.event_id ?? "",
+      );
+    } catch (error) {
+      setAccessError(
+        error instanceof Error ? error.message : "Could not load scanner access.",
+      );
+    } finally {
+      setAccessLoading(false);
     }
   };
 
   useEffect(() => {
-    // Attempt auto-pairing on load
-    handlePairScanner();
+    void loadAccess();
   }, []);
 
-  const startCamera = async () => {
-    if (!paired) return;
-    try {
-      setErrorMessage(null);
-      setScanResult(null);
-      
-      const reader = new BrowserQRCodeReader();
-      codeReaderRef.current = reader;
-      setCameraActive(true);
-
-      const controls = await reader.decodeFromVideoDevice(
-        undefined, // default camera device
-        videoRef.current!,
-        (result, error) => {
-          if (result) {
-            const text = result.getText();
-            handleScanPayload(text);
-          }
-        }
-      );
-      controlsRef.current = controls;
-    } catch (err: any) {
-      console.warn("Camera access failed:", err);
-      setErrorMessage("CAMERA_PERMISSION_DENIED: Unable to access video devices.");
-      setCameraActive(false);
-    }
-  };
-
   const stopCamera = () => {
-    if (controlsRef.current) {
-      controlsRef.current.stop();
-      controlsRef.current = null;
-    }
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+    setTorchActive(false);
     setCameraActive(false);
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (controlsRef.current) {
-        controlsRef.current.stop();
-      }
-    };
-  }, []);
+  useEffect(() => stopCamera, []);
 
-  const handleScanPayload = async (payload: string) => {
-    if (scanning) return; // Prevent duplicate requests
+  const submitQr = async (payload: string) => {
+    if (!selectedAssignment) {
+      scanInFlightRef.current = false;
+      setCameraError("Choose an event before scanning.");
+      return;
+    }
     setScanning(true);
-    setErrorMessage(null);
-
-    // Fast client-side rejection checks
-    if (!payload.startsWith("gp:v1:")) {
-      setScanResult({
-        status: "REJECTED",
-        message: "INVALID_QR_FORMAT: Payload does not conform to gp:v1: protocol."
-      });
+    setCameraError(null);
+    setScanResult(null);
+    try {
+      setScanResult(await validateScannerQr(selectedAssignment.event_id, payload));
+      if ("vibrate" in navigator) {
+        navigator.vibrate(120);
+      }
+    } catch (error) {
+      setCameraError(
+        error instanceof Error ? error.message : "The scanner service is unavailable.",
+      );
+    } finally {
+      scanInFlightRef.current = false;
       setScanning(false);
+    }
+  };
+
+  const startCamera = async () => {
+    if (
+      !selectedAssignment ||
+      !videoRef.current ||
+      cameraStartInFlightRef.current ||
+      scanInFlightRef.current
+    ) {
+      return;
+    }
+    cameraStartInFlightRef.current = true;
+    setCameraStarting(true);
+    stopCamera();
+    setScanResult(null);
+    setCameraError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("This browser does not support camera scanning.");
+      cameraStartInFlightRef.current = false;
+      setCameraStarting(false);
       return;
     }
 
     try {
-      const idempotencyKey = generateUuid();
-      const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-      
-      const response = await fetch(`${API_BASE_URL}/api/scanner/scan`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Idempotency-Key": idempotencyKey
+      const reader = new BrowserQRCodeReader(undefined, {
+        delayBetweenScanAttempts: 120,
+        delayBetweenScanSuccess: 800,
+      });
+      const controls = await reader.decodeFromConstraints(
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         },
-        body: JSON.stringify({
-          payload,
-          gate: scannerInfo?.gate || "MAIN_GATE"
-        })
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        setScanResult({
-          status: "REJECTED",
-          message: errData.message || "Entry Denied."
-        });
-        return;
-      }
-
-      const data = await response.json();
-      setScanResult({
-        status: "APPROVED",
-        message: data.message,
-        ticket: data.ticket
-      });
-
-      // Auto-reset after a successful validation
-      setTimeout(() => {
-        setScanResult(null);
-      }, 5000);
-
-    } catch (err: any) {
-      setErrorMessage("NETWORK_ERROR: Unable to communicate with security servers.");
+        videoRef.current,
+        (result, _error, callbackControls) => {
+          if (!result || scanInFlightRef.current) return;
+          scanInFlightRef.current = true;
+          callbackControls.stop();
+          controlsRef.current = null;
+          setCameraActive(false);
+          void submitQr(result.getText());
+        },
+      );
+      controlsRef.current = controls;
+      setCameraActive(true);
+    } catch (error) {
+      stopCamera();
+      setCameraError(cameraErrorMessage(error));
     } finally {
-      setScanning(false);
+      cameraStartInFlightRef.current = false;
+      setCameraStarting(false);
     }
   };
 
-  const setError = (msg: string | null) => {
-    setErrorMessage(msg);
+  const toggleTorch = async () => {
+    const controls = controlsRef.current;
+    if (!controls?.switchTorch) return;
+    try {
+      await controls.switchTorch(!torchActive);
+      setTorchActive((active) => !active);
+    } catch {
+      setCameraError("Torch control is not supported by this camera.");
+    }
   };
 
-  return (
-    <div className="flex flex-col gap-6 animate-fadeIn" id="scanner-sim-section">
-      {/* Page Header with Back Icon */}
-      <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-outline-variant/30 shadow-sm">
-        <Link to="/" className="p-2 rounded-xl bg-neutral-50 hover:bg-neutral-100 text-charcoal-dark border border-outline-variant/30 transition-all flex items-center justify-center">
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <h2 className="text-base font-black text-charcoal-dark uppercase tracking-tight">Gate Checkout Scanner</h2>
-          <p className="text-[10px] text-outline uppercase font-semibold">Simulate entry validation gates with QR scanner</p>
+  const saveGrant = async (allowed: boolean, grant?: ScannerGrant) => {
+    const email = grant?.email ?? grantEmail.trim();
+    const eventId = grant?.event_id ?? grantEventId;
+    const gate = grant?.gate ?? grantGate.trim();
+    if (!email || !eventId || !gate) return;
+    setGrantBusy(true);
+    setAccessError(null);
+    try {
+      await updateScannerAccess({
+        email,
+        event_id: eventId,
+        gate,
+        allowed,
+      });
+      setGrantEmail("");
+      await loadAccess();
+    } catch (error) {
+      setAccessError(
+        error instanceof Error ? error.message : "Could not update scanner access.",
+      );
+    } finally {
+      setGrantBusy(false);
+    }
+  };
+
+  if (accessLoading) {
+    return (
+      <div className="min-h-[60dvh] grid place-items-center">
+        <div className="flex items-center gap-3 text-charcoal-dark font-bold">
+          <RefreshCw className="w-5 h-5 animate-spin text-primary" />
+          Checking scanner access…
         </div>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
-        {/* Configuration Column */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-            <h2 className="text-lg font-bold text-charcoal-dark flex items-center gap-2">
-              <Smartphone className="w-5 h-5 text-primary" />
-              <span>Scanner Connection</span>
-            </h2>
-
-            {!paired ? (
-              <div className="flex flex-col gap-3">
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  Enter your physical scanner pairing code to securely provision this terminal.
-                </p>
-                <input
-                  type="text"
-                  value={pairingCode}
-                  onChange={(e) => setPairingCode(e.target.value)}
-                  placeholder="Pairing Code (e.g. 123456)"
-                  className="bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-medium"
-                />
-                <button
-                  onClick={handlePairScanner}
-                  className="w-full py-2.5 bg-primary text-white text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-primary-container"
-                >
-                  Pair Scanner
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 text-xs">
-                <div className="flex justify-between border-b border-surface-container py-2">
-                  <span className="text-outline">Terminal ID</span>
-                  <span className="font-mono font-bold text-charcoal-dark">{scannerInfo?.scanner_id}</span>
-                </div>
-                <div className="flex justify-between border-b border-surface-container py-2">
-                  <span className="text-outline">Scanner Name</span>
-                  <span className="font-bold text-charcoal-dark">{scannerInfo?.name}</span>
-                </div>
-                <div className="flex justify-between border-b border-surface-container py-2">
-                  <span className="text-outline">Active Gate</span>
-                  <span className="font-bold text-status-success flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-status-success inline-block"></span>
-                    {scannerInfo?.gate}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-outline">Purpose</span>
-                  <span className="font-mono font-bold text-primary">{scannerInfo?.purpose}</span>
-                </div>
-              </div>
-            )}
-          </div>
+  if (accessError && !access) {
+    return (
+      <div className="min-h-[60dvh] grid place-items-center px-4">
+        <div className="max-w-md w-full bg-white border border-red-200 p-6 text-center shadow-sm">
+          <XCircle className="w-10 h-10 text-red-500 mx-auto mb-3" />
+          <h1 className="text-xl font-black text-charcoal-dark">Scanner unavailable</h1>
+          <p className="mt-2 text-sm text-neutral-600">{accessError}</p>
+          <button
+            onClick={() => void loadAccess()}
+            className="mt-5 min-h-12 w-full bg-black text-white font-black"
+          >
+            Try again
+          </button>
         </div>
+      </div>
+    );
+  }
 
-        {/* Interactive Web Scanner Screen */}
-        <div className="lg:col-span-7 flex flex-col items-center">
-          <div className="w-full max-w-[340px] aspect-[9/18] bg-black rounded-[40px] border-[8px] border-neutral-800 shadow-2xl relative overflow-hidden flex flex-col text-white p-4 justify-between select-none">
-            {/* Phone Top Notch */}
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-5 bg-neutral-800 rounded-full flex items-center justify-center z-50">
-              <div className="w-12 h-1 bg-neutral-900 rounded-full mb-1"></div>
-            </div>
+  if (!access?.can_scan) {
+    return (
+      <div className="min-h-[60dvh] grid place-items-center px-4">
+        <div className="max-w-md w-full bg-white border border-neutral-200 p-7 text-center shadow-sm">
+          <LockKeyhole className="w-11 h-11 text-neutral-400 mx-auto mb-4" />
+          <h1 className="text-2xl font-black text-charcoal-dark">Scanner access required</h1>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+            Ask the Owner to grant your signed-in email access to an event gate.
+          </p>
+          <Link
+            to="/"
+            className="mt-6 min-h-12 flex items-center justify-center bg-black text-white font-black"
+          >
+            Back to GatePass
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-            {/* Scanner Header */}
-            <div className="pt-6 text-center z-10 flex flex-col gap-1">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-400">GatePass Validator</h3>
-              <p className="text-[10px] font-bold text-primary-fixed-dim flex items-center justify-center gap-1">
-                <MapPin className="w-3 h-3 text-[#ff2bd6]" />
-                {scannerInfo?.gate || "Awaiting Pairing..."}
+  const approved = scanResult?.decision === "APPROVED";
+  const ownership = scanResult?.ownership;
+
+  return (
+    <div className="mx-auto w-full max-w-6xl pb-24 md:pb-8">
+      <header className="mb-5 flex items-center gap-3">
+        <Link
+          to="/"
+          aria-label="Back to GatePass"
+          className="grid size-11 shrink-0 place-items-center border border-neutral-200 bg-white text-charcoal-dark"
+        >
+          <ArrowLeft className="size-5" />
+        </Link>
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-primary">
+            Live entry control
+          </p>
+          <h1 className="truncate text-2xl font-black text-charcoal-dark">
+            Mobile Scanner
+          </h1>
+        </div>
+      </header>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="order-1 overflow-hidden bg-neutral-950 text-white shadow-xl lg:order-1">
+          <div className="flex min-h-16 items-center justify-between border-b border-white/10 px-4">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black">
+                {selectedAssignment?.event_name ?? "Choose an event"}
+              </p>
+              <p className="flex items-center gap-1 text-xs text-white/60">
+                <MapPin className="size-3" />
+                {selectedAssignment?.gate ?? "No gate selected"}
               </p>
             </div>
-
-            {/* Active Camera Backplate or Simulated QR Laser Screen */}
-            <div className="absolute inset-0 z-0 bg-neutral-950 flex items-center justify-center">
-              <video 
-                ref={videoRef}
-                autoPlay 
-                playsInline
-                className={`w-full h-full object-cover opacity-80 ${cameraActive ? 'block' : 'hidden'}`}
-              />
-              {!cameraActive && (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-950 flex flex-col items-center justify-center p-6">
-                  <div className="w-48 h-48 border-2 border-dashed border-neutral-800 rounded-3xl relative flex items-center justify-center overflow-hidden">
-                    <QrCode className="w-20 h-20 text-neutral-800" />
-                  </div>
-                  <p className="text-[9px] text-neutral-500 uppercase font-mono tracking-widest mt-4">Camera inactive</p>
-                </div>
-              )}
-            </div>
-
-            {/* Scanning Overlay */}
-            {scanning && (
-              <div className="absolute inset-0 bg-black/95 z-20 flex flex-col items-center justify-center gap-3">
-                <Volume2 className="w-10 h-10 text-primary animate-pulse" />
-                <p className="text-sm font-semibold tracking-wider uppercase animate-pulse">Checking credentials...</p>
-              </div>
-            )}
-
-            {/* Error or Result Display Overlay */}
-            {errorMessage && (
-              <div className="absolute inset-0 bg-status-danger/95 z-30 p-6 flex flex-col items-center justify-center text-center gap-4">
-                <div className="bg-white p-3 rounded-full text-black shadow-lg">
-                  <AlertTriangle className="w-10 h-10 text-status-danger" />
-                </div>
-                <div className="flex flex-col gap-1.5 max-w-xs">
-                  <h4 className="text-lg font-black uppercase tracking-wider">Scanner Error</h4>
-                  <p className="text-xs font-medium text-white/95 leading-relaxed">{errorMessage}</p>
-                </div>
-                <button
-                  onClick={() => setErrorMessage(null)}
-                  className="mt-2 px-6 py-2.5 bg-white text-black font-extrabold text-xs tracking-wider uppercase rounded-xl shadow cursor-pointer hover:bg-neutral-100"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-
-            {/* ScanResult Banner */}
-            {!scanning && scanResult && (
-              <div className={`absolute inset-0 z-30 p-6 flex flex-col items-center justify-center text-center gap-4 ${
-                scanResult.status === "APPROVED" ? "bg-status-success/95" : "bg-status-danger/95"
-              }`}>
-                <div className="bg-white p-3 rounded-full text-black shadow-lg">
-                  {scanResult.status === "APPROVED" ? (
-                    <CheckCircle className="w-10 h-10 text-status-success fill-status-success/5" />
-                  ) : (
-                    <XCircle className="w-10 h-10 text-status-danger" />
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-1.5 max-w-xs">
-                  <h4 className="text-xl font-black uppercase tracking-wider">{scanResult.status}</h4>
-                  <p className="text-xs font-medium text-white/95 leading-relaxed">{scanResult.message}</p>
-                </div>
-
-                {scanResult.ticket && (
-                  <div className="bg-black/30 p-3.5 rounded-xl border border-white/10 w-full text-left text-xs flex flex-col gap-1">
-                    <p className="font-extrabold text-white">Attendee: {scanResult.ticket.attendeeName}</p>
-                    <p className="text-white/80">Category: {scanResult.ticket.categoryName}</p>
-                    <p className="font-mono text-white/70 text-[10px]">Token: {scanResult.ticket.qrToken}</p>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setScanResult(null)}
-                  className="mt-2 px-6 py-2.5 bg-white text-black font-extrabold text-xs tracking-wider uppercase rounded-xl shadow cursor-pointer hover:bg-neutral-100"
-                >
-                  Scan Next
-                </button>
-              </div>
-            )}
-
-            {/* Scanner Bottom Action bar */}
-            <div className="z-10 bg-neutral-900/95 rounded-2xl p-2.5 flex justify-between items-center border border-neutral-800">
-              <button
-                onClick={() => {
-                  if (cameraActive) stopCamera();
-                  else startCamera();
-                }}
-                className="p-2.5 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700 transition-colors flex items-center justify-center flex-1 cursor-pointer"
-                title="Toggle Camera"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-              <div className="w-px h-6 bg-neutral-800 mx-2"></div>
-              <button
-                onClick={() => {
-                  setScanResult(null);
-                  setErrorMessage(null);
-                }}
-                className="text-xs font-bold text-primary-fixed uppercase tracking-wider py-2 px-4 rounded-xl hover:bg-neutral-800 flex-2 text-center cursor-pointer"
-              >
-                Reset Scanner
-              </button>
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
+              <span className="size-2 rounded-full bg-emerald-400" />
+              SECURE
             </div>
           </div>
-        </div>
+
+          <div className="relative h-[min(68dvh,640px)] min-h-[420px] bg-black">
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`h-full w-full object-cover ${cameraActive ? "block" : "hidden"}`}
+            />
+
+            {!cameraActive && !scanResult && !scanning && (
+              <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,#202020_0,#050505_68%)] p-6 text-center">
+                <div>
+                  <div className="mx-auto grid size-24 place-items-center border border-white/15 bg-white/5">
+                    <Camera className="size-11 text-white/80" />
+                  </div>
+                  <h2 className="mt-5 text-2xl font-black">Ready to scan</h2>
+                  <p className="mx-auto mt-2 max-w-xs text-sm text-white/60">
+                    Point the rear camera at the attendee’s GatePass QR.
+                  </p>
+                  <button
+                    onClick={() => void startCamera()}
+                    disabled={!selectedAssignment || cameraStarting}
+                    className="mt-6 min-h-14 min-w-52 bg-[#ff2bd6] px-6 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {cameraStarting ? "Starting camera…" : "Open camera"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {cameraActive && (
+              <>
+                <div className="pointer-events-none absolute inset-0 grid place-items-center p-8">
+                  <div className="relative aspect-square w-full max-w-sm border border-white/60">
+                    <span className="absolute -left-1 -top-1 size-10 border-l-4 border-t-4 border-[#ff2bd6]" />
+                    <span className="absolute -right-1 -top-1 size-10 border-r-4 border-t-4 border-[#ff2bd6]" />
+                    <span className="absolute -bottom-1 -left-1 size-10 border-b-4 border-l-4 border-[#ff2bd6]" />
+                    <span className="absolute -bottom-1 -right-1 size-10 border-b-4 border-r-4 border-[#ff2bd6]" />
+                  </div>
+                </div>
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-3 bg-gradient-to-t from-black/90 to-transparent p-5 pt-16">
+                  <button
+                    onClick={() => void toggleTorch()}
+                    className={`grid size-12 place-items-center border border-white/20 ${
+                      torchActive ? "bg-white text-black" : "bg-black/55 text-white"
+                    }`}
+                    aria-label="Toggle camera torch"
+                  >
+                    <Flashlight className="size-5" />
+                  </button>
+                  <button
+                    onClick={stopCamera}
+                    className="min-h-12 border border-white/20 bg-black/55 px-5 text-sm font-black"
+                  >
+                    Close camera
+                  </button>
+                </div>
+              </>
+            )}
+
+            {scanning && (
+              <div className="absolute inset-0 grid place-items-center bg-black/90 p-6 text-center">
+                <div>
+                  <RefreshCw className="mx-auto size-12 animate-spin text-[#ff2bd6]" />
+                  <p className="mt-4 text-lg font-black">Checking ticket…</p>
+                  <p className="mt-1 text-sm text-white/60">Server validation in progress</p>
+                </div>
+              </div>
+            )}
+
+            {scanResult && (
+              <div
+                className={`absolute inset-0 overflow-y-auto p-5 ${
+                  approved ? "bg-emerald-600" : "bg-red-600"
+                }`}
+                role="status"
+              >
+                <div className="mx-auto flex min-h-full max-w-md flex-col justify-center">
+                  {approved ? (
+                    <CheckCircle2 className="size-14 text-white" />
+                  ) : (
+                    <XCircle className="size-14 text-white" />
+                  )}
+                  <p className="mt-4 text-xs font-black uppercase tracking-[0.22em] text-white/75">
+                    {approved ? "Entry approved" : "Entry denied"}
+                  </p>
+                  <h2 className="mt-1 text-4xl font-black leading-none">
+                    {scanResult.attendee?.name ?? scanResult.message}
+                  </h2>
+                  {scanResult.attendee && (
+                    <p className="mt-3 text-base font-bold text-white/85">
+                      {scanResult.message}
+                    </p>
+                  )}
+
+                  {scanResult.ticket && (
+                    <div className="mt-6 border border-white/20 bg-black/20 p-4">
+                      <p className="flex items-center gap-2 text-sm font-black">
+                        <Ticket className="size-4" />
+                        {scanResult.ticket.ticket_type}
+                      </p>
+                      <p className="mt-1 text-sm text-white/75">
+                        {scanResult.ticket.event_name}
+                      </p>
+                      <div className="mt-4 border-t border-white/15 pt-4">
+                        {ownership?.is_transferred ? (
+                          <>
+                            <p className="text-sm font-black">Transferred ticket</p>
+                            <p className="mt-1 text-sm text-white/80">
+                              From {ownership.transferred_from_name ?? "previous owner"} ·{" "}
+                              {ownership.owner_count} owners
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-black">Original ticket</p>
+                            <p className="mt-1 text-sm text-white/80">1 owner</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => void startCamera()}
+                    className="mt-6 min-h-14 w-full bg-white px-5 text-sm font-black text-black"
+                  >
+                    Scan next ticket
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {cameraError && (
+            <div className="border-t border-red-400/30 bg-red-950 px-4 py-3 text-sm font-bold text-red-100">
+              {cameraError}
+            </div>
+          )}
+        </section>
+
+        <aside className="order-2 space-y-5 lg:order-2">
+          <section className="border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-5 text-primary" />
+              <h2 className="font-black text-charcoal-dark">Scan location</h2>
+            </div>
+            <label className="mt-4 block text-xs font-black uppercase tracking-wider text-neutral-500">
+              Event and gate
+            </label>
+            <select
+              value={selectedEventId}
+              onChange={(event) => {
+                stopCamera();
+                setScanResult(null);
+                setSelectedEventId(event.target.value);
+              }}
+              className="mt-2 min-h-12 w-full border border-neutral-300 bg-white px-3 font-bold text-charcoal-dark"
+            >
+              {access.assignments.map((assignment) => (
+                <option key={assignment.id} value={assignment.event_id}>
+                  {assignment.event_name} · {assignment.gate}
+                </option>
+              ))}
+            </select>
+            {selectedAssignment && (
+              <div className="mt-4 space-y-2 text-sm text-neutral-600">
+                <p className="flex items-start gap-2">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-primary" />
+                  {selectedAssignment.venue} · {selectedAssignment.gate}
+                </p>
+                <p className="flex items-start gap-2">
+                  <Ticket className="mt-0.5 size-4 shrink-0 text-primary" />
+                  Server-validated tickets only
+                </p>
+              </div>
+            )}
+          </section>
+
+          {access.is_owner && (
+            <section className="border border-neutral-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-2">
+                <Users className="size-5 text-primary" />
+                <div>
+                  <h2 className="font-black text-charcoal-dark">Scanner access</h2>
+                  <p className="text-xs text-neutral-500">Grant by signed-in email</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <input
+                  type="email"
+                  value={grantEmail}
+                  onChange={(event) => setGrantEmail(event.target.value)}
+                  placeholder="staff@example.com"
+                  className="min-h-12 w-full border border-neutral-300 px-3 text-sm font-bold"
+                />
+                <select
+                  value={grantEventId}
+                  onChange={(event) => setGrantEventId(event.target.value)}
+                  className="min-h-12 w-full border border-neutral-300 bg-white px-3 text-sm font-bold"
+                >
+                  {access.assignments.map((assignment) => (
+                    <option key={assignment.id} value={assignment.event_id}>
+                      {assignment.event_name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={grantGate}
+                  onChange={(event) => setGrantGate(event.target.value)}
+                  placeholder="Main Gate"
+                  className="min-h-12 w-full border border-neutral-300 px-3 text-sm font-bold"
+                />
+                <button
+                  onClick={() => void saveGrant(true)}
+                  disabled={grantBusy || !grantEmail.trim() || !grantEventId}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 bg-black px-4 text-sm font-black text-white disabled:opacity-40"
+                >
+                  <UserPlus className="size-4" />
+                  Grant scanner access
+                </button>
+              </div>
+
+              <div className="mt-5 space-y-2">
+                {access.grants.length === 0 ? (
+                  <p className="text-sm text-neutral-500">No delegated scanners yet.</p>
+                ) : (
+                  access.grants.map((grant) => (
+                    <div
+                      key={grant.id}
+                      className="flex items-center gap-3 border border-neutral-200 p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-charcoal-dark">
+                          {grant.name}
+                        </p>
+                        <p className="truncate text-xs text-neutral-500">{grant.email}</p>
+                        <p className="truncate text-xs text-primary">
+                          {grant.event_name} · {grant.gate}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => void saveGrant(false, grant)}
+                        disabled={grantBusy}
+                        aria-label={`Revoke scanner access for ${grant.email}`}
+                        className="grid size-10 shrink-0 place-items-center border border-red-200 text-red-600"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          )}
+
+          {accessError && (
+            <p className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
+              {accessError}
+            </p>
+          )}
+        </aside>
       </div>
     </div>
   );

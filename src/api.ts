@@ -1,7 +1,6 @@
 import type { AppStateSnapshot } from "./appState";
 import { authFetch } from "./authFetch";
-
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+import { API_BASE_URL } from "./apiBase";
 
 export async function loadAppState(): Promise<AppStateSnapshot | null> {
   const response = await authFetch(`${API_BASE_URL}/api/state`);

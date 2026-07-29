@@ -66,7 +66,7 @@ export default function OrganizerWorkspace({
 
   const [newMemberName, setNewMemberName] = useState("");
   const [newMemberEmail, setNewMemberEmail] = useState("");
-  const [newMemberRole, setNewMemberRole] = useState("Scanner Staff");
+  const [newMemberRole, setNewMemberRole] = useState("Event Manager");
 
   const [payoutBank, setPayoutBank] = useState("State Bank of India");
   const [payoutIFSC, setPayoutIFSC] = useState("SBIN0001292");
@@ -1249,7 +1249,12 @@ export default function OrganizerWorkspace({
             <div className="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
               <div>
                 <h3 className="text-base font-black text-charcoal-dark mb-1">Team Members &amp; Permission Roles</h3>
-                <p className="text-xs text-on-surface-variant">School / College fests require team coordination. Assign scanning and gate roles.</p>
+                <p className="text-xs text-on-surface-variant">
+                  General team roles stay separate from secure scanner access.
+                </p>
+                <Link to="/scanner" className="mt-2 inline-flex text-xs font-black text-primary underline underline-offset-4">
+                  Manage scanner access by verified email
+                </Link>
               </div>
 
               <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
@@ -1270,11 +1275,9 @@ export default function OrganizerWorkspace({
                         }}
                         className="p-1 text-[10px] font-bold bg-white text-charcoal-dark border border-outline-variant rounded cursor-pointer outline-none"
                       >
-                        <option value="Owner">Owner</option>
                         <option value="Event Manager">Event Manager</option>
                         <option value="Finance Manager">Finance Manager</option>
                         <option value="Gate Staff">Gate Staff</option>
-                        <option value="Scanner Staff">Scanner Staff</option>
                         <option value="Volunteer">Volunteer</option>
                         <option value="Viewer">Viewer</option>
                       </select>
@@ -1296,7 +1299,7 @@ export default function OrganizerWorkspace({
             <div className="lg:col-span-5 bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
               <div>
                 <h3 className="text-base font-black text-charcoal-dark mb-1">Invite New Admin Member</h3>
-                <p className="text-xs text-on-surface-variant">Add volunteers or staff to scan at ticket check-in portals.</p>
+                <p className="text-xs text-on-surface-variant">Add volunteers or staff for non-scanner operations.</p>
               </div>
 
               <form onSubmit={handleAddTeamMember} className="flex flex-col gap-3">
@@ -1334,7 +1337,6 @@ export default function OrganizerWorkspace({
                     <option value="Event Manager">Event Manager</option>
                     <option value="Finance Manager">Finance Manager</option>
                     <option value="Gate Staff">Gate Staff</option>
-                    <option value="Scanner Staff">Scanner Staff</option>
                     <option value="Volunteer">Volunteer</option>
                     <option value="Viewer">Viewer</option>
                   </select>
