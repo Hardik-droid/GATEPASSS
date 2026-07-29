@@ -396,26 +396,38 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
           <p className="mt-5 max-w-xl text-xs md:text-sm font-semibold text-white/80 leading-relaxed">
             DJ nights, club drops, VIP tables, afterparties, and QR entry that keeps the door moving offline or online.
           </p>
-          <div className="mt-7 flex flex-wrap justify-center gap-3">
+          <div className="mt-8 grid w-full max-w-xl gap-3 sm:grid-cols-2">
             <button
               onClick={() => {
                 setSelectedCategory("Concert");
                 document.getElementById("explore-all-section")?.scrollIntoView({ behavior: "smooth" });
                 triggerToast("Filtering tonight's concert lineups ⚡");
               }}
-              className="inline-flex items-center gap-2 rounded-full bg-[#ff2bd6] px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_0_44px_rgba(255,43,214,.38)] transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+              className="group flex min-h-20 items-center gap-3 rounded-2xl border border-pink-300/40 bg-gradient-to-br from-fuchsia-500 via-pink-500 to-rose-500 px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(236,72,153,.28)] transition hover:-translate-y-1 hover:shadow-[0_22px_60px_rgba(236,72,153,.38)] active:translate-y-0"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              Find a party
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/20 shadow-inner backdrop-blur">
+                <Sparkles className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black">Explore events</span>
+                <span className="mt-0.5 block text-[11px] font-semibold text-white/75">Fun near you</span>
+              </span>
+              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
             </button>
             <button
               onClick={() => {
                 setIsAttendeeScannerOpen(true);
               }}
-              className="inline-flex items-center gap-2 rounded-full border border-cyan-200/30 bg-white/10 px-5 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-white backdrop-blur-md transition-transform hover:-translate-y-0.5 active:scale-95 cursor-pointer hover:bg-white/15"
+              className="group flex min-h-20 items-center gap-3 rounded-2xl border border-cyan-200/20 bg-slate-950/70 px-4 py-3 text-left text-white shadow-[0_18px_50px_rgba(8,145,178,.14)] backdrop-blur-xl transition hover:-translate-y-1 hover:border-cyan-200/40 hover:bg-slate-900/80 active:translate-y-0"
             >
-              <QrCode className="h-3.5 w-3.5 text-[#1fb6ff]" />
-              My QR
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-300/10 text-cyan-300 ring-1 ring-cyan-200/20">
+                <QrCode className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black">Show my pass</span>
+                <span className="mt-0.5 block text-[11px] font-semibold text-white/55">Open your entry QR code</span>
+              </span>
+              <ArrowRight className="h-5 w-5 shrink-0 text-cyan-300 transition-transform group-hover:translate-x-1" />
             </button>
           </div>
         </div>
