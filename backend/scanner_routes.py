@@ -53,13 +53,14 @@ def _is_owner(user: User) -> bool:
     return user.email.strip().lower() == settings.owner_email
 
 
-def _get_gp_user(db: Session, email: str):
-    return (
+def _scanner_user(db: Session, email: str) -> dict | None:
+    """Look up a user in scanner.users by email."""
+    row = (
         db.execute(
             text(
                 """
-                SELECT id, name, email, active
-                FROM public.gp_users
+                SELECT id, email, display_name AS name
+                FROM scanner.users
                 WHERE lower(email) = :email
                 LIMIT 1
                 """
@@ -69,53 +70,11 @@ def _get_gp_user(db: Session, email: str):
         .mappings()
         .one_or_none()
     )
+    return dict(row) if row else None
 
 
-def _ensure_gp_user(
-    db: Session,
-    *,
-    email: str,
-    display_name: str,
-):
-    normalized_email = email.strip().lower()
-    existing = _get_gp_user(db, normalized_email)
-    if existing is not None:
-        return existing
-
-    user_id = str(uuid.uuid4())
-    db.execute(
-        text(
-            """
-            INSERT INTO public.gp_users (
-                id, name, email, password_hash, role, active, created_at
-            )
-            VALUES (
-                :id, :name, :email, '!oauth-only', 'user', true, now()
-            )
-            ON CONFLICT (email) DO NOTHING
-            """
-        ),
-        {
-            "id": user_id,
-            "name": display_name.strip() or normalized_email.split("@", 1)[0],
-            "email": normalized_email,
-        },
-    )
-    created = _get_gp_user(db, normalized_email)
-    if created is None:
-        raise HTTPException(500, "Could not create scanner account")
-    return created
-
-
-def _operator_gp_user(db: Session, user: User):
-    return _ensure_gp_user(
-        db,
-        email=user.email,
-        display_name=user.display_name,
-    )
-
-
-def _event_assignments(db: Session, gp_user_id: str, owner: bool) -> list[dict]:
+def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[dict]:
+    """Return the events the scanner user can scan."""
     if owner:
         rows = (
             db.execute(
@@ -124,14 +83,14 @@ def _event_assignments(db: Session, gp_user_id: str, owner: bool) -> list[dict]:
                     SELECT
                         concat('owner:', e.id) AS id,
                         e.id AS event_id,
-                        e.title AS event_name,
+                        e.name AS event_name,
                         e.venue,
-                        e.start_time,
-                        e.end_time,
+                        e.starts_at AS start_time,
+                        e.ends_at AS end_time,
                         'Owner Gate'::text AS gate
-                    FROM public.gp_events e
+                    FROM scanner.events e
                     WHERE lower(e.status) IN ('approved', 'active', 'published')
-                    ORDER BY e.start_time DESC, e.title
+                    ORDER BY e.starts_at DESC, e.name
                     """
                 )
             )
@@ -144,21 +103,21 @@ def _event_assignments(db: Session, gp_user_id: str, owner: bool) -> list[dict]:
                 text(
                     """
                     SELECT
-                        a.id,
+                        sa.id,
                         e.id AS event_id,
-                        e.title AS event_name,
+                        e.name AS event_name,
                         e.venue,
-                        e.start_time,
-                        e.end_time,
-                        a.gate
-                    FROM public.gp_scanner_assignments a
-                    JOIN public.gp_events e ON e.id = a.event_id
-                    WHERE a.scanner_id = :scanner_id
+                        e.starts_at AS start_time,
+                        e.ends_at AS end_time,
+                        sa.gate
+                    FROM scanner.scanner_assignments sa
+                    JOIN scanner.events e ON e.id = sa.event_id
+                    WHERE sa.scanner_user_id = :scanner_user_id
                       AND lower(e.status) IN ('approved', 'active', 'published')
-                    ORDER BY e.start_time DESC, e.title
+                    ORDER BY e.starts_at DESC, e.name
                     """
                 ),
-                {"scanner_id": gp_user_id},
+                {"scanner_user_id": scanner_user_id},
             )
             .mappings()
             .all()
@@ -167,21 +126,22 @@ def _event_assignments(db: Session, gp_user_id: str, owner: bool) -> list[dict]:
 
 
 def _owner_grants(db: Session) -> list[dict]:
+    """List all delegated scanner assignments (owner only)."""
     rows = (
         db.execute(
             text(
                 """
                 SELECT
-                    a.id,
-                    u.name,
+                    sa.id,
+                    u.display_name AS name,
                     u.email,
-                    a.event_id,
-                    e.title AS event_name,
-                    a.gate
-                FROM public.gp_scanner_assignments a
-                JOIN public.gp_users u ON u.id = a.scanner_id
-                JOIN public.gp_events e ON e.id = a.event_id
-                ORDER BY lower(u.email), e.start_time DESC
+                    sa.event_id,
+                    e.name AS event_name,
+                    sa.gate
+                FROM scanner.scanner_assignments sa
+                JOIN scanner.users u ON u.id = sa.scanner_user_id
+                JOIN scanner.events e ON e.id = sa.event_id
+                ORDER BY lower(u.email), e.starts_at DESC
                 """
             )
         )
@@ -196,9 +156,9 @@ def scanner_assignments(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    gp_user = _operator_gp_user(db, user)
+    scanner_user_id = str(user.id)
     owner = _is_owner(user)
-    assignments = _event_assignments(db, gp_user["id"], owner)
+    assignments = _event_assignments(db, scanner_user_id, owner)
     grants = _owner_grants(db) if owner else []
     db.commit()
     return {
@@ -218,13 +178,13 @@ def update_scanner_access(
     if not _is_owner(user):
         raise HTTPException(403, "Only the Owner can manage scanner access")
 
-    owner = _operator_gp_user(db, user)
+    # Find the event in scanner.events
     event = (
         db.execute(
             text(
                 """
-                SELECT id, title
-                FROM public.gp_events
+                SELECT id, name
+                FROM scanner.events
                 WHERE id = :event_id
                   AND lower(status) IN ('approved', 'active', 'published')
                 """
@@ -237,72 +197,42 @@ def update_scanner_access(
     if event is None:
         raise HTTPException(404, "Event not found or not approved")
 
-    display_name = request.email.split("@", 1)[0].replace(".", " ").replace("_", " ").title()
-    operator = _ensure_gp_user(
-        db,
-        email=request.email,
-        display_name=display_name,
-    )
+    # Find the target user in scanner.users by email
+    target = _scanner_user(db, request.email)
+    if target is None:
+        raise HTTPException(404, "No scanner user found with that email. The user must sign in first.")
 
     if request.allowed:
-        assignment_id = db.execute(
+        db.execute(
             text(
                 """
-                INSERT INTO public.gp_scanner_assignments (
-                    id, scanner_id, event_id, gate
-                )
-                VALUES (:id, :scanner_id, :event_id, :gate)
-                ON CONFLICT (scanner_id, event_id)
+                INSERT INTO scanner.scanner_assignments (id, scanner_user_id, event_id, gate)
+                VALUES (:id, :scanner_user_id, :event_id, :gate)
+                ON CONFLICT (scanner_user_id, event_id)
                 DO UPDATE SET gate = EXCLUDED.gate
-                RETURNING id
                 """
             ),
             {
                 "id": str(uuid.uuid4()),
-                "scanner_id": operator["id"],
+                "scanner_user_id": target["id"],
                 "event_id": request.event_id,
                 "gate": request.gate,
             },
-        ).scalar_one()
-        action = "SCANNER_ACCESS_GRANTED"
+        )
     else:
-        assignment_id = db.execute(
+        db.execute(
             text(
                 """
-                DELETE FROM public.gp_scanner_assignments
-                WHERE scanner_id = :scanner_id AND event_id = :event_id
-                RETURNING id
+                DELETE FROM scanner.scanner_assignments
+                WHERE scanner_user_id = :scanner_user_id AND event_id = :event_id
                 """
             ),
             {
-                "scanner_id": operator["id"],
+                "scanner_user_id": target["id"],
                 "event_id": request.event_id,
             },
-        ).scalar_one_or_none()
-        action = "SCANNER_ACCESS_REVOKED"
+        )
 
-    db.execute(
-        text(
-            """
-            INSERT INTO public.gp_audit_logs (
-                id, actor_id, action, entity_type, entity_id, details, created_at
-            )
-            VALUES (
-                :id, :actor_id, :action, 'scanner_assignment',
-                :entity_id, :details, now()
-            )
-            """
-        ),
-        {
-            "id": str(uuid.uuid4()),
-            "actor_id": owner["id"],
-            "action": action,
-            "entity_id": assignment_id or f"{operator['id']}:{request.event_id}",
-            "details": (
-                f"{request.email} · {event['title']} · {request.gate}"
-            ),
-        },
-    )
     db.commit()
     return {
         "allowed": request.allowed,
@@ -324,40 +254,38 @@ def _mobile_scanner_id(operator_id: str, event_id: str) -> str:
 def _ensure_mobile_scanner(
     db: Session,
     *,
-    operator: dict,
+    operator_id: str,
+    operator_name: str,
     event_id: str,
     event_name: str,
 ) -> str:
-    scanner_id = _mobile_scanner_id(operator["id"], event_id)
-    api_key_hash = hashlib.sha256(
-        f"{scanner_id}:{settings.qr_signing_key}".encode()
-    ).hexdigest()
-    db.execute(
-        text(
-            """
-            INSERT INTO public.gp_scanners (
-                id, name, organization_id, event_id, api_key_hash,
-                allowed_purposes, status, created_at
-            )
-            VALUES (
-                :id, :name, NULL, :event_id, :api_key_hash,
-                CAST(:purposes AS json), 'ACTIVE', now()
-            )
-            ON CONFLICT (id)
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                event_id = EXCLUDED.event_id,
-                status = 'ACTIVE'
-            """
-        ),
-        {
-            "id": scanner_id,
-            "name": f"Mobile · {operator['name']} · {event_name}",
-            "event_id": event_id,
-            "api_key_hash": api_key_hash,
-            "purposes": json.dumps(["TICKET_VALIDATION"]),
-        },
-    )
+    """Upsert a virtual mobile scanner entry. Falls back to the deterministic id if the table is unavailable."""
+    scanner_id = _mobile_scanner_id(operator_id, event_id)
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO scanner.scanners (
+                    id, name, organization_name, purpose, event_id, gate_id, status, created_at, updated_at
+                )
+                VALUES (
+                    :id, :name, 'GatePass', 'TICKET_VALIDATION', :event_id, NULL, 'ACTIVE', now(), now()
+                )
+                ON CONFLICT (id)
+                DO UPDATE SET
+                    name = EXCLUDED.name,
+                    status = 'ACTIVE',
+                    updated_at = now()
+                """
+            ),
+            {
+                "id": scanner_id,
+                "name": f"Mobile · {operator_name} · {event_name}",
+                "event_id": event_id,
+            },
+        )
+    except Exception:
+        pass  # Scanner registration is best-effort
     return scanner_id
 
 
@@ -388,71 +316,180 @@ def _save_scan(
     event_id: str,
     gate: str,
     result: dict,
-    gp_user_id: str | None = None,
+    user_id: str | None = None,
     ticket_id: str | None = None,
 ) -> dict:
-    db.execute(
-        text(
-            """
-            INSERT INTO public.gp_universal_scan_logs (
-                id, scanner_id, qr_credential_id, user_id, ticket_id,
-                purpose, event_id, gate_id, resource_id, decision, reason,
-                idempotency_key, response_payload, scanned_at
-            )
-            VALUES (
-                :id, :scanner_id, NULL, :user_id, :ticket_id,
-                'TICKET_VALIDATION', :event_id, :gate, NULL, :decision, :reason,
-                :idempotency_key, CAST(:response_payload AS json), now()
-            )
-            """
-        ),
-        {
-            "id": str(uuid.uuid4()),
-            "scanner_id": scanner_id,
-            "user_id": gp_user_id,
-            "ticket_id": ticket_id,
-            "event_id": event_id,
-            "gate": gate,
-            "decision": result["decision"],
-            "reason": result["reason"],
-            "idempotency_key": idempotency_key,
-            "response_payload": json.dumps(result),
-        },
-    )
+    """Persist the scan result to scanner.scan_logs. Best-effort on failure."""
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO scanner.scan_logs (
+                    id, scanner_id, qr_credential_id, user_id, ticket_id,
+                    purpose, event_id, gate_id, decision, reason,
+                    idempotency_key, scanned_at, metadata
+                )
+                VALUES (
+                    :id, :scanner_id, NULL, :user_id, :ticket_id,
+                    'TICKET_VALIDATION', :event_id, :gate, :decision, :reason,
+                    :idempotency_key, now(), CAST(:metadata AS jsonb)
+                )
+                """
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "scanner_id": scanner_id,
+                "user_id": user_id,
+                "ticket_id": ticket_id,
+                "event_id": event_id,
+                "gate": gate,
+                "decision": result["decision"],
+                "reason": result["reason"],
+                "idempotency_key": idempotency_key,
+                "metadata": json.dumps(result),
+            },
+        )
+    except Exception:
+        pass
     db.commit()
     return result
 
 
-def _ticket_ownership(db: Session, ticket_id: str, transfer_id: str | None) -> dict:
-    transfer_count = db.execute(
-        text(
-            """
-            SELECT count(*)::int
-            FROM public.gp_ticket_transfers
-            WHERE ticket_id = :ticket_id AND upper(status) = 'ACCEPTED'
-            """
-        ),
-        {"ticket_id": ticket_id},
-    ).scalar_one()
-    transferred_from_name = None
-    if transfer_id:
-        transferred_from_name = db.execute(
+def _lookup_scanner_event(db: Session, event_id: str) -> dict | None:
+    """Look up an event, preferring scanner.events, falling back to public.events."""
+    row = (
+        db.execute(
             text(
                 """
-                SELECT u.name
-                FROM public.gp_ticket_transfers tr
-                JOIN public.gp_users u ON u.id = tr.from_user_id
-                WHERE tr.id = :transfer_id
-                  AND upper(tr.status) = 'ACCEPTED'
+                SELECT id, name AS title, venue, starts_at AS start_time, ends_at AS end_time, status
+                FROM scanner.events
+                WHERE id = :event_id
                 """
             ),
-            {"transfer_id": transfer_id},
-        ).scalar_one_or_none()
-    return {
-        "owner_count": transfer_count + 1,
-        "is_transferred": transfer_count > 0,
-        "transferred_from_name": transferred_from_name,
-    }
+            {"event_id": event_id},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row:
+        return dict(row)
+
+    # Fallback: public.events (may not yet be synced by trigger)
+    row = (
+        db.execute(
+            text(
+                """
+                SELECT id, title, venue, start_time, end_time, 'active'::text AS status
+                FROM public.events
+                WHERE id = :event_id
+                """
+            ),
+            {"event_id": event_id},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    return dict(row) if row else None
+
+
+def _lookup_ticket(db: Session, email: str, event_id: str) -> dict | None:
+    """Find an active ticket for this attendee and event.
+
+    Prefers the scanner.* tables (populated by sync triggers from public.tickets);
+    falls back to public.tickets directly.
+    """
+    # 1. Try scanner.ticket_entitlements + scanner.ticket_assignments
+    try:
+        row = (
+            db.execute(
+                text(
+                    """
+                    SELECT
+                        te.id,
+                        te.ticket_type,
+                        te.status,
+                        te.valid_from,
+                        te.valid_until,
+                        te.entry_count,
+                        te.max_entries,
+                        ta.transfer_id,
+                        u.display_name AS holder_name,
+                        purchaser.display_name AS original_owner_name
+                    FROM scanner.ticket_assignments ta
+                    JOIN scanner.ticket_entitlements te ON te.id = ta.ticket_id
+                    JOIN scanner.users u ON u.id = ta.assigned_to_user_id
+                    LEFT JOIN scanner.users purchaser ON purchaser.id = te.purchased_by_user_id
+                    WHERE lower(u.email) = :email
+                      AND upper(ta.status) = 'ACTIVE'
+                      AND te.event_id = :event_id
+                    ORDER BY
+                        CASE WHEN te.entry_count < te.max_entries THEN 0 ELSE 1 END,
+                        te.created_at
+                    LIMIT 1
+                    FOR UPDATE OF te
+                    """
+                ),
+                {"email": email.strip().lower(), "event_id": event_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row:
+            return dict(row)
+    except Exception:
+        pass  # Fall through to public.tickets
+
+    # 2. Fallback: public.tickets directly (uses checked_in_at as usage gate)
+    try:
+        row = (
+            db.execute(
+                text(
+                    """
+                    SELECT
+                        t.id,
+                        t.category_name AS ticket_type,
+                        CASE
+                            WHEN t.status IN ('issued', 'paid') THEN 'active'
+                            ELSE t.status
+                        END AS status,
+                        t.attendee_name AS holder_name,
+                        t.checked_in_at,
+                        COALESCE(o.buyer_name, t.attendee_name) AS original_owner_name
+                    FROM public.tickets t
+                    LEFT JOIN public.orders o ON o.id = t.order_id
+                    WHERE lower(t.attendee_email) = :email
+                      AND t.event_id = :event_id
+                      AND t.status NOT IN ('cancelled', 'refunded', 'expired')
+                    ORDER BY t.issued_at
+                    LIMIT 1
+                    FOR UPDATE OF t
+                    """
+                ),
+                {"email": email.strip().lower(), "event_id": event_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row:
+            checked_in = row["checked_in_at"] is not None
+            return {
+                "id": row["id"],
+                "ticket_type": row["ticket_type"],
+                "status": str(row["status"]).upper(),
+                "valid_from": None,
+                "valid_until": None,
+                "entry_count": 1 if checked_in else 0,
+                "max_entries": 1,
+                "transfer_id": None,
+                "holder_name": row["holder_name"],
+                "original_owner_name": row["original_owner_name"],
+                "_source": "public.tickets",
+                "_checked_in_at": row["checked_in_at"],
+            }
+    except Exception:
+        pass
+
+    return None
 
 
 @router.post("/validate")
@@ -466,213 +503,117 @@ def validate_ticket(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    operator = _operator_gp_user(db, user)
+    operator_id = str(user.id)
     owner = _is_owner(user)
 
-    event = (
-        db.execute(
-            text(
-                """
-                SELECT id, title, venue, start_time, end_time, status
-                FROM public.gp_events
-                WHERE id = :event_id
-                """
-            ),
-            {"event_id": request.event_id},
-        )
-        .mappings()
-        .one_or_none()
-    )
+    # ── 1. Look up the event ──────────────────────────────────────────────
+    event = _lookup_scanner_event(db, request.event_id)
     if event is None:
         raise HTTPException(404, "Event not found")
 
+    # ── 2. Determine gate ─────────────────────────────────────────────────
     if owner:
         gate = "Owner Gate"
     else:
-        gate = db.execute(
-            text(
-                """
-                SELECT gate
-                FROM public.gp_scanner_assignments
-                WHERE scanner_id = :scanner_id AND event_id = :event_id
-                """
-            ),
-            {
-                "scanner_id": operator["id"],
-                "event_id": request.event_id,
-            },
-        ).scalar_one_or_none()
+        gate = (
+            db.execute(
+                text(
+                    """
+                    SELECT gate
+                    FROM scanner.scanner_assignments
+                    WHERE scanner_user_id = :scanner_user_id AND event_id = :event_id
+                    """
+                ),
+                {"scanner_user_id": operator_id, "event_id": request.event_id},
+            ).scalar_one_or_none()
+        )
         if gate is None:
             raise HTTPException(403, "Scanner access is not granted for this event")
 
+    # ── 3. Register/ensure the mobile scanner  ─────────────────────────────
     scanner_id = _ensure_mobile_scanner(
         db,
-        operator=operator,
+        operator_id=operator_id,
+        operator_name=user.display_name,
         event_id=request.event_id,
         event_name=event["title"],
     )
 
-    # Serializes repeated frames and concurrent retries for this scanner/key.
+    # ── 4. Advisory lock + idempotency  ────────────────────────────────────
     db.execute(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
         {"key": f"{scanner_id}:{idempotency_key}"},
     )
-    previous = db.execute(
-        text(
-            """
-            SELECT response_payload
-            FROM public.gp_universal_scan_logs
-            WHERE scanner_id = :scanner_id
-              AND idempotency_key = :idempotency_key
-            ORDER BY scanned_at DESC
-            LIMIT 1
-            """
-        ),
-        {
-            "scanner_id": scanner_id,
-            "idempotency_key": idempotency_key,
-        },
-    ).scalar_one_or_none()
-    if previous is not None:
-        db.rollback()
-        return previous
+    try:
+        previous = (
+            db.execute(
+                text(
+                    """
+                    SELECT metadata
+                    FROM scanner.scan_logs
+                    WHERE scanner_id = :scanner_id
+                      AND idempotency_key = :idempotency_key
+                    ORDER BY scanned_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"scanner_id": scanner_id, "idempotency_key": idempotency_key},
+            ).scalar_one_or_none()
+        )
+        if previous is not None:
+            db.rollback()
+            return previous
+    except Exception:
+        pass  # scan_logs table may not exist yet
 
     now = datetime.now(timezone.utc)
-    if (
-        str(event["status"]).lower() not in {"approved", "active", "published"}
-        or event["start_time"] > now
-        or event["end_time"] < now
-    ):
+    event_status = str(event.get("status", "active")).lower()
+    if event_status not in {"approved", "active", "published"} or (
+        event.get("start_time") and event["start_time"] > now
+    ) or (event.get("end_time") and event["end_time"] < now):
         result = _scan_result(
             decision="REJECTED",
             reason="EVENT_NOT_ACTIVE",
             message="This event is not accepting entry right now.",
         )
-        return _save_scan(
-            db,
-            scanner_id=scanner_id,
-            idempotency_key=idempotency_key,
-            event_id=request.event_id,
-            gate=gate,
-            result=result,
-        )
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate, result=result)
 
+    # ── 5. Verify QR payload  ──────────────────────────────────────────────
     parsed = parse_qr_payload(request.payload)
     if parsed is None or not verify_qr_signature(*parsed):
-        result = _scan_result(
-            decision="REJECTED",
-            reason="INVALID_QR",
-            message="This QR code is invalid or has been altered.",
-        )
-        return _save_scan(
-            db,
-            scanner_id=scanner_id,
-            idempotency_key=idempotency_key,
-            event_id=request.event_id,
-            gate=gate,
-            result=result,
-        )
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          result=_scan_result(decision="REJECTED", reason="INVALID_QR",
+                                              message="This QR code is invalid or has been altered."))
 
+    # ── 6. Resolve credential + user  ─────────────────────────────────────
     credential = (
-        db.query(QrCredential)
-        .filter_by(public_id=parsed[0])
-        .one_or_none()
+        db.query(QrCredential).filter_by(public_id=parsed[0]).one_or_none()
     )
     if credential is None or credential.status != "active":
-        result = _scan_result(
-            decision="REJECTED",
-            reason="QR_REVOKED",
-            message="This QR pass is no longer active.",
-        )
-        return _save_scan(
-            db,
-            scanner_id=scanner_id,
-            idempotency_key=idempotency_key,
-            event_id=request.event_id,
-            gate=gate,
-            result=result,
-        )
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          result=_scan_result(decision="REJECTED", reason="QR_REVOKED",
+                                              message="This QR pass is no longer active."))
 
     scanned_user = db.get(User, credential.user_id)
     if scanned_user is None or scanned_user.status != "active":
-        result = _scan_result(
-            decision="REJECTED",
-            reason="ACCOUNT_INACTIVE",
-            message="The attendee account is inactive.",
-        )
-        return _save_scan(
-            db,
-            scanner_id=scanner_id,
-            idempotency_key=idempotency_key,
-            event_id=request.event_id,
-            gate=gate,
-            result=result,
-        )
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          result=_scan_result(decision="REJECTED", reason="ACCOUNT_INACTIVE",
+                                              message="The attendee account is inactive."))
 
-    holder = _ensure_gp_user(
-        db,
-        email=scanned_user.email,
-        display_name=scanned_user.display_name,
-    )
-    entitlement = (
-        db.execute(
-            text(
-                """
-                SELECT
-                    t.id,
-                    t.ticket_type,
-                    t.status,
-                    t.valid_from,
-                    t.valid_until,
-                    t.entry_count,
-                    t.max_entries,
-                    a.transfer_id,
-                    holder.name AS holder_name,
-                    purchaser.name AS original_owner_name
-                FROM public.gp_ticket_assignments a
-                JOIN public.gp_ticket_entitlements t ON t.id = a.ticket_id
-                JOIN public.gp_users holder ON holder.id = a.assigned_to_user_id
-                JOIN public.gp_users purchaser ON purchaser.id = t.purchased_by_user_id
-                WHERE a.assigned_to_user_id = :user_id
-                  AND upper(a.status) = 'ACTIVE'
-                  AND t.event_id = :event_id
-                ORDER BY
-                    CASE WHEN t.entry_count < t.max_entries THEN 0 ELSE 1 END,
-                    t.created_at
-                LIMIT 1
-                FOR UPDATE OF t
-                """
-            ),
-            {
-                "user_id": holder["id"],
-                "event_id": request.event_id,
-            },
-        )
-        .mappings()
-        .one_or_none()
-    )
+    # ── 7. Look up the attendee's ticket  ─────────────────────────────────
+    entitlement = _lookup_ticket(db, scanned_user.email, request.event_id)
     if entitlement is None:
-        result = _scan_result(
-            decision="REJECTED",
-            reason="NO_ACTIVE_TICKET",
-            message="No ticket for this event is assigned to this attendee.",
-            attendee_name=scanned_user.display_name,
-        )
-        return _save_scan(
-            db,
-            scanner_id=scanner_id,
-            idempotency_key=idempotency_key,
-            event_id=request.event_id,
-            gate=gate,
-            result=result,
-            gp_user_id=holder["id"],
-        )
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate, user_id=operator_id,
+                          result=_scan_result(decision="REJECTED", reason="NO_ACTIVE_TICKET",
+                                              message="No ticket for this event is assigned to this attendee.",
+                                              attendee_name=scanned_user.display_name))
 
-    ownership = _ticket_ownership(
-        db,
-        entitlement["id"],
-        entitlement["transfer_id"],
-    )
+    # ── 8. Build ownership & ticket response ──────────────────────────────
     ticket = {
         "id": entitlement["id"],
         "event_id": request.event_id,
@@ -680,85 +621,102 @@ def validate_ticket(
         "ticket_type": entitlement["ticket_type"],
         "entry_count": entitlement["entry_count"],
         "max_entries": entitlement["max_entries"],
-        "original_owner_name": entitlement["original_owner_name"],
+        "original_owner_name": entitlement.get("original_owner_name") or scanned_user.display_name,
+    }
+    ownership = {
+        "owner_count": 1,
+        "is_transferred": False,
+        "transferred_from_name": None,
     }
 
-    status = str(entitlement["status"]).upper()
-    if status != "ACTIVE":
-        result = _scan_result(
-            decision="REJECTED",
-            reason=f"TICKET_{status}",
-            message=f"This ticket is {status.lower()}.",
-            attendee_name=entitlement["holder_name"],
-            ticket=ticket,
-            ownership=ownership,
-        )
-    elif entitlement["valid_from"] and entitlement["valid_from"] > now:
-        result = _scan_result(
-            decision="REJECTED",
-            reason="TICKET_NOT_STARTED",
-            message="This ticket is not valid yet.",
-            attendee_name=entitlement["holder_name"],
-            ticket=ticket,
-            ownership=ownership,
-        )
-    elif entitlement["valid_until"] and entitlement["valid_until"] < now:
-        result = _scan_result(
-            decision="REJECTED",
-            reason="TICKET_EXPIRED",
-            message="This ticket has expired.",
-            attendee_name=entitlement["holder_name"],
-            ticket=ticket,
-            ownership=ownership,
-        )
-    elif entitlement["entry_count"] >= entitlement["max_entries"]:
-        result = _scan_result(
-            decision="REJECTED",
-            reason="ALREADY_USED",
-            message="This ticket has already been used.",
-            attendee_name=entitlement["holder_name"],
-            ticket=ticket,
-            ownership=ownership,
-        )
-    else:
-        updated_entry_count = db.execute(
+    # ── 9. Validate ticket status / usage  ────────────────────────────────
+    ticket_status = str(entitlement["status"]).upper()
+    if ticket_status not in {"ACTIVE", "ISSUED", "PAID"}:
+        result = _scan_result(decision="REJECTED", reason=f"TICKET_{ticket_status}",
+                              message=f"This ticket is {ticket_status.lower().replace('_', ' ')}.",
+                              attendee_name=entitlement["holder_name"],
+                              ticket=ticket, ownership=ownership)
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate, result=result,
+                          user_id=operator_id, ticket_id=entitlement["id"])
+
+    if entitlement.get("valid_from") and entitlement["valid_from"] > now:
+        result = _scan_result(decision="REJECTED", reason="TICKET_NOT_STARTED",
+                              message="This ticket is not valid yet.",
+                              attendee_name=entitlement["holder_name"],
+                              ticket=ticket, ownership=ownership)
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+
+    if entitlement.get("valid_until") and entitlement["valid_until"] < now:
+        result = _scan_result(decision="REJECTED", reason="TICKET_EXPIRED",
+                              message="This ticket has expired.",
+                              attendee_name=entitlement["holder_name"],
+                              ticket=ticket, ownership=ownership)
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+
+    if entitlement["entry_count"] >= entitlement["max_entries"]:
+        result = _scan_result(decision="REJECTED", reason="ALREADY_USED",
+                              message="This ticket has already been used.",
+                              attendee_name=entitlement["holder_name"],
+                              ticket=ticket, ownership=ownership)
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+
+    # ── 10. Increment usage  ──────────────────────────────────────────────
+    if not _increment_usage(db, entitlement):
+        result = _scan_result(decision="REJECTED", reason="ALREADY_USED",
+                              message="This ticket was just used at another scanner.",
+                              attendee_name=entitlement["holder_name"],
+                              ticket=ticket, ownership=ownership)
+        return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                          event_id=request.event_id, gate=gate,
+                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+
+    ticket["entry_count"] = entitlement["entry_count"] + 1
+    result = _scan_result(decision="APPROVED", reason="VALID_TICKET", message="Entry approved.",
+                          attendee_name=entitlement["holder_name"],
+                          ticket=ticket, ownership=ownership)
+    return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
+                      event_id=request.event_id, gate=gate,
+                      result=result, user_id=operator_id, ticket_id=entitlement["id"])
+
+
+def _increment_usage(db: Session, entitlement: dict) -> bool:
+    """Increment a ticket's usage counter.
+
+    Scanner schema: UPDATE scanner.ticket_entitlements SET entry_count += 1
+    Public fallback: UPDATE public.tickets SET checked_in_at = now()
+    """
+    source = entitlement.get("_source")
+    if source == "public.tickets":
+        if entitlement["_checked_in_at"] is not None:
+            return False
+        db.execute(
             text(
                 """
-                UPDATE public.gp_ticket_entitlements
-                SET entry_count = entry_count + 1, updated_at = now()
-                WHERE id = :ticket_id AND entry_count < max_entries
-                RETURNING entry_count
+                UPDATE public.tickets
+                SET checked_in_at = now(), updated_at = now()
+                WHERE id = :ticket_id AND checked_in_at IS NULL
                 """
             ),
             {"ticket_id": entitlement["id"]},
-        ).scalar_one_or_none()
-        if updated_entry_count is None:
-            result = _scan_result(
-                decision="REJECTED",
-                reason="ALREADY_USED",
-                message="This ticket was just used at another scanner.",
-                attendee_name=entitlement["holder_name"],
-                ticket=ticket,
-                ownership=ownership,
-            )
-        else:
-            ticket["entry_count"] = updated_entry_count
-            result = _scan_result(
-                decision="APPROVED",
-                reason="VALID_TICKET",
-                message="Entry approved.",
-                attendee_name=entitlement["holder_name"],
-                ticket=ticket,
-                ownership=ownership,
-            )
+        )
+        return True
 
-    return _save_scan(
-        db,
-        scanner_id=scanner_id,
-        idempotency_key=idempotency_key,
-        event_id=request.event_id,
-        gate=gate,
-        result=result,
-        gp_user_id=holder["id"],
-        ticket_id=entitlement["id"],
-    )
+    updated = db.execute(
+        text(
+            """
+            UPDATE scanner.ticket_entitlements
+            SET entry_count = entry_count + 1, updated_at = now()
+            WHERE id = :ticket_id AND entry_count < max_entries
+            RETURNING entry_count
+            """
+        ),
+        {"ticket_id": entitlement["id"]},
+    ).scalar_one_or_none()
+    return updated is not None

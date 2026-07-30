@@ -100,6 +100,11 @@ export default function Scanner() {
   const stopCamera = () => {
     controlsRef.current?.stop();
     controlsRef.current = null;
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
     setTorchActive(false);
     setCameraActive(false);
   };
@@ -153,6 +158,9 @@ export default function Scanner() {
     }
 
     try {
+      // Use zxing's decodeFromConstraints which handles camera setup internally
+      // and works reliably across mobile browsers (iOS Safari, Android Chrome).
+      // Avoid specific width/height — many mobile cameras fail with ideal constraints.
       const reader = new BrowserQRCodeReader(undefined, {
         delayBetweenScanAttempts: 120,
         delayBetweenScanSuccess: 800,
@@ -160,11 +168,7 @@ export default function Scanner() {
       const controls = await reader.decodeFromConstraints(
         {
           audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
+          video: { facingMode: { ideal: "environment" } },
         },
         videoRef.current,
         (result, _error, callbackControls) => {

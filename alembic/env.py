@@ -2,10 +2,15 @@ import os
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
 from alembic import context
 from sqlalchemy import engine_from_config, pool, text
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# Load .env BEFORE reading SCANNER_MIGRATIONS_DATABASE_URL so the .env file
+# wins over variables inherited from the parent process/shell environment.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 from backend import models  # noqa: F401  (registers tables on Base.metadata)
 from backend.db import Base

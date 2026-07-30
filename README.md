@@ -13,7 +13,7 @@ permanent QR pass that can be loaded and scanned across devices.
 | Permanent QR pass | Vercel Python Function: `GET /api/qr/me` |
 | Mobile entry scanner | Vercel Python Functions under `/api/scanner/*` |
 | QR credential security | FastAPI in `backend/` with Neon Postgres |
-| Operations state | Node/Express service in `server/` (deploy separately when state persistence is used) |
+| Operations state | Node/Express service in `server/`, served as a Vercel Function: `GET/PUT /api/state` |
 | Identity | Neon Auth JWTs verified server-side |
 
 The old .NET backend has deliberately been removed. It was not on the
@@ -73,14 +73,13 @@ never in Git or browser-visible `VITE_*` variables.
 | `GATEPASS_PUBLIC_APP_URL` | QR function / FastAPI | Public web origin, for example `https://gatepasss.vercel.app` |
 | `GATEPASS_OWNER_EMAIL` | FastAPI | Exact OAuth email allowed to grant or revoke scanner access |
 | `GATEPASS_ADMIN_EMAILS` | FastAPI | Reserved comma-separated authorised scanner-admin emails |
-| `DATABASE_URL` | Node state API | Postgres URL used for app state |
-| `CORS_ORIGIN` | Node state API | Exact public web origin |
+| `DATABASE_URL` | `/api/state` Vercel Function | Postgres URL used for app state |
 | `VITE_NEON_AUTH_URL` | Vite build | Public Neon Auth URL (not a secret) |
-| `VITE_API_BASE_URL` | Vite build | Public origin of the separately deployed Node state API, if used |
 
-Leave `VITE_SCANNER_API_BASE_URL` unset in a Vercel production build. The QR
-function is served from the same origin at `/api/qr/me`; a localhost value can
-never work on a visitor's phone.
+Leave `VITE_SCANNER_API_BASE_URL` and `VITE_API_BASE_URL` unset in a Vercel
+production build. Both the QR function (`/api/qr/me`) and the state API
+(`/api/state`) are served from the same origin as the web app; a localhost
+value can never work on a visitor's phone.
 
 ## Deploy
 
@@ -91,21 +90,23 @@ never work on a visitor's phone.
    directory `dist`.
 3. Configure the QR-function variables in the table above, including
    `APP_ENV=production`.
-4. Add `VITE_NEON_AUTH_URL` and, when the Node operations API is deployed,
-   its HTTPS `VITE_API_BASE_URL` at build time.
+4. Add `VITE_NEON_AUTH_URL`, `DATABASE_URL` (for `/api/state`), and
+   `NEON_AUTH_URL`/`NEON_AUTH_AUDIENCE` as needed.
 5. Redeploy after changing any `VITE_*` value; Vite embeds those values during
    the build.
 
-The filesystem functions in `api/qr/` and `api/scanner/` expose the FastAPI
-routes. The SPA rewrite intentionally excludes `/api/*` so API requests do not
-return `index.html`.
+The filesystem functions in `api/qr/`, `api/scanner/`, and `api/state.ts`
+expose the FastAPI routes and the Node operations API. The SPA rewrite
+intentionally excludes `/api/*` so API requests do not return `index.html`.
 
 ### Node state API
 
-Deploy the repository with Nixpacks/Railway using the committed
-`nixpacks.toml`. Set `NODE_ENV=production`, `DATABASE_URL`, `CORS_ORIGIN`, and
-the Neon Auth settings. Railway builds `server/index.ts` and starts
-`dist-server/index.js`; it must not run a .NET Docker image.
+`api/state.ts` wraps `server/app.ts` and runs as a Vercel Node Function in the
+same deployment as the web app — no separate host is required. It needs
+`DATABASE_URL` (or `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`) and
+`NEON_AUTH_URL`/`VITE_NEON_AUTH_URL` set in the Vercel project. The Railway
+path (`nixpacks.toml`, `server/index.ts` → `dist-server/index.js`) still works
+as a standalone alternative if you'd rather run it off-platform.
 
 ## Mobile scanner
 
@@ -123,11 +124,11 @@ scan on the FastAPI service:
 Delegated scanner operators remain Attendees. Scanner access never grants
 organiser tools or changes an OAuth role.
 
-Production ticket issuance must write an active row to
-`public.gp_ticket_entitlements` and one active current-holder row to
-`public.gp_ticket_assignments`. Accepted transfers are read from
-`public.gp_ticket_transfers`. The scanner deliberately has no client-side,
-legacy-ticket, or demo-data fallback.
+Ticket issuance writes `public.tickets`/`public.orders`, which a database
+trigger syncs into `scanner.ticket_entitlements` and
+`scanner.ticket_assignments` (falling back to reading `public.tickets`
+directly if the sync hasn't caught up). The scanner deliberately has no
+client-side, legacy-ticket, or demo-data fallback.
 
 On mobile, use the HTTPS deployment so the browser can open the rear camera.
 The scanner stops decoding after the first QR result and resumes only when the

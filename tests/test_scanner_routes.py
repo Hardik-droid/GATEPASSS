@@ -1,6 +1,5 @@
 import importlib.util
 from pathlib import Path
-from unittest.mock import Mock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +9,6 @@ from backend.scanner_routes import (
     ScannerAccessUpdate,
     _mobile_scanner_id,
     _scan_result,
-    _ticket_ownership,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -88,17 +86,7 @@ def test_mobile_scanner_id_is_stable_per_operator_and_event() -> None:
     assert scanner_id != _mobile_scanner_id("operator-1", "event-2")
 
 
-def test_original_ticket_reports_exactly_one_owner() -> None:
-    db = Mock()
-    db.execute.return_value.scalar_one.return_value = 0
 
-    ownership = _ticket_ownership(db, "ticket-1", None)
-
-    assert ownership == {
-        "owner_count": 1,
-        "is_transferred": False,
-        "transferred_from_name": None,
-    }
 
 
 def test_scan_result_never_exposes_the_raw_qr() -> None:
