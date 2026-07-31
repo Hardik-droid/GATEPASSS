@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createApp } from "./app";
-import { config } from "./config";
-import { MemoryAppStateStore, PostgresAppStateStore } from "./store";
+import { createApp } from "./app.js";
+import { config } from "./config.js";
+import { MemoryAppStateStore, PostgresAppStateStore } from "./store.js";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const staticDir = path.join(rootDir, "dist");

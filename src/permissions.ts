@@ -1,4 +1,4 @@
-import { UserRole, type UserProfile } from "./types";
+import { UserRole, type UserProfile } from "./types.js";
 
 export const OWNER_EMAIL = "ophardik001@gmail.com";
 

@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
-import type { AppStateSnapshot } from "../src/appState";
-import { config } from "./config";
+import type { AppStateSnapshot } from "../src/appState.js";
+import { config } from "./config.js";
 
 export interface AppStateStore {
   ensureReady(): Promise<void>;

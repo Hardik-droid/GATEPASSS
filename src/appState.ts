@@ -8,7 +8,7 @@ import {
   INITIAL_SETTLEMENTS,
   INITIAL_TICKETS,
   INITIAL_USER,
-} from "./mockData";
+} from "./mockData.js";
 import type {
   AccessRequest,
   AuditLog,
@@ -19,7 +19,7 @@ import type {
   Settlement,
   Ticket,
   UserProfile,
-} from "./types";
+} from "./types.js";
 
 export interface AppStateSnapshot {
   user: UserProfile;

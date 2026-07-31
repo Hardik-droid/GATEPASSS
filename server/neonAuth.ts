@@ -1,6 +1,6 @@
 import type express from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
-import { config } from "./config";
+import { config } from "./config.js";
 
 export interface NeonVerifierOptions {
   jwks?: JWTVerifyGetKey;

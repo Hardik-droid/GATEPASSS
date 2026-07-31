@@ -10,7 +10,7 @@ import {
   ScanLog,
   Settlement,
   AuditLog
-} from "./types";
+} from "./types.js";
 
 export const INITIAL_USER: UserProfile = {
   id: "u1",

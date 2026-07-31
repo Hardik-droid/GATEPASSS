@@ -276,11 +276,46 @@ export default function Scanner() {
     );
   }
 
+  if (access.assignments.length === 0) {
+    return (
+      <div className="grid min-h-[60dvh] place-items-center px-4">
+        <div className="w-full max-w-md border border-neutral-200 bg-white p-7 text-center shadow-sm">
+          <MapPin className="mx-auto mb-4 size-11 text-neutral-400" />
+          <h1 className="text-2xl font-black text-charcoal-dark">
+            No scan location available
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+            {access.is_owner
+              ? "No active event is synced to the scanner yet. Open the Control Room to create or restore an event, then refresh."
+              : "Ask the owner to assign your signed-in email to an event gate."}
+          </p>
+          <div className={`mt-6 grid gap-3 ${access.is_owner ? "sm:grid-cols-2" : ""}`}>
+            {access.is_owner && (
+              <Link
+                to="/organizer"
+                className="flex min-h-12 items-center justify-center bg-black px-4 text-sm font-black text-white"
+              >
+                Open Control Room
+              </Link>
+            )}
+            <button
+              onClick={() => void loadAccess()}
+              className="flex min-h-12 items-center justify-center gap-2 border border-neutral-300 bg-white px-4 text-sm font-black text-charcoal-dark"
+            >
+              <RefreshCw className="size-4" />
+              Refresh events
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const approved = scanResult?.decision === "APPROVED";
   const ownership = scanResult?.ownership;
 
   return (
-    <div className="mx-auto w-full max-w-6xl pb-24 md:pb-8">
+    <div className="mx-auto w-full max-w-6xl pb-4 xl:pb-8">
       <header className="mb-5 flex items-center gap-3">
         <Link
           to="/"
@@ -317,7 +352,7 @@ export default function Scanner() {
             </div>
           </div>
 
-          <div className="relative h-[min(68dvh,640px)] min-h-[420px] bg-black">
+          <div className="relative h-[min(68dvh,640px)] min-h-[320px] bg-black sm:min-h-[420px]">
             <video
               ref={videoRef}
               autoPlay
@@ -452,7 +487,10 @@ export default function Scanner() {
           </div>
 
           {cameraError && (
-            <div className="border-t border-red-400/30 bg-red-950 px-4 py-3 text-sm font-bold text-red-100">
+            <div
+              className="border-t border-red-400/30 bg-red-950 px-4 py-3 text-sm font-bold text-red-100"
+              role="alert"
+            >
               {cameraError}
             </div>
           )}
@@ -464,10 +502,14 @@ export default function Scanner() {
               <ShieldCheck className="size-5 text-primary" />
               <h2 className="font-black text-charcoal-dark">Scan location</h2>
             </div>
-            <label className="mt-4 block text-xs font-black uppercase tracking-wider text-neutral-500">
+            <label
+              htmlFor="scanner-event"
+              className="mt-4 block text-xs font-black uppercase tracking-wider text-neutral-500"
+            >
               Event and gate
             </label>
             <select
+              id="scanner-event"
               value={selectedEventId}
               onChange={(event) => {
                 stopCamera();
@@ -509,12 +551,14 @@ export default function Scanner() {
               <div className="mt-4 space-y-3">
                 <input
                   type="email"
+                  aria-label="Scanner email"
                   value={grantEmail}
                   onChange={(event) => setGrantEmail(event.target.value)}
                   placeholder="staff@example.com"
                   className="min-h-12 w-full border border-neutral-300 px-3 text-sm font-bold"
                 />
                 <select
+                  aria-label="Scanner event"
                   value={grantEventId}
                   onChange={(event) => setGrantEventId(event.target.value)}
                   className="min-h-12 w-full border border-neutral-300 bg-white px-3 text-sm font-bold"
@@ -526,6 +570,7 @@ export default function Scanner() {
                   ))}
                 </select>
                 <input
+                  aria-label="Scanner gate"
                   value={grantGate}
                   onChange={(event) => setGrantGate(event.target.value)}
                   placeholder="Main Gate"
@@ -575,7 +620,10 @@ export default function Scanner() {
           )}
 
           {accessError && (
-            <p className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">
+            <p
+              className="border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700"
+              role="alert"
+            >
               {accessError}
             </p>
           )}

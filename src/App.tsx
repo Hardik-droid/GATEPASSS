@@ -725,7 +725,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen md:h-screen bg-background font-sans text-on-background flex flex-col md:overflow-hidden pb-20 md:pb-0">
+    <div className="min-h-screen xl:h-screen bg-background font-sans text-on-background flex flex-col xl:overflow-hidden pb-20 xl:pb-0">
       {/* Toast Notifications (Issue #2) */}
       <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
         {toasts.map((toast) => (
@@ -757,7 +757,7 @@ export default function App() {
       </div>
       
       {/* Top Bar Navigation (Responsive Sidebar Drawer Trigger) */}
-      <header className="w-full bg-white border-b border-outline-variant/30 sticky top-0 z-40 px-6 py-4 flex justify-between items-center md:hidden">
+      <header className="w-full bg-white border-b border-outline-variant/30 sticky top-0 z-40 px-4 sm:px-6 py-4 flex justify-between items-center xl:hidden">
         <div className="flex items-center gap-1">
           <div>
             <h1 className="text-base font-black text-charcoal-dark tracking-tight">GatePass</h1>
@@ -775,7 +775,10 @@ export default function App() {
           )}
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-1.5 rounded-lg hover:bg-surface-container text-charcoal-dark"
+            className="grid size-11 place-items-center rounded-lg hover:bg-surface-container text-charcoal-dark"
+            aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="primary-navigation-drawer"
           >
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -783,13 +786,13 @@ export default function App() {
       </header>
 
       {/* Responsive Left Sidebar Navigation (Desktop view + Mobile Overlay Drawer) */}
-      <aside className={`fixed md:sticky top-0 left-0 h-screen md:h-auto w-64 md:w-full bg-white border-r md:border-r-0 md:border-b border-outline-variant/40 flex flex-col md:flex-row md:items-center justify-between py-6 md:py-4 px-4 md:px-10 shadow-sm z-50 transition-transform duration-300 ${
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      <aside id="primary-navigation-drawer" className={`fixed xl:sticky top-0 left-0 h-screen xl:h-auto w-64 xl:w-full bg-white border-r xl:border-r-0 xl:border-b border-outline-variant/40 flex flex-col xl:flex-row xl:items-center justify-between py-6 xl:py-4 px-4 xl:px-10 shadow-sm z-50 transition-transform duration-300 ${
+        mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
       }`}>
-        <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-6 xl:gap-8">
           {/* Logo and Branding header */}
-          <div className="flex items-center gap-1.5 px-2 md:px-0">
-            <h1 className="text-xl md:text-3xl font-black text-charcoal-dark tracking-tighter uppercase leading-none">GatePass</h1>
+          <div className="flex items-center gap-1.5 px-2 xl:px-0">
+            <h1 className="text-xl xl:text-3xl font-black text-charcoal-dark tracking-tighter uppercase leading-none">GatePass</h1>
             {/* Connection status indicator (Issue #9) */}
             <div className={`w-2.5 h-2.5 rounded-full ml-1.5 flex-shrink-0 ${
               backendStatus === "connected" ? "bg-emerald-400" :
@@ -800,8 +803,8 @@ export default function App() {
 
           {/* Perspective Selector Swapper */}
           {canAccessOrganizer && (
-            <div className="bg-surface-container p-1 rounded-xl flex flex-col md:flex-row md:items-center gap-1 md:ml-4 border-2 border-outline-variant/30">
-              <span className="text-[9px] font-black text-outline uppercase px-2 py-1 tracking-wider md:hidden">Perspective Node</span>
+            <div className="bg-surface-container p-1 rounded-xl flex flex-col xl:flex-row xl:items-center gap-1 xl:ml-4 border-2 border-outline-variant/30">
+              <span className="text-[9px] font-black text-outline uppercase px-2 py-1 tracking-wider xl:hidden">Perspective Node</span>
               <div className="flex gap-1">
                 <button
                   onClick={() => {
@@ -832,7 +835,7 @@ export default function App() {
           )}
 
           {/* Perspective specific Navigation Routes */}
-          <nav className="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-6 mt-2 md:mt-0">
+          <nav className="flex flex-col xl:flex-row xl:items-center gap-1.5 xl:gap-6 mt-2 xl:mt-0">
             {perspective === "attendee" ? (
               /* ATTENDEE ROUTES */
               <>
@@ -841,14 +844,14 @@ export default function App() {
                   end
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <Sparkles className="w-4 h-4 md:hidden" />
+                  <Sparkles className="w-4 h-4 xl:hidden" />
                   <span>Home</span>
                 </NavLink>
 
@@ -856,14 +859,14 @@ export default function App() {
                   to="/request"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <Calendar className="w-4 h-4 md:hidden" />
+                  <Calendar className="w-4 h-4 xl:hidden" />
                   <span>Request Temp Access</span>
                 </NavLink>
 
@@ -871,17 +874,17 @@ export default function App() {
                   to="/approvals"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest relative ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest relative ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <Bell className="w-4 h-4 md:hidden" />
+                  <Bell className="w-4 h-4 xl:hidden" />
                   <span>Approvals &amp; Invites</span>
                   {requests.filter(r => r.status === "pending").length > 0 && (
-                    <span className="absolute right-4 md:-right-4 md:-top-2 w-5 h-5 md:w-4 md:h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-charcoal-dark">
+                    <span className="absolute right-4 xl:-right-4 xl:-top-2 w-5 h-5 xl:w-4 xl:h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-charcoal-dark">
                       <AnimatedNumber value={requests.filter(r => r.status === "pending").length} className="text-[9px]" />
                     </span>
                   )}
@@ -892,14 +895,14 @@ export default function App() {
                   to="/events"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <TicketIcon className="w-4 h-4 md:hidden" />
+                  <TicketIcon className="w-4 h-4 xl:hidden" />
                   <span>Events &amp; Concerts</span>
                 </NavLink>
                 {hasScannerAccess && (
@@ -907,10 +910,10 @@ export default function App() {
                     to="/scanner"
                     onClick={() => setMobileMenuOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                      `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                         isActive
-                          ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary"
-                          : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                          ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                          : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                       }`
                     }
                   >
@@ -926,14 +929,14 @@ export default function App() {
                   to="/organizer"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <TrendingUp className="w-4 h-4 md:hidden" />
+                  <TrendingUp className="w-4 h-4 xl:hidden" />
                   <span>Control Room &amp; Workspace</span>
                 </NavLink>
 
@@ -941,14 +944,14 @@ export default function App() {
                   to="/scanner"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `flex items-center gap-3.5 md:gap-2 px-4 md:px-0 py-3 md:py-0 rounded-xl md:rounded-none transition-all cursor-pointer text-sm md:text-xs font-bold md:uppercase md:tracking-widest ${
+                    `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 md:bg-transparent text-primary md:text-charcoal-dark md:underline md:decoration-2 md:underline-offset-4 border-l-4 md:border-l-0 border-l-primary" 
-                        : "text-on-surface-variant hover:bg-surface-container md:hover:bg-transparent md:hover:text-charcoal-dark md:opacity-60 md:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
                     }`
                   }
                 >
-                  <Smartphone className="w-4 h-4 md:hidden" />
+                  <Smartphone className="w-4 h-4 xl:hidden" />
                   <span>Gate Checkout Scanner</span>
                 </NavLink>
               </>
@@ -957,9 +960,9 @@ export default function App() {
         </div>
 
         {/* Desktop Sidebar Footer -> Now Header Avatar + Social Links */}
-        <div className="border-t border-surface-container md:border-t-0 pt-4 md:pt-0 mt-auto md:mt-0 flex flex-col md:flex-row gap-2 md:items-center">
+        <div className="border-t border-surface-container xl:border-t-0 pt-4 xl:pt-0 mt-auto xl:mt-0 flex flex-col xl:flex-row gap-2 xl:items-center">
           {/* Social Flip Buttons — hidden on mobile, shown on desktop */}
-          <div className="hidden md:block">
+          <div className="hidden 2xl:block">
             <SocialFlipButton
               items={[
                 { letter: "G", icon: <FaGithub />, label: "GitHub", href: "https://github.com" },
@@ -971,28 +974,30 @@ export default function App() {
               className="!p-0 !gap-1"
             />
           </div>
-          <div 
+          <button
+            type="button"
             onClick={() => {
               if (perspective === "attendee") {
                 navigate("/identity");
               }
             }}
-            className="flex items-center gap-3 px-2 md:px-0 cursor-pointer group hover:opacity-80 transition-opacity"
+            disabled={perspective !== "attendee"}
+            className="flex items-center gap-3 px-2 xl:px-0 cursor-pointer group hover:opacity-80 transition-opacity disabled:cursor-default"
           >
-            <div className="hidden md:block text-right">
+            <div className="hidden xl:block text-right">
               <h4 className="text-xs font-bold text-charcoal-dark group-hover:text-primary transition-colors">{user.name}</h4>
               <p className="text-[10px] text-outline uppercase font-semibold">Verified Member</p>
             </div>
             <img 
               src={user.avatarUrl} 
               alt={user.name} 
-              className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-outline-variant group-hover:border-primary transition-colors"
+              className="w-10 h-10 xl:w-12 xl:h-12 rounded-full object-cover border border-outline-variant group-hover:border-primary transition-colors"
             />
-            <div className="truncate md:hidden">
+            <div className="truncate xl:hidden">
               <h4 className="text-xs font-bold text-charcoal-dark truncate">{user.name}</h4>
               <p className="text-[10px] text-outline uppercase font-semibold">Verified Member</p>
             </div>
-          </div>
+          </button>
         </div>
       </aside>
 
@@ -1000,12 +1005,12 @@ export default function App() {
       {mobileMenuOpen && (
         <div 
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 xl:hidden"
         />
       )}
 
       {/* Primary Layout Center */}
-      <main className={`flex-1 max-w-full overflow-x-hidden md:overflow-y-auto ${location.pathname === "/" || location.pathname === "/events" ? "p-0" : "px-6 py-6 md:py-10 md:px-10"}`}>
+      <main className={`flex-1 max-w-full overflow-x-hidden xl:overflow-y-auto ${location.pathname === "/" || location.pathname === "/events" ? "p-0" : location.pathname === "/scanner" ? "px-4 py-4 sm:px-6 sm:py-6 xl:px-10 xl:py-10" : "px-6 py-6 xl:px-10 xl:py-10"}`}>
         
         {/* Dynamic Route Switching block */}
         <Routes>
@@ -1096,14 +1101,14 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Sticky Bar (Matches mockups strictly for touch convenience) */}
-      <nav className="fixed bottom-0 left-0 w-full z-40 bg-white border-t border-outline-variant/30 py-2.5 px-4 flex justify-around items-center md:hidden shadow-lg">
+      <nav className="fixed bottom-0 left-0 w-full z-40 bg-white border-t border-outline-variant/30 py-2.5 px-4 flex justify-around items-center xl:hidden shadow-lg">
         {perspective === "attendee" ? (
           <>
             <NavLink
               to="/"
               end
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }
@@ -1114,7 +1119,7 @@ export default function App() {
             <NavLink
               to="/request"
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }
@@ -1125,7 +1130,7 @@ export default function App() {
             <NavLink
               to="/approvals"
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider relative cursor-pointer ${
+                `relative flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }
@@ -1142,7 +1147,7 @@ export default function App() {
             <NavLink
               to="/events"
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }
@@ -1154,7 +1159,7 @@ export default function App() {
               <NavLink
                 to="/scanner"
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                     isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                   }`
                 }
@@ -1169,7 +1174,7 @@ export default function App() {
             <NavLink
               to="/organizer"
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }
@@ -1180,7 +1185,7 @@ export default function App() {
             <NavLink
               to="/scanner"
               className={({ isActive }) => 
-                `flex flex-col items-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
                   isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
                 }`
               }

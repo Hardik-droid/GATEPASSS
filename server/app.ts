@@ -4,18 +4,18 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
-import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
-import { roleForAuthenticatedEmail } from "../src/permissions";
-import { config } from "./config";
-import { errorHandler, HttpError, notFoundHandler } from "./errors";
-import type { AppStateStore } from "./store";
-import { statePayloadSchema } from "./validation";
+import { createInitialAppState, type AppStateSnapshot } from "../src/appState.js";
+import { roleForAuthenticatedEmail } from "../src/permissions.js";
+import { config } from "./config.js";
+import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
+import type { AppStateStore } from "./store.js";
+import { statePayloadSchema } from "./validation.js";
 import {
   createNeonVerifier,
   makeAuthenticateNeon,
   type AuthenticatedRequest,
   type NeonVerifier,
-} from "./neonAuth";
+} from "./neonAuth.js";
 
 interface CreateAppOptions {
   store: AppStateStore;

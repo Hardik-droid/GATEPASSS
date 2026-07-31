@@ -6,8 +6,8 @@
 // ever reached `public.events` — which is why the scanner reported
 // "Event not found" for every newly created event. Serving it from this same
 // Vercel deployment removes the separate-deploy step entirely.
-import { createApp } from "../server/app";
-import { PostgresAppStateStore } from "../server/store";
+import { createApp } from "../server/app.js";
+import { PostgresAppStateStore } from "../server/store.js";
 
 const store = new PostgresAppStateStore();
 const app = createApp({ store });
