@@ -24,6 +24,25 @@ import {
   ArrowLeft
 } from "lucide-react";
 
+// datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
+function toDatetimeLocalInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function defaultEventStart(): Date {
+  const start = new Date();
+  start.setDate(start.getDate() + 1);
+  start.setHours(10, 0, 0, 0);
+  return start;
+}
+
+function defaultEventEnd(start: Date): Date {
+  const end = new Date(start);
+  end.setHours(end.getHours() + 8);
+  return end;
+}
+
 interface OrganizerWorkspaceProps {
   events: EventItem[];
   orders: Order[];
@@ -112,6 +131,8 @@ export default function OrganizerWorkspace({
   const [eventVenue, setEventVenue] = useState("");
   const [eventDesc, setEventDesc] = useState("");
   const [eventCapacity, setEventCapacity] = useState(500);
+  const [eventStartTime, setEventStartTime] = useState(() => toDatetimeLocalInput(defaultEventStart()));
+  const [eventEndTime, setEventEndTime] = useState(() => toDatetimeLocalInput(defaultEventEnd(defaultEventStart())));
   const [categories, setCategories] = useState<Array<{ name: string; price: number; capacity: number }>>([
     { name: "General Pass", price: 150, capacity: 400 },
     { name: "VIP Pass", price: 499, capacity: 100 }
@@ -154,6 +175,14 @@ export default function OrganizerWorkspace({
       alert("Please provide complete title and venue details.");
       return;
     }
+    if (!eventStartTime || !eventEndTime) {
+      alert("Please pick a start and end date/time for the event.");
+      return;
+    }
+    if (new Date(eventEndTime) <= new Date(eventStartTime)) {
+      alert("Event end time must be after the start time.");
+      return;
+    }
 
     const newEventId = "ev_" + Date.now();
     const formattedCategories: TicketCategory[] = categories.map((cat, idx) => ({
@@ -172,8 +201,8 @@ export default function OrganizerWorkspace({
       description: eventDesc || "No further details provided by the organization.",
       eventType,
       venue: eventVenue,
-      startTime: "2026-07-06T10:00",
-      endTime: "2026-07-06T18:00",
+      startTime: eventStartTime,
+      endTime: eventEndTime,
       bannerUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
       capacity: eventCapacity,
       ticketCategories: formattedCategories
@@ -186,6 +215,9 @@ export default function OrganizerWorkspace({
     setEventTitle("");
     setEventVenue("");
     setEventDesc("");
+    const nextStart = defaultEventStart();
+    setEventStartTime(toDatetimeLocalInput(nextStart));
+    setEventEndTime(toDatetimeLocalInput(defaultEventEnd(nextStart)));
     setActiveTab("dashboard");
   };
 
@@ -827,6 +859,31 @@ export default function OrganizerWorkspace({
                   min={10}
                   value={eventCapacity}
                   onChange={(e) => setEventCapacity(Number(e.target.value))}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-outline uppercase">Entry Opens (Start)</label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={eventStartTime}
+                  onChange={(e) => setEventStartTime(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-outline uppercase">Entry Closes (End)</label>
+                <input
+                  type="datetime-local"
+                  required
+                  min={eventStartTime}
+                  value={eventEndTime}
+                  onChange={(e) => setEventEndTime(e.target.value)}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
                 />
               </div>
