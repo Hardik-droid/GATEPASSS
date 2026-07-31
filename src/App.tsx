@@ -201,11 +201,22 @@ export default function App() {
     }
   };
 
-  // Neon Auth Session Synchronization Effect
+  // Neon Auth Session Synchronization + App State Hydration.
+  //
+  // These must run as ONE sequence, not two independent effects. sessionStorage
+  // starts empty on every fresh tab/reload and is only populated after the
+  // async getSession()/getAuthToken() round-trip below resolves. A separate
+  // "load app state" effect that reads sessionStorage synchronously on mount
+  // would almost always see no token yet — even for an already-logged-in
+  // user — fall back to mock data, and mark itself "connected". The very next
+  // debounced autosave would then overwrite the real shared server state with
+  // that mock snapshot. Resolving the token first, then hydrating with it
+  // directly (never via a sessionStorage read-back), removes the race.
   useEffect(() => {
     let cancelled = false;
 
-    const syncNeonSession = async () => {
+    const syncSessionAndHydrate = async () => {
+      let token: string | null = null;
       try {
         const sessionRes = await authClient.getSession();
         if (cancelled) return;
@@ -213,9 +224,9 @@ export default function App() {
           const u = sessionRes.data.user;
           // Store the verifiable Neon Auth JWT (from /token), never the opaque
           // session-cookie string. Backends verify this via JWKS.
-          const jwt = await getAuthToken();
+          token = await getAuthToken();
           if (cancelled) return;
-          if (jwt) sessionStorage.setItem("neon_auth_token", jwt);
+          if (token) sessionStorage.setItem("neon_auth_token", token);
           setUser((prev) => ({
             ...prev,
             id: u.id || prev.id,
@@ -231,25 +242,15 @@ export default function App() {
       } catch (err) {
         console.warn("Neon Auth session check warning:", err);
       }
-    };
 
-    syncNeonSession();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      if (cancelled) return;
 
-  // Load app state
-  useEffect(() => {
-    let cancelled = false;
-    const storedToken = sessionStorage.getItem("neon_auth_token");
-
-    const hydrate = async () => {
       try {
-        if (!storedToken) {
+        if (!token) {
           applyStateSnapshot(createInitialAppState());
-          setBackendStatus("connected");
-          setIsHydrated(true);
+          // Never "connected" here: there is no verified session, so this
+          // snapshot must never be eligible for the autosave effect below.
+          setBackendStatus("offline");
           return;
         }
 
@@ -269,7 +270,7 @@ export default function App() {
       }
     };
 
-    hydrate();
+    syncSessionAndHydrate();
     return () => {
       cancelled = true;
     };
