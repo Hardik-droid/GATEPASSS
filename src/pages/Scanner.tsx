@@ -43,6 +43,14 @@ function cameraErrorMessage(error: unknown): string {
   return "The camera could not start. Check permission and try again.";
 }
 
+function entryWindow(start: string, end: string): string {
+  const format = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  return `${format.format(new Date(start))} – ${format.format(new Date(end))}`;
+}
+
 export default function Scanner() {
   const [access, setAccess] = useState<ScannerAccess | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
@@ -63,22 +71,45 @@ export default function Scanner() {
   const controlsRef = useRef<IScannerControls | null>(null);
   const cameraStartInFlightRef = useRef(false);
   const scanInFlightRef = useRef(false);
+  const cameraSessionRef = useRef(0);
 
   const selectedAssignment = access?.assignments.find(
     (assignment) => assignment.event_id === selectedEventId,
   );
 
+  const stopCamera = () => {
+    cameraSessionRef.current += 1;
+    controlsRef.current?.stop();
+    controlsRef.current = null;
+    if (videoRef.current?.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setTorchActive(false);
+    setCameraActive(false);
+  };
+
   const loadAccess = async () => {
+    stopCamera();
+    setScanResult(null);
+    setCameraError(null);
     setAccessLoading(true);
     setAccessError(null);
     try {
       const next = await fetchScannerAccess();
       setAccess(next);
-      setSelectedEventId((current) =>
-        next.assignments.some((assignment) => assignment.event_id === current)
+      setSelectedEventId((current) => {
+        const selected = next.assignments.find(
+          (assignment) => assignment.event_id === current,
+        );
+        return selected?.accepting_entries
           ? current
-          : next.assignments[0]?.event_id ?? "",
-      );
+          : next.assignments.find((assignment) => assignment.accepting_entries)?.event_id
+            ?? selected?.event_id
+            ?? next.assignments[0]?.event_id
+            ?? "";
+      });
       setGrantEventId((current) =>
         next.assignments.some((assignment) => assignment.event_id === current)
           ? current
@@ -96,18 +127,6 @@ export default function Scanner() {
   useEffect(() => {
     void loadAccess();
   }, []);
-
-  const stopCamera = () => {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setTorchActive(false);
-    setCameraActive(false);
-  };
 
   useEffect(() => stopCamera, []);
 
@@ -144,9 +163,16 @@ export default function Scanner() {
     ) {
       return;
     }
+    if (!selectedAssignment.accepting_entries) {
+      setCameraError(
+        `Entry is closed for this event. Window: ${entryWindow(selectedAssignment.start_time, selectedAssignment.end_time)}.`,
+      );
+      return;
+    }
     cameraStartInFlightRef.current = true;
     setCameraStarting(true);
     stopCamera();
+    const cameraSession = cameraSessionRef.current;
     setScanResult(null);
     setCameraError(null);
 
@@ -172,7 +198,11 @@ export default function Scanner() {
         },
         videoRef.current,
         (result, _error, callbackControls) => {
-          if (!result || scanInFlightRef.current) return;
+          if (
+            !result ||
+            scanInFlightRef.current ||
+            cameraSession !== cameraSessionRef.current
+          ) return;
           scanInFlightRef.current = true;
           callbackControls.stop();
           controlsRef.current = null;
@@ -180,6 +210,10 @@ export default function Scanner() {
           void submitQr(result.getText());
         },
       );
+      if (cameraSession !== cameraSessionRef.current) {
+        controls.stop();
+        return;
+      }
       controlsRef.current = controls;
       setCameraActive(true);
     } catch (error) {
@@ -313,6 +347,7 @@ export default function Scanner() {
 
   const approved = scanResult?.decision === "APPROVED";
   const ownership = scanResult?.ownership;
+  const acceptingEntries = selectedAssignment?.accepting_entries === true;
 
   return (
     <div className="mx-auto w-full max-w-6xl pb-4 xl:pb-8">
@@ -336,7 +371,7 @@ export default function Scanner() {
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="order-1 overflow-hidden bg-neutral-950 text-white shadow-xl lg:order-1">
-          <div className="flex min-h-16 items-center justify-between border-b border-white/10 px-4">
+          <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-white/10 px-4">
             <div className="min-w-0">
               <p className="truncate text-sm font-black">
                 {selectedAssignment?.event_name ?? "Choose an event"}
@@ -346,9 +381,13 @@ export default function Scanner() {
                 {selectedAssignment?.gate ?? "No gate selected"}
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-300">
-              <span className="size-2 rounded-full bg-emerald-400" />
-              SECURE
+            <div className={`flex items-center gap-2 text-xs font-bold ${
+              acceptingEntries ? "text-emerald-300" : "text-amber-300"
+            }`}>
+              <span className={`size-2 rounded-full ${
+                acceptingEntries ? "bg-emerald-400" : "bg-amber-400"
+              }`} />
+              {acceptingEntries ? "ENTRY OPEN" : "ENTRY CLOSED"}
             </div>
           </div>
 
@@ -367,16 +406,22 @@ export default function Scanner() {
                   <div className="mx-auto grid size-24 place-items-center border border-white/15 bg-white/5">
                     <Camera className="size-11 text-white/80" />
                   </div>
-                  <h2 className="mt-5 text-2xl font-black">Ready to scan</h2>
+                  <h2 className="mt-5 text-2xl font-black">
+                    {acceptingEntries ? "Ready to scan" : "Entry is closed"}
+                  </h2>
                   <p className="mx-auto mt-2 max-w-xs text-sm text-white/60">
-                    Point the rear camera at the attendee’s GatePass QR.
+                    {acceptingEntries
+                      ? "Point the rear camera at the attendee’s GatePass QR."
+                      : selectedAssignment
+                        ? entryWindow(selectedAssignment.start_time, selectedAssignment.end_time)
+                        : "Choose an event before scanning."}
                   </p>
                   <button
                     onClick={() => void startCamera()}
-                    disabled={!selectedAssignment || cameraStarting}
+                    disabled={!selectedAssignment || !acceptingEntries || cameraStarting}
                     className="mt-6 min-h-14 min-w-52 bg-[#ff2bd6] px-6 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    {cameraStarting ? "Starting camera…" : "Open camera"}
+                    {cameraStarting ? "Starting camera…" : acceptingEntries ? "Open camera" : "Entry closed"}
                   </button>
                 </div>
               </div>
@@ -477,9 +522,10 @@ export default function Scanner() {
 
                   <button
                     onClick={() => void startCamera()}
-                    className="mt-6 min-h-14 w-full bg-white px-5 text-sm font-black text-black"
+                    disabled={!acceptingEntries}
+                    className="mt-6 min-h-14 w-full bg-white px-5 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Scan next ticket
+                    {acceptingEntries ? "Scan next ticket" : "Entry closed"}
                   </button>
                 </div>
               </div>
@@ -520,7 +566,7 @@ export default function Scanner() {
             >
               {access.assignments.map((assignment) => (
                 <option key={assignment.id} value={assignment.event_id}>
-                  {assignment.event_name} · {assignment.gate}
+                  {assignment.event_name} · {assignment.accepting_entries ? "Open now" : "Closed"}
                 </option>
               ))}
             </select>
@@ -534,8 +580,19 @@ export default function Scanner() {
                   <Ticket className="mt-0.5 size-4 shrink-0 text-primary" />
                   Server-validated tickets only
                 </p>
+                <p className={selectedAssignment.accepting_entries ? "font-bold text-emerald-700" : "font-bold text-amber-700"}>
+                  {selectedAssignment.accepting_entries ? "Entry open now" : "Entry closed"} · {entryWindow(selectedAssignment.start_time, selectedAssignment.end_time)}
+                </p>
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => void loadAccess()}
+              className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 border border-neutral-300 px-3 text-sm font-black text-charcoal-dark"
+            >
+              <RefreshCw className="size-4" />
+              Refresh entry status
+            </button>
           </section>
 
           {access.is_owner && (

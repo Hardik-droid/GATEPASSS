@@ -87,10 +87,19 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         e.venue,
                         e.starts_at AS start_time,
                         e.ends_at AS end_time,
+                        COALESCE(now() BETWEEN e.starts_at AND e.ends_at, false) AS accepting_entries,
                         'Owner Gate'::text AS gate
                     FROM scanner.events e
                     WHERE lower(e.status) IN ('approved', 'active', 'published')
-                    ORDER BY e.starts_at DESC, e.name
+                    ORDER BY
+                        CASE
+                            WHEN now() BETWEEN e.starts_at AND e.ends_at THEN 0
+                            WHEN e.starts_at > now() THEN 1
+                            ELSE 2
+                        END,
+                        CASE WHEN e.starts_at > now() THEN e.starts_at END,
+                        e.ends_at DESC,
+                        e.name
                     """
                 )
             )
@@ -109,12 +118,21 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         e.venue,
                         e.starts_at AS start_time,
                         e.ends_at AS end_time,
+                        COALESCE(now() BETWEEN e.starts_at AND e.ends_at, false) AS accepting_entries,
                         sa.gate
                     FROM scanner.scanner_assignments sa
                     JOIN scanner.events e ON e.id = sa.event_id
                     WHERE sa.scanner_user_id = :scanner_user_id
                       AND lower(e.status) IN ('approved', 'active', 'published')
-                    ORDER BY e.starts_at DESC, e.name
+                    ORDER BY
+                        CASE
+                            WHEN now() BETWEEN e.starts_at AND e.ends_at THEN 0
+                            WHEN e.starts_at > now() THEN 1
+                            ELSE 2
+                        END,
+                        CASE WHEN e.starts_at > now() THEN e.starts_at END,
+                        e.ends_at DESC,
+                        e.name
                     """
                 ),
                 {"scanner_user_id": scanner_user_id},

@@ -201,8 +201,8 @@ export default function OrganizerWorkspace({
       description: eventDesc || "No further details provided by the organization.",
       eventType,
       venue: eventVenue,
-      startTime: eventStartTime,
-      endTime: eventEndTime,
+      startTime: new Date(eventStartTime).toISOString(),
+      endTime: new Date(eventEndTime).toISOString(),
       bannerUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
       capacity: eventCapacity,
       ticketCategories: formattedCategories

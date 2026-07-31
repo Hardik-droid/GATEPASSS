@@ -8,6 +8,7 @@ export interface ScannerAssignment {
   venue: string;
   start_time: string;
   end_time: string;
+  accepting_entries: boolean;
   gate: string;
 }
 
