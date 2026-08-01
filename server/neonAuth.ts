@@ -9,12 +9,13 @@ export interface NeonVerifierOptions {
 }
 
 export interface NeonVerifier {
-  verify(token: string): Promise<{ sub: string; email?: string }>;
+  verify(token: string): Promise<{ sub: string; email?: string; name?: string }>;
 }
 
 export type AuthenticatedRequest = express.Request & {
   authSubject?: string;
   authEmail?: string;
+  authName?: string;
 };
 
 // Verifies a Neon Auth JWT via JWKS (EdDSA). Inject `jwks` in tests to supply a
@@ -37,7 +38,11 @@ export function createNeonVerifier(opts: NeonVerifierOptions = {}): NeonVerifier
         ...(opts.audience ? { audience: opts.audience } : {}),
       });
       if (!payload.sub) throw new Error("missing subject");
-      return { sub: payload.sub, email: payload.email as string | undefined };
+      return {
+        sub: payload.sub,
+        email: payload.email as string | undefined,
+        name: (payload.name ?? payload.display_name) as string | undefined,
+      };
     },
   };
 }
@@ -55,6 +60,7 @@ export function makeAuthenticateNeon(verifier: NeonVerifier) {
         const authenticatedRequest = req as AuthenticatedRequest;
         authenticatedRequest.authSubject = claims.sub;
         authenticatedRequest.authEmail = claims.email?.trim().toLowerCase();
+        authenticatedRequest.authName = claims.name?.trim() || undefined;
         next();
       })
       .catch(() => res.status(401).json({ error: "Unauthorized: invalid Neon Auth token." }));

@@ -68,6 +68,35 @@ interface ToastMessage {
   text: string;
 }
 
+// "jane.doe@x.com" -> "Jane Doe". Used when the OAuth provider gives us an
+// account with no display name; falling through to the seed profile's name
+// would show the placeholder identity to a real signed-in user.
+function nameFromEmail(email: string): string {
+  return email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function identityFromSession(u: {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+}): Partial<UserProfile> {
+  const email = u.email?.trim() ?? "";
+  const identity: Partial<UserProfile> = {
+    role: roleForAuthenticatedEmail(email || undefined),
+  };
+  if (u.id) identity.id = u.id;
+  if (email) identity.email = email;
+  const name = u.name?.trim() || (email ? nameFromEmail(email) : "");
+  if (name) identity.name = name;
+  if (u.image) identity.avatarUrl = u.image;
+  return identity;
+}
+
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -108,8 +137,17 @@ export default function App() {
     }, 4000);
   }, []);
 
-  const applyStateSnapshot = (state: AppStateSnapshot) => {
-    setUser(state.user);
+  // The stored snapshot is a single record shared by every signed-in user, so
+  // its `user` field is whoever saved last — it must NEVER be treated as the
+  // current viewer's identity. Always re-apply the verified session identity
+  // over it, otherwise the previous saver's name/avatar/student ID is shown
+  // to everyone (the email/role were already corrected below, which is why
+  // only those two ever looked right).
+  const applyStateSnapshot = (
+    state: AppStateSnapshot,
+    identity?: Partial<UserProfile> | null,
+  ) => {
+    setUser(identity ? { ...state.user, ...identity } : state.user);
     setRequests(state.requests);
     setInvitePasses(state.invitePasses);
     setEvents(state.events);
@@ -217,6 +255,7 @@ export default function App() {
 
     const syncSessionAndHydrate = async () => {
       let token: string | null = null;
+      let identity: Partial<UserProfile> | null = null;
       try {
         const sessionRes = await authClient.getSession();
         if (cancelled) return;
@@ -227,14 +266,8 @@ export default function App() {
           token = await getAuthToken();
           if (cancelled) return;
           if (token) sessionStorage.setItem("neon_auth_token", token);
-          setUser((prev) => ({
-            ...prev,
-            id: u.id || prev.id,
-            name: u.name || prev.name,
-            email: u.email || prev.email,
-            role: roleForAuthenticatedEmail(u.email),
-            avatarUrl: u.image || prev.avatarUrl,
-          }));
+          identity = identityFromSession(u);
+          setUser((prev) => ({ ...prev, ...identity }));
           setIsAuthenticated(true);
           setAuthEmail(u.email || null);
           if (u.email) sessionStorage.setItem("neon_auth_email", u.email);
@@ -247,7 +280,7 @@ export default function App() {
 
       try {
         if (!token) {
-          applyStateSnapshot(createInitialAppState());
+          applyStateSnapshot(createInitialAppState(), identity);
           // Never "connected" here: there is no verified session, so this
           // snapshot must never be eligible for the autosave effect below.
           setBackendStatus("offline");
@@ -256,12 +289,12 @@ export default function App() {
 
         const remoteState = await loadAppState();
         if (cancelled) return;
-        applyStateSnapshot(remoteState ?? createInitialAppState());
+        applyStateSnapshot(remoteState ?? createInitialAppState(), identity);
         setBackendStatus("connected");
       } catch (error) {
         console.error("Backend state load failed, using fallback data.", error);
         if (cancelled) return;
-        applyStateSnapshot(createInitialAppState());
+        applyStateSnapshot(createInitialAppState(), identity);
         setBackendStatus("offline");
       } finally {
         if (!cancelled) {

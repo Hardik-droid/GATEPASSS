@@ -12,10 +12,13 @@ import {
   AuditLog
 } from "./types.js";
 
+// Placeholder identity only. Any signed-in user's real name/email/avatar is
+// applied over this by App.tsx (see applyStateSnapshot) — never show this to
+// an authenticated user.
 export const INITIAL_USER: UserProfile = {
   id: "u1",
-  name: "Hardik Jain",
-  email: "hardik.jain@college.edu",
+  name: "GatePass Member",
+  email: "member@gatepass.app",
   phone: "+91 98765 43210",
   role: UserRole.ATTENDEE,
   avatarUrl: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
@@ -27,7 +30,7 @@ export const INITIAL_USER: UserProfile = {
 export const INITIAL_ACCESS_REQUESTS: AccessRequest[] = [
   {
     id: "req1",
-    requesterName: "Hardik Sharma",
+    requesterName: "Rahul Sharma",
     requesterAvatarUrl: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80",
     zoneName: "Hostel B • Ground Floor",
     durationHours: "3 Hours",
@@ -214,7 +217,7 @@ export const INITIAL_ORDERS: Order[] = [
   {
     id: "ord_101",
     eventId: "ev1",
-    buyerName: "Hardik Jain",
+    buyerName: "Aditya Rao",
     buyerEmail: "hardik.jain@college.edu",
     buyerPhone: "+91 98765 43210",
     paymentStatus: "paid",
@@ -276,7 +279,7 @@ export const INITIAL_TICKETS: Ticket[] = [
     orderId: "ord_101",
     categoryName: "General Pass",
     price: 299,
-    attendeeName: "Hardik Jain",
+    attendeeName: "Aditya Rao",
     attendeePhone: "+91 98765 43210",
     attendeeEmail: "hardik.jain@college.edu",
     qrToken: "TKT_E1_C1_984A_101",
@@ -402,7 +405,7 @@ export const INITIAL_AUDIT_LOGS: AuditLog[] = [
     timestamp: "2026-07-04T09:30:10-07:00",
     actor: "System API",
     action: "Ticket Issued",
-    details: "Ticket 'tkt_101_1' issued to Hardik Jain after verified transaction 'ord_101'."
+    details: "Ticket 'tkt_101_1' issued to Aditya Rao after verified transaction 'ord_101'."
   }
 ];
 
