@@ -6,6 +6,7 @@ from backend.config import settings
 from backend.db import engine
 from backend.qr_routes import router as qr_router
 from backend.scanner_routes import router as scanner_router
+from backend.transfer_routes import router as transfer_router
 
 app = FastAPI(title="GatePass Scanner")
 
@@ -32,6 +33,7 @@ app.add_middleware(
 
 app.include_router(qr_router)
 app.include_router(scanner_router)
+app.include_router(transfer_router)
 
 
 @app.get("/health")
