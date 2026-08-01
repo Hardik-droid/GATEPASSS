@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import request from "supertest";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
@@ -6,12 +7,13 @@ import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
 import { UserRole } from "../src/types";
 import { createApp } from "./app";
 import { createNeonVerifier } from "./neonAuth";
-import type { AppStateStore } from "./store";
+import { TICKET_UPSERT_SQL, type AppStateStore } from "./store";
 
 const ISS = "https://neon.example/neondb/auth";
 
 class MemoryStore implements AppStateStore {
   private state: AppStateSnapshot | null = null;
+  private eventImages = new Map<string, { contentType: string; data: Buffer }>();
   async ensureReady() {}
   async health() {
     return { now: new Date(0).toISOString() };
@@ -21,6 +23,14 @@ class MemoryStore implements AppStateStore {
   }
   async save(state: AppStateSnapshot) {
     this.state = state;
+  }
+  async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer) {
+    const id = "11111111-1111-4111-8111-111111111111";
+    this.eventImages.set(id, { contentType, data });
+    return id;
+  }
+  async loadEventImage(id: string) {
+    return this.eventImages.get(id) ?? null;
   }
 }
 
@@ -57,10 +67,32 @@ test("GET /api/state accepts a valid Neon JWT", async () => {
     .get("/api/state")
     .set("Authorization", `Bearer ${token}`)
     .expect(200);
-  assert.equal(response.body.state.user.name, "Hardik Jain");
+  assert.equal(response.body.state.user.name, "GatePass Member");
   assert.equal(response.body.state.user.email, "n@x.com");
   assert.equal(response.body.state.user.role, "Attendee");
   assert.ok(Array.isArray(response.body.state.events));
+});
+
+// The stored snapshot is shared by every user, so the previous saver's name
+// must never be served back as the caller's identity.
+test("GET /api/state returns the caller's own name, not the stored one", async () => {
+  const { app, mint } = await authedApp();
+  const saver = await mint({ email: "first@x.com", name: "First Saver" });
+  const state = createInitialAppState();
+  state.user.name = "First Saver";
+  await request(app)
+    .put("/api/state")
+    .set("Authorization", `Bearer ${saver}`)
+    .send({ state })
+    .expect(204);
+
+  const viewer = await mint({ email: "second@x.com", name: "Second Viewer" });
+  const response = await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${viewer}`)
+    .expect(200);
+  assert.equal(response.body.state.user.name, "Second Viewer");
+  assert.equal(response.body.state.user.email, "second@x.com");
 });
 
 test("GET /api/state assigns Owner only to the configured OAuth email", async () => {
@@ -120,6 +152,34 @@ test("PUT /api/state persists a valid snapshot", async () => {
   assert.equal(response.body.state.user.role, "Attendee");
 });
 
+test("event cover upload stores a real image and serves it publicly", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint();
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const uploaded = await request(app)
+    .post("/api/event-images")
+    .set("Authorization", `Bearer ${token}`)
+    .set("Content-Type", "image/png")
+    .send(png)
+    .expect(201);
+  const id = new URL(uploaded.body.url).searchParams.get("id");
+  assert.equal(id, "11111111-1111-4111-8111-111111111111");
+  const downloaded = await request(app).get(`/api/event-images?id=${id}`).expect(200);
+  assert.equal(downloaded.headers["content-type"], "image/png");
+  assert.deepEqual(downloaded.body, png);
+});
+
+test("event cover upload rejects a spoofed image", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint();
+  await request(app)
+    .post("/api/event-images")
+    .set("Authorization", `Bearer ${token}`)
+    .set("Content-Type", "image/png")
+    .send(Buffer.from("not an image"))
+    .expect(400);
+});
+
 test("removed Node mock QR route now 404s", async () => {
   const { app, mint } = await authedApp();
   const token = await mint();
@@ -174,4 +234,30 @@ test("verifier rejects a wrong-issuer token", async () => {
     .setExpirationTime("60s")
     .sign(privateKey);
   await assert.rejects(() => verifier.verify(bad));
+});
+
+// --- state sync ownership guards ---
+//
+// public.tickets ownership columns are written only by the transfer engine
+// (backend/transfer_routes.py). If the state-blob sync ever overwrites them,
+// every accepted transfer silently reverts on the next browser autosave.
+
+test("ticket upsert never overwrites owner columns", () => {
+  const doUpdate = TICKET_UPSERT_SQL.split(/DO UPDATE SET/i)[1];
+  assert.ok(doUpdate, "ticket upsert must have a DO UPDATE clause");
+  for (const column of ["attendee_email", "attendee_name", "attendee_phone"]) {
+    assert.ok(
+      !doUpdate.includes(column),
+      `${column} is owned by the transfer engine and must not be in DO UPDATE`,
+    );
+  }
+  assert.ok(doUpdate.includes("category_name"), "non-owner columns must still update");
+});
+
+test("state sync never truncates the reporting tables", async () => {
+  const source = await readFile(new URL("./store.ts", import.meta.url), "utf8");
+  assert.ok(
+    !/TRUNCATE/i.test(source),
+    "TRUNCATE deletes rows created by other users; use upserts",
+  );
 });

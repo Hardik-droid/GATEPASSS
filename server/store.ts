@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,10 +11,13 @@ export interface AppStateStore {
   health(): Promise<{ now: string }>;
   load(): Promise<AppStateSnapshot | null>;
   save(state: AppStateSnapshot): Promise<void>;
+  saveEventImage(uploadedBy: string, contentType: string, data: Buffer): Promise<string>;
+  loadEventImage(id: string): Promise<{ contentType: string; data: Buffer } | null>;
 }
 
 export class MemoryAppStateStore implements AppStateStore {
   private state: AppStateSnapshot | null = null;
+  private readonly eventImages = new Map<string, { contentType: string; data: Buffer }>();
 
   async ensureReady(): Promise<void> {}
 
@@ -28,6 +31,16 @@ export class MemoryAppStateStore implements AppStateStore {
 
   async save(state: AppStateSnapshot): Promise<void> {
     this.state = state;
+  }
+
+  async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer): Promise<string> {
+    const id = randomUUID();
+    this.eventImages.set(id, { contentType, data });
+    return id;
+  }
+
+  async loadEventImage(id: string): Promise<{ contentType: string; data: Buffer } | null> {
+    return this.eventImages.get(id) ?? null;
   }
 }
 
@@ -63,6 +76,28 @@ function toInviteCategory(value: string): string {
 function toLower(value: string): string {
   return value.toLowerCase();
 }
+
+// attendee_email / attendee_name / attendee_phone are deliberately absent from
+// DO UPDATE: they are owned by the transfer engine (backend/transfer_routes.py).
+// The client state blob may carry a stale owner and must never win — otherwise
+// every accepted transfer reverts on the next browser autosave.
+export const TICKET_UPSERT_SQL = `INSERT INTO tickets (
+  id, event_id, order_id, category_id, category_name, price, attendee_name, attendee_phone, attendee_email,
+  qr_token, status, issued_at, checked_in_at, gate_scanned, scanned_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::ticket_status, $12, $13, $14, $15)
+ON CONFLICT (id) DO UPDATE SET
+  event_id = EXCLUDED.event_id,
+  order_id = EXCLUDED.order_id,
+  category_id = EXCLUDED.category_id,
+  category_name = EXCLUDED.category_name,
+  price = EXCLUDED.price,
+  qr_token = EXCLUDED.qr_token,
+  status = EXCLUDED.status,
+  issued_at = EXCLUDED.issued_at,
+  checked_in_at = EXCLUDED.checked_in_at,
+  gate_scanned = EXCLUDED.gate_scanned,
+  scanned_by = EXCLUDED.scanned_by,
+  updated_at = now()`;
 
 export class PostgresAppStateStore implements AppStateStore {
   private readonly pool: pg.Pool;
@@ -128,6 +163,27 @@ export class PostgresAppStateStore implements AppStateStore {
     }
   }
 
+  async saveEventImage(uploadedBy: string, contentType: string, data: Buffer): Promise<string> {
+    const result = await this.pool.query<{ id: string }>(
+      `INSERT INTO event_images (uploaded_by, content_type, image_data, byte_size)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id::text`,
+      [uploadedBy, contentType, data, data.length],
+    );
+    return result.rows[0].id;
+  }
+
+  async loadEventImage(id: string): Promise<{ contentType: string; data: Buffer } | null> {
+    const result = await this.pool.query<{ content_type: string; image_data: Buffer }>(
+      `SELECT content_type, image_data
+       FROM event_images
+       WHERE id = $1::uuid`,
+      [id],
+    );
+    const image = result.rows[0];
+    return image ? { contentType: image.content_type, data: image.image_data } : null;
+  }
+
   private async syncReportingTables(client: pg.PoolClient, state: AppStateSnapshot): Promise<void> {
     const organizationId = stableUuid("organizations", "gatepass");
     const userId = stableUuid("users", state.user.id);
@@ -136,32 +192,37 @@ export class PostgresAppStateStore implements AppStateStore {
     const orderIds = new Map<string, string>();
     const ticketIds = new Map<string, string>();
 
-    await client.query(`
-      TRUNCATE TABLE
-        scan_logs,
-        tickets,
-        orders,
-        ticket_categories,
-        settlements,
-        events,
-        invite_passes,
-        access_requests,
-        audit_logs,
-        users,
-        organizations
-      RESTART IDENTITY CASCADE
-    `);
+    // No bulk delete here, deliberately: this state blob is shared by every
+    // signed-in user, so wiping rows destroys data created by other people.
+    // Every statement below upserts, and nothing is ever removed.
 
     await client.query(
       `INSERT INTO organizations (id, name, org_type, contact_email, contact_phone)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name,
+         org_type = EXCLUDED.org_type,
+         contact_email = EXCLUDED.contact_email,
+         contact_phone = EXCLUDED.contact_phone,
+         updated_at = now()`,
       [organizationId, "GatePass", "Event Operations", state.user.email, state.user.phone],
     );
 
     await client.query(
       `INSERT INTO users (
         id, organization_id, name, email, phone, role, avatar_url, student_id, current_zone, clearance_level
-      ) VALUES ($1, $2, $3, $4, $5, $6::user_role, $7, $8, $9, $10)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6::user_role, $7, $8, $9, $10)
+      ON CONFLICT (id) DO UPDATE SET
+        organization_id = EXCLUDED.organization_id,
+        name = EXCLUDED.name,
+        email = EXCLUDED.email,
+        phone = EXCLUDED.phone,
+        role = EXCLUDED.role,
+        avatar_url = EXCLUDED.avatar_url,
+        student_id = EXCLUDED.student_id,
+        current_zone = EXCLUDED.current_zone,
+        clearance_level = EXCLUDED.clearance_level,
+        updated_at = now()`,
       [
         userId,
         organizationId,
@@ -180,7 +241,16 @@ export class PostgresAppStateStore implements AppStateStore {
       await client.query(
         `INSERT INTO access_requests (
           id, requester_name, requester_avatar_url, zone_name, duration_hours, purpose, status, request_time
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7::access_request_status, $8)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7::access_request_status, $8)
+        ON CONFLICT (id) DO UPDATE SET
+          requester_name = EXCLUDED.requester_name,
+          requester_avatar_url = EXCLUDED.requester_avatar_url,
+          zone_name = EXCLUDED.zone_name,
+          duration_hours = EXCLUDED.duration_hours,
+          purpose = EXCLUDED.purpose,
+          status = EXCLUDED.status,
+          request_time = EXCLUDED.request_time,
+          updated_at = now()`,
         [
           stableUuid("access_requests", request.id),
           request.requesterName,
@@ -199,7 +269,21 @@ export class PostgresAppStateStore implements AppStateStore {
         `INSERT INTO invite_passes (
           id, organization_id, title, category, sub_category, pass_id_code, status, validity_text, usage_text,
           usage_type, entries_total, entries_used, qr_token
-        ) VALUES ($1, $2, $3, $4::invite_category, $5, $6, $7::invite_status, $8, $9, $10, $11, $12, $13)`,
+        ) VALUES ($1, $2, $3, $4::invite_category, $5, $6, $7::invite_status, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (id) DO UPDATE SET
+          organization_id = EXCLUDED.organization_id,
+          title = EXCLUDED.title,
+          category = EXCLUDED.category,
+          sub_category = EXCLUDED.sub_category,
+          pass_id_code = EXCLUDED.pass_id_code,
+          status = EXCLUDED.status,
+          validity_text = EXCLUDED.validity_text,
+          usage_text = EXCLUDED.usage_text,
+          usage_type = EXCLUDED.usage_type,
+          entries_total = EXCLUDED.entries_total,
+          entries_used = EXCLUDED.entries_used,
+          qr_token = EXCLUDED.qr_token,
+          updated_at = now()`,
         [
           stableUuid("invite_passes", invite.id),
           organizationId,
@@ -224,7 +308,18 @@ export class PostgresAppStateStore implements AppStateStore {
       await client.query(
         `INSERT INTO events (
           id, organization_id, title, description, event_type, venue, start_time, end_time, banner_url, capacity
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          organization_id = EXCLUDED.organization_id,
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          event_type = EXCLUDED.event_type,
+          venue = EXCLUDED.venue,
+          start_time = EXCLUDED.start_time,
+          end_time = EXCLUDED.end_time,
+          banner_url = EXCLUDED.banner_url,
+          capacity = EXCLUDED.capacity,
+          updated_at = now()`,
         [
           eventDbId,
           organizationId,
@@ -245,7 +340,15 @@ export class PostgresAppStateStore implements AppStateStore {
         await client.query(
           `INSERT INTO ticket_categories (
             id, event_id, name, description, price, capacity, sold_count
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          ON CONFLICT (id) DO UPDATE SET
+            event_id = EXCLUDED.event_id,
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            price = EXCLUDED.price,
+            capacity = EXCLUDED.capacity,
+            sold_count = EXCLUDED.sold_count,
+            updated_at = now()`,
           [
             categoryDbId,
             eventDbId,
@@ -266,7 +369,19 @@ export class PostgresAppStateStore implements AppStateStore {
         `INSERT INTO orders (
           id, event_id, buyer_name, buyer_email, buyer_phone, payment_status, gross_amount, platform_fee,
           gateway_fee, net_amount, payment_method, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6::payment_status, $7, $8, $9, $10, $11::payment_method, $12)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6::payment_status, $7, $8, $9, $10, $11::payment_method, $12)
+        ON CONFLICT (id) DO UPDATE SET
+          event_id = EXCLUDED.event_id,
+          buyer_name = EXCLUDED.buyer_name,
+          buyer_email = EXCLUDED.buyer_email,
+          buyer_phone = EXCLUDED.buyer_phone,
+          payment_status = EXCLUDED.payment_status,
+          gross_amount = EXCLUDED.gross_amount,
+          platform_fee = EXCLUDED.platform_fee,
+          gateway_fee = EXCLUDED.gateway_fee,
+          net_amount = EXCLUDED.net_amount,
+          payment_method = EXCLUDED.payment_method,
+          updated_at = now()`,
         [
           orderDbId,
           eventIds.get(order.eventId),
@@ -290,10 +405,7 @@ export class PostgresAppStateStore implements AppStateStore {
       const event = state.events.find((item) => item.id === ticket.eventId);
       const category = event?.ticketCategories.find((item) => item.name === ticket.categoryName);
       await client.query(
-        `INSERT INTO tickets (
-          id, event_id, order_id, category_id, category_name, price, attendee_name, attendee_phone, attendee_email,
-          qr_token, status, issued_at, checked_in_at, gate_scanned, scanned_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::ticket_status, $12, $13, $14, $15)`,
+        TICKET_UPSERT_SQL,
         [
           ticketDbId,
           eventIds.get(ticket.eventId),
@@ -318,7 +430,17 @@ export class PostgresAppStateStore implements AppStateStore {
       await client.query(
         `INSERT INTO scan_logs (
           id, ticket_id, event_id, event_name, attendee_name, category_name, scan_result, scan_time, gate_name, scanned_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7::scan_result, $8, $9, $10)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7::scan_result, $8, $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          ticket_id = EXCLUDED.ticket_id,
+          event_id = EXCLUDED.event_id,
+          event_name = EXCLUDED.event_name,
+          attendee_name = EXCLUDED.attendee_name,
+          category_name = EXCLUDED.category_name,
+          scan_result = EXCLUDED.scan_result,
+          scan_time = EXCLUDED.scan_time,
+          gate_name = EXCLUDED.gate_name,
+          scanned_by = EXCLUDED.scanned_by`,
         [
           stableUuid("scan_logs", log.id),
           ticketIds.get(log.ticketId),
@@ -339,7 +461,19 @@ export class PostgresAppStateStore implements AppStateStore {
         `INSERT INTO settlements (
           id, event_id, event_name, gross_sales, total_refunds, platform_fees, gateway_fees, manual_collections,
           net_settlement, status, settled_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::settlement_status, $11)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::settlement_status, $11)
+        ON CONFLICT (id) DO UPDATE SET
+          event_id = EXCLUDED.event_id,
+          event_name = EXCLUDED.event_name,
+          gross_sales = EXCLUDED.gross_sales,
+          total_refunds = EXCLUDED.total_refunds,
+          platform_fees = EXCLUDED.platform_fees,
+          gateway_fees = EXCLUDED.gateway_fees,
+          manual_collections = EXCLUDED.manual_collections,
+          net_settlement = EXCLUDED.net_settlement,
+          status = EXCLUDED.status,
+          settled_at = EXCLUDED.settled_at,
+          updated_at = now()`,
         [
           stableUuid("settlements", settlement.id),
           eventIds.get(settlement.eventId),
@@ -359,7 +493,12 @@ export class PostgresAppStateStore implements AppStateStore {
     for (const audit of state.auditLogs) {
       await client.query(
         `INSERT INTO audit_logs (id, timestamp, actor, action, details)
-         VALUES ($1, $2, $3, $4, $5)`,
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           timestamp = EXCLUDED.timestamp,
+           actor = EXCLUDED.actor,
+           action = EXCLUDED.action,
+           details = EXCLUDED.details`,
         [stableUuid("audit_logs", audit.id), toDate(audit.timestamp), audit.actor, audit.action, audit.details],
       );
     }
