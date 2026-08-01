@@ -51,7 +51,11 @@ function entryWindow(start: string, end: string): string {
   return `${format.format(new Date(start))} – ${format.format(new Date(end))}`;
 }
 
-export default function Scanner() {
+interface ScannerProps {
+  onToast?: (type: "success" | "error" | "warning" | "info", text: string) => void;
+}
+
+export default function Scanner({ onToast }: ScannerProps) {
   const [access, setAccess] = useState<ScannerAccess | null>(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [accessError, setAccessError] = useState<string | null>(null);
@@ -140,9 +144,19 @@ export default function Scanner() {
     setCameraError(null);
     setScanResult(null);
     try {
-      setScanResult(await validateScannerQr(selectedAssignment.event_id, payload));
+      const result = await validateScannerQr(selectedAssignment.event_id, payload);
+      setScanResult(result);
+      const approved = result.decision === "APPROVED";
+      onToast?.(
+        approved ? "success" : "error",
+        approved
+          ? `Scan successful — ${result.attendee?.name ?? "attendee"} approved at ${selectedAssignment.gate}`
+          : result.message,
+      );
       if ("vibrate" in navigator) {
-        navigator.vibrate(120);
+        // Distinct haptics so an operator can tell approved from denied
+        // without looking up from the queue.
+        navigator.vibrate(approved ? 120 : [90, 70, 90]);
       }
     } catch (error) {
       setCameraError(
