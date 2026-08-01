@@ -19,3 +19,11 @@ __pycache__
 .venv/
 .pytest_cache/
 .vercel/
+
+.vercel
+
+# Local scratch dirs. These MUST stay ignored: Tailwind v4's automatic source
+# detection scans everything git does not ignore, so an unignored browser
+# profile (hundreds of MB of cache files) makes `vite build` exhaust memory.
+.event-image-edge-profile/
+.freebuff/

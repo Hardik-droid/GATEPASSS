@@ -20,6 +20,7 @@ import {
 import { authClient, getAuthToken } from "./auth";
 import { hasOrganizerAccess, roleForAuthenticatedEmail } from "./permissions";
 import { fetchScannerAccess } from "./scannerApi";
+import { fetchTransfers } from "./transferApi";
 import IdentityCard from "./pages/Profile";
 import RequestAccessForm from "./pages/RequestAccess";
 import ApprovalsInvites from "./pages/Approvals";
@@ -194,6 +195,32 @@ export default function App() {
 
   const canAccessOrganizer = hasOrganizerAccess(user, authEmail);
   const hasScannerAccess = canAccessOrganizer || canAccessScanner;
+
+  // Incoming ticket transfers waiting on this user share the Approvals badge
+  // with access requests — both are "something is waiting for you".
+  const [pendingTransferCount, setPendingTransferCount] = useState(0);
+  const pendingApprovalsCount =
+    requests.filter((r) => r.status === "pending").length + pendingTransferCount;
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setPendingTransferCount(0);
+      return;
+    }
+    let cancelled = false;
+    fetchTransfers()
+      .then((lists) => {
+        if (!cancelled) {
+          setPendingTransferCount(lists.incoming.filter((t) => t.status === "pending").length);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPendingTransferCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!authEmail) return;
@@ -919,9 +946,9 @@ export default function App() {
                 >
                   <Bell className="w-4 h-4 xl:hidden" />
                   <span>Approvals &amp; Invites</span>
-                  {requests.filter(r => r.status === "pending").length > 0 && (
+                  {pendingApprovalsCount > 0 && (
                     <span className="absolute right-4 xl:-right-4 xl:-top-2 w-5 h-5 xl:w-4 xl:h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-charcoal-dark">
-                      <AnimatedNumber value={requests.filter(r => r.status === "pending").length} className="text-[9px]" />
+                      <AnimatedNumber value={pendingApprovalsCount} className="text-[9px]" />
                     </span>
                   )}
                 </NavLink>
@@ -1089,6 +1116,7 @@ export default function App() {
                 onDenyRequest={handleDenyRequest}
                 onRevokeInvite={handleRevokeInvite}
                 onResendInvite={handleResendInvite}
+                onToast={addToast}
               />
             } 
           />
@@ -1173,9 +1201,9 @@ export default function App() {
             >
               <Bell className="w-5 h-5" />
               <span>Invites</span>
-              {requests.filter(r => r.status === "pending").length > 0 && (
+              {pendingApprovalsCount > 0 && (
                 <span className="absolute -top-1 right-2 w-4 h-4 bg-status-danger rounded-full text-[8px] text-white flex items-center justify-center font-bold">
-                  {requests.filter(r => r.status === "pending").length}
+                  {pendingApprovalsCount}
                 </span>
               )}
             </NavLink>
