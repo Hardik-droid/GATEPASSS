@@ -66,7 +66,7 @@ export default function RequestAccessForm({ onBack, onSubmitRequest }: RequestAc
     setSubmitting(true);
     setTimeout(() => {
       onSubmitRequest({
-        requesterName: "Hardik Jain",
+        requesterName: "", // overwritten by the caller with the signed-in user's name
         zoneName: selectedZone,
         durationHours: durationPreset === "2h" ? "2 Hours" : durationPreset === "half" ? "Half Day" : "Full Day",
         purpose: purpose

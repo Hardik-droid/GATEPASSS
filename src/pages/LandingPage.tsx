@@ -143,10 +143,10 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
 
             <div className="flex items-center gap-4 mb-6">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-black text-xl text-white shadow-lg">
-                HJ
+                AM
               </div>
               <div>
-                <h3 className="font-black text-lg text-white uppercase tracking-tight">Hardik Jain</h3>
+                <h3 className="font-black text-lg text-white uppercase tracking-tight">Alex Morgan</h3>
                 <p className="text-xs text-cyan-400 font-bold uppercase tracking-wider">Student ID: GP-8842-X</p>
               </div>
             </div>

@@ -65,6 +65,18 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const [attendeeName, setAttendeeName] = useState(user.name);
   const [attendeeEmail, setAttendeeEmail] = useState(user.email);
   const [attendeePhone, setAttendeePhone] = useState(user.phone);
+
+  // `user` starts as placeholder mock data and is replaced once Neon Auth
+  // resolves the real signed-in identity. The useState() initializers above
+  // only capture that value once, at mount — if this page mounted before
+  // auth resolved, the checkout form (and every ticket booked from it) would
+  // stay stuck showing the placeholder name/email/phone. Re-sync when the
+  // real identity arrives.
+  useEffect(() => {
+    setAttendeeName(user.name);
+    setAttendeeEmail(user.email);
+    setAttendeePhone(user.phone);
+  }, [user.name, user.email, user.phone]);
   const [paymentMethod, setPaymentMethod] = useState<"online" | "upi" | "cash">("online");
   const [isCheckoutSuccess, setIsCheckoutSuccess] = useState(false);
   const [lastGeneratedTicketCode, setLastGeneratedTicketCode] = useState("");

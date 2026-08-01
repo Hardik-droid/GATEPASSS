@@ -301,6 +301,8 @@ export default function App() {
     const id = "req_" + Date.now();
     const addedReq: AccessRequest = {
       ...newReq,
+      requesterName: user.name,
+      requesterAvatarUrl: user.avatarUrl,
       id,
       status: "pending",
       requestTime: "Today, " + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -313,7 +315,7 @@ export default function App() {
     const addedAudit: AuditLog = {
       id: "aud_" + Date.now(),
       timestamp: new Date().toISOString(),
-      actor: "Hardik Jain (Student)",
+      actor: `${user.name} (${user.role})`,
       action: "Access Requested",
       details: `Requested access pass to '${newReq.zoneName}' for ${newReq.durationHours}.`
     };
