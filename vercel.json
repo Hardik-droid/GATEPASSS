@@ -6,7 +6,7 @@
   "functions": {
     "api/**/*.py": {
       "maxDuration": 30,
-      "excludeFiles": "{.venv/**,node_modules/**,dist/**,dist-server/**,src/**,server/**,lib/**,docs/**,tests/**,alembic/**,GatepassApi/**,loop-engineering/**,**/__pycache__/**,**/*.db,**/*.md}"
+      "excludeFiles": "{.venv/**,.git/**,.event-image-edge-profile/**,.freebuff/**,.vercel/**,node_modules/**,dist/**,dist-server/**,src/**,server/**,lib/**,docs/**,tests/**,alembic/**,GatepassApi/**,loop-engineering/**,**/__pycache__/**,**/*.db,**/*.db-wal,**/*.db-shm,**/*.md}"
     }
   },
   "rewrites": [

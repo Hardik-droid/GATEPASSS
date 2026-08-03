@@ -1,0 +1,23 @@
+# Files uploaded by `vercel deploy` from a local checkout. Git-based deploys
+# already exclude untracked files; this covers the CLI path.
+#
+# These MUST stay excluded. Tailwind v4's automatic source detection scans the
+# whole project, so a browser profile full of cache files makes the build run
+# out of memory; and the Python functions bundle whatever is uploaded, so large
+# directories blow past the 500 MB function limit.
+.event-image-edge-profile
+.freebuff
+.vercel
+.git
+
+node_modules
+dist
+dist-server
+.venv
+__pycache__
+.pytest_cache
+loop-engineering
+docs
+tests
+GatepassApi
+alembic
