@@ -5,6 +5,8 @@
 # whole project, so a browser profile full of cache files makes the build run
 # out of memory; and the Python functions bundle whatever is uploaded, so large
 # directories blow past the 500 MB function limit.
+.dotnet
+.dotnet-tools
 .event-image-edge-profile
 .freebuff
 .vercel
