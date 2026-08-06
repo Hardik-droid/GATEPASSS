@@ -513,7 +513,9 @@ export default function ApprovalsInvites({
               className="min-h-12 w-full border border-outline-variant rounded-lg px-3 text-sm font-semibold"
             />
             <p className="text-[11px] text-on-surface-variant">
-              They must already have a GatePass account. The ticket stays yours until they accept.
+              They do not need a GatePass account yet — if they sign up with this
+              email later, the ticket will be waiting for them. It stays yours
+              until they accept.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <button

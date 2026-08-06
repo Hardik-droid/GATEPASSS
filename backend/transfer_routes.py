@@ -140,16 +140,19 @@ def list_transfers(
                 JOIN scanner.ticket_entitlements te ON te.id = tr.ticket_id
                 JOIN scanner.events e ON e.id = te.event_id
                 JOIN scanner.users sender ON sender.id = tr.from_user_id
-                WHERE tr.from_user_id = :uid OR tr.to_user_id = :uid
+                WHERE tr.from_user_id = :uid
+                   OR tr.to_user_id = :uid
+                   OR (tr.to_user_id IS NULL AND lower(tr.to_email) = :email)
                 ORDER BY tr.created_at DESC
                 """
             ),
-            {"uid": str(user.id)},
+            {"uid": str(user.id), "email": user.email.strip().lower()},
         )
         .mappings()
         .all()
     )
     now = _now()
+    email = user.email.strip().lower()
     incoming: list[dict] = []
     outgoing: list[dict] = []
     for row in rows:
@@ -166,7 +169,10 @@ def list_transfers(
             "created_at": row["created_at"].isoformat(),
             "expires_at": row["expires_at"].isoformat(),
         }
-        if str(row["to_user_id"]) == str(user.id):
+        addressed_to_me = str(row["to_user_id"]) == str(user.id) or (
+            row["to_user_id"] is None and str(row["to_email"]).lower() == email
+        )
+        if addressed_to_me:
             incoming.append(item)
         else:
             outgoing.append(item)
@@ -182,6 +188,11 @@ def create_transfer(
     if request.to_email == user.email.strip().lower():
         raise HTTPException(409, "You cannot transfer a ticket to yourself")
 
+    # The recipient does not have to exist yet. If they have never signed in,
+    # to_user_id stays NULL and the transfer is held against the email address;
+    # list/respond match an unclaimed transfer by email, so it appears in their
+    # panel the first time they sign in. Google has verified the address by
+    # then, so only the real owner of that inbox can claim it.
     recipient = (
         db.execute(
             text("SELECT id FROM scanner.users WHERE lower(email) = :email LIMIT 1"),
@@ -190,11 +201,7 @@ def create_transfer(
         .mappings()
         .one_or_none()
     )
-    if recipient is None:
-        raise HTTPException(
-            404,
-            "No GatePass account for that email. Ask them to sign up first, then try again.",
-        )
+    recipient_id = str(recipient["id"]) if recipient is not None else None
 
     ticket = (
         db.execute(
@@ -244,7 +251,7 @@ def create_transfer(
                 "id": transfer_id,
                 "ticket_id": request.ticket_id,
                 "from_id": str(user.id),
-                "to_id": str(recipient["id"]),
+                "to_id": recipient_id,
                 "to_email": request.to_email,
                 "expires_at": expires_at,
             },
@@ -269,7 +276,7 @@ def respond_to_transfer(
             text(
                 """
                 SELECT tr.id, tr.ticket_id, tr.from_user_id, tr.to_user_id,
-                       tr.status, tr.expires_at, te.status AS ticket_status,
+                       tr.to_email, tr.status, tr.expires_at, te.status AS ticket_status,
                        te.entry_count, e.starts_at
                 FROM scanner.ticket_transfers tr
                 JOIN scanner.ticket_entitlements te ON te.id = tr.ticket_id
@@ -292,7 +299,12 @@ def respond_to_transfer(
         db.rollback()
         raise HTTPException(409, f"This transfer is already {status}")
 
-    is_recipient = str(transfer["to_user_id"]) == str(user.id)
+    # An unclaimed transfer (sent before the recipient had an account) is
+    # matched on the verified email instead of a user id.
+    is_recipient = str(transfer["to_user_id"]) == str(user.id) or (
+        transfer["to_user_id"] is None
+        and str(transfer["to_email"]).lower() == user.email.strip().lower()
+    )
     is_sender = str(transfer["from_user_id"]) == str(user.id)
 
     if request.action == "cancel":
@@ -371,15 +383,17 @@ def respond_to_transfer(
             "ticket_id": str(transfer["ticket_id"]),
         },
     )
+    # to_user_id is set here as well as status: a transfer created before the
+    # recipient had an account carries NULL until they claim it.
     db.execute(
         text(
             """
             UPDATE scanner.ticket_transfers
-            SET status = 'accepted', accepted_at = now()
+            SET status = 'accepted', accepted_at = now(), to_user_id = :uid
             WHERE id = :id
             """
         ),
-        {"id": request.transfer_id},
+        {"id": request.transfer_id, "uid": str(user.id)},
     )
     db.commit()
     return {"status": TRANSFER_ACCEPTED}

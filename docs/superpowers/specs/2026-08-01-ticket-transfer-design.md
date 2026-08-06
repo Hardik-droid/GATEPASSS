@@ -147,13 +147,19 @@ A ticket is transferable only when all hold:
 4. The event has not started.
 5. No `pending` transfer already exists for the ticket (also enforced by index).
 6. Recipient is not the sender.
-7. The recipient email resolves to an existing row in `scanner.users`.
+**Revised 2026-08-03 — the recipient no longer has to be registered.**
 
-Rule 7 means an unregistered recipient **blocks transfer creation** with a clear
-message ("No GatePass account for that email — ask them to sign up first"),
-rather than creating a held invite. This was an explicit product decision: it
-avoids an unclaimed half-state, and with email deferred the recipient would have
-no way to learn about a held invite anyway.
+The original rule required the recipient email to already resolve to a row in
+`scanner.users`, blocking transfer creation otherwise. That was reversed: a
+transfer to an unknown email is now created with `to_user_id` NULL and held
+against the address. `list` and `respond` match an unclaimed transfer on the
+caller's verified email, so it appears in that person's panel the first time
+they sign in, and `to_user_id` is filled in when they accept.
+
+This is safe because Google has verified the address by the time anyone can
+claim it — only the real owner of that inbox sees the transfer. The trade-off
+is that, with email notifications out of scope, the sender must tell the
+recipient out-of-band that a ticket is waiting.
 
 ## Accept transaction
 
