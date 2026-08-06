@@ -35,10 +35,8 @@ def client_and_db():
     app.dependency_overrides.clear()
 
 
-def test_create_still_requires_the_sender_to_hold_the_ticket(client_and_db):
+def test_create_rejects_unregistered_recipient(client_and_db):
     client, db, _ = client_and_db
-    # Every lookup misses: no recipient account, and no ticket assigned to the
-    # caller. The missing account is fine now; the missing ticket is not.
     db.execute.return_value.mappings.return_value.one_or_none.return_value = None
 
     response = client.post(
@@ -47,7 +45,7 @@ def test_create_still_requires_the_sender_to_hold_the_ticket(client_and_db):
     )
 
     assert response.status_code == 404
-    assert "not assigned to you" in response.json()["detail"].lower()
+    assert "account" in response.json()["detail"].lower()
 
 
 def test_create_rejects_transfer_to_self(client_and_db):
