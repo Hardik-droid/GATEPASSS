@@ -35,6 +35,18 @@ def effective_status(status: str, expires_at: datetime, now: datetime) -> str:
     return status
 
 
+BLOCK_REASON_MESSAGES = {
+    "TICKET_ALREADY_SCANNED": "Already scanned at the gate",
+    "TICKET_NOT_ACTIVE": "This ticket is cancelled or refunded",
+    "EVENT_ALREADY_STARTED": "This event has already started",
+}
+
+
+def block_reason_message(code: str) -> str:
+    """Human-readable form of a ticket_block_reason code, for the UI."""
+    return BLOCK_REASON_MESSAGES.get(code, "This ticket cannot be transferred")
+
+
 def ticket_block_reason(
     *,
     entry_count: int,

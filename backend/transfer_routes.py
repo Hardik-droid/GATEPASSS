@@ -27,6 +27,7 @@ from backend.transfer_service import (
     TRANSFER_CANCELLED,
     TRANSFER_DECLINED,
     TRANSFER_PENDING,
+    block_reason_message,
     effective_status,
     ticket_block_reason,
     transfer_expiry,
@@ -70,14 +71,21 @@ def my_tickets(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Tickets the caller currently holds, with any pending outgoing transfer."""
+    """Every ticket the caller currently holds.
+
+    Deliberately unfiltered by event date or ticket status: a ticket that
+    cannot be transferred still belongs to the user and must be visible, with
+    the reason attached. Filtering them out server-side produced an empty
+    "No tickets yet" screen that was indistinguishable from a broken feature.
+    """
     rows = (
         db.execute(
             text(
                 """
                 SELECT
-                    te.id, te.ticket_type, te.entry_count,
-                    e.id AS event_id, e.name AS event_name, e.venue, e.starts_at,
+                    te.id, te.ticket_type, te.status AS ticket_status, te.entry_count,
+                    e.id AS event_id, e.name AS event_name, e.venue,
+                    e.starts_at, e.ends_at,
                     tr.id AS transfer_id, tr.to_email, tr.expires_at
                 FROM scanner.ticket_assignments ta
                 JOIN scanner.ticket_entitlements te ON te.id = ta.ticket_id
@@ -86,9 +94,7 @@ def my_tickets(
                        ON tr.ticket_id = te.id AND tr.status = 'pending'
                 WHERE ta.assigned_to_user_id = :uid
                   AND ta.status = 'active'
-                  AND e.ends_at > now()
-                  AND lower(te.status) NOT IN ('cancelled', 'refunded', 'expired')
-                ORDER BY e.starts_at
+                ORDER BY e.starts_at DESC
                 """
             ),
             {"uid": str(user.id)},
@@ -96,8 +102,16 @@ def my_tickets(
         .mappings()
         .all()
     )
-    return {
-        "tickets": [
+    now = _now()
+    tickets = []
+    for row in rows:
+        reason = ticket_block_reason(
+            entry_count=row["entry_count"],
+            ticket_status=row["ticket_status"],
+            event_starts_at=row["starts_at"],
+            now=now,
+        )
+        tickets.append(
             {
                 "id": str(row["id"]),
                 "ticket_type": row["ticket_type"],
@@ -105,7 +119,10 @@ def my_tickets(
                 "event_name": row["event_name"],
                 "venue": row["venue"],
                 "starts_at": row["starts_at"].isoformat(),
+                "ends_at": row["ends_at"].isoformat(),
                 "entry_count": row["entry_count"],
+                "transferable": reason is None,
+                "blocked_reason": None if reason is None else block_reason_message(reason),
                 "pending_transfer": (
                     {
                         "id": str(row["transfer_id"]),
@@ -116,9 +133,8 @@ def my_tickets(
                     else None
                 ),
             }
-            for row in rows
-        ]
-    }
+        )
+    return {"tickets": tickets}
 
 
 @router.get("/api/transfers/list")
@@ -327,16 +343,29 @@ def respond_to_transfer(
         db.rollback()
         raise HTTPException(409, reason)
 
-    db.execute(
+    # The sender must STILL hold the ticket. Without this, a transfer created
+    # while A owned the ticket could be accepted after ownership had moved to
+    # C, and the UPDATE below would end C's assignment and hand the ticket to
+    # the accepter — taking it from someone who was never party to it.
+    ended = db.execute(
         text(
             """
             UPDATE scanner.ticket_assignments
             SET status = 'ended', ended_at = now()
-            WHERE ticket_id = :ticket_id AND status = 'active'
+            WHERE ticket_id = :ticket_id
+              AND status = 'active'
+              AND assigned_to_user_id = :from_id
+            RETURNING id
             """
         ),
-        {"ticket_id": str(transfer["ticket_id"])},
-    )
+        {
+            "ticket_id": str(transfer["ticket_id"]),
+            "from_id": str(transfer["from_user_id"]),
+        },
+    ).scalar_one_or_none()
+    if ended is None:
+        db.rollback()
+        raise HTTPException(409, "The sender no longer holds this ticket")
     db.execute(
         text(
             """

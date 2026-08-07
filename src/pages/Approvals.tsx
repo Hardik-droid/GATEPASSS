@@ -439,13 +439,19 @@ export default function ApprovalsInvites({
                         Cancel
                       </button>
                     </div>
-                  ) : (
+                  ) : ticket.transferable ? (
                     <button
                       onClick={() => setTransferTarget(ticket)}
                       className="min-h-11 rounded-lg bg-charcoal-dark text-white text-xs font-black uppercase tracking-wider"
                     >
                       Transfer ticket
                     </button>
+                  ) : (
+                    <div className="border-t border-surface-container pt-3">
+                      <p className="text-xs font-bold text-on-surface-variant">
+                        Not transferable — {ticket.blocked_reason}
+                      </p>
+                    </div>
                   )}
                 </div>
               ))

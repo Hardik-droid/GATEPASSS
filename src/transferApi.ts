@@ -15,7 +15,10 @@ export interface MyTicket {
   event_name: string;
   venue: string;
   starts_at: string;
+  ends_at: string;
   entry_count: number;
+  transferable: boolean;
+  blocked_reason: string | null;
   pending_transfer: { id: string; to_email: string; expires_at: string } | null;
 }
 
