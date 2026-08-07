@@ -21,3 +21,16 @@ export async function saveAppState(state: AppStateSnapshot): Promise<void> {
     throw new Error(`Failed to save app state: ${response.status}`);
   }
 }
+
+export async function uploadEventImage(file: File): Promise<string> {
+  const response = await authFetch(`${API_BASE_URL}/api/event-images`, {
+    method: "POST",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
+  if (!response.ok || !payload?.url) {
+    throw new Error(payload?.error ?? `Failed to upload event picture: ${response.status}`);
+  }
+  return payload.url;
+}

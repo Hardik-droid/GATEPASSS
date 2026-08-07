@@ -17,18 +17,43 @@ import {
   type NeonVerifier,
 } from "./neonAuth.js";
 
+const EVENT_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const EVENT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function hasValidImageSignature(contentType: string, data: Buffer): boolean {
+  if (contentType === "image/jpeg") {
+    return data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff;
+  }
+  if (contentType === "image/png") {
+    const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    return data.length >= signature.length && data.subarray(0, signature.length).equals(signature);
+  }
+  return data.length >= 12
+    && data.subarray(0, 4).toString("ascii") === "RIFF"
+    && data.subarray(8, 12).toString("ascii") === "WEBP";
+}
+
 interface CreateAppOptions {
   store: AppStateStore;
   staticDir?: string;
   neonVerifier?: NeonVerifier;
 }
 
-function applyOAuthRole(state: AppStateSnapshot, email?: string): AppStateSnapshot {
+// The stored snapshot is shared by every user, so its `user` field is whoever
+// saved last. Never serve it back as the caller's identity — overwrite the
+// identity fields with the verified JWT claims.
+function applyOAuthRole(
+  state: AppStateSnapshot,
+  email?: string,
+  name?: string,
+): AppStateSnapshot {
   return {
     ...state,
     user: {
       ...state.user,
       ...(email ? { email } : {}),
+      ...(name ? { name } : {}),
       role: roleForAuthenticatedEmail(email),
     },
   };
@@ -75,7 +100,11 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
     try {
       const state = (await store.load()) ?? createInitialAppState();
       res.json({
-        state: applyOAuthRole(state, (req as AuthenticatedRequest).authEmail),
+        state: applyOAuthRole(
+          state,
+          (req as AuthenticatedRequest).authEmail,
+          (req as AuthenticatedRequest).authName,
+        ),
       });
     } catch (error) {
       next(error);
@@ -89,9 +118,51 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
         applyOAuthRole(
           state as AppStateSnapshot,
           (req as AuthenticatedRequest).authEmail,
+          (req as AuthenticatedRequest).authName,
         ),
       );
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(
+    "/api/event-images",
+    authenticateNeon,
+    express.raw({ type: [...EVENT_IMAGE_TYPES], limit: EVENT_IMAGE_MAX_BYTES }),
+    async (req, res, next) => {
+      try {
+        const contentType = req.headers["content-type"]?.split(";", 1)[0]?.toLowerCase() ?? "";
+        const data = req.body;
+        if (!EVENT_IMAGE_TYPES.has(contentType)) {
+          throw new HttpError(415, "Use a JPEG, PNG, or WebP picture.");
+        }
+        if (!Buffer.isBuffer(data) || data.length === 0 || !hasValidImageSignature(contentType, data)) {
+          throw new HttpError(400, "The selected file is not a valid image.");
+        }
+        const uploadedBy = (req as AuthenticatedRequest).authSubject;
+        if (!uploadedBy) throw new HttpError(401, "Authentication required");
+        const id = await store.saveEventImage(uploadedBy, contentType, data);
+        const origin = `${req.protocol}://${req.get("host")}`;
+        res.status(201).json({ url: `${origin}/api/event-images?id=${id}` });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  app.get("/api/event-images", async (req, res, next) => {
+    try {
+      const id = typeof req.query.id === "string" ? req.query.id : "";
+      if (!UUID_PATTERN.test(id)) throw new HttpError(400, "Invalid image id");
+      const image = await store.loadEventImage(id);
+      if (!image) throw new HttpError(404, "Image not found");
+      res.set({
+        "Content-Type": image.contentType,
+        "Cache-Control": "public, max-age=31536000, immutable",
+      });
+      res.send(image.data);
     } catch (error) {
       next(error);
     }

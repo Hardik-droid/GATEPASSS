@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus } from "../types";
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
+import { uploadEventImage } from "../api";
 import {
   Plus,
   TrendingUp,
@@ -21,8 +22,12 @@ import {
   AlertOctagon,
   Sparkles,
   Award,
-  ArrowLeft
+  ArrowLeft,
+  ImagePlus
 } from "lucide-react";
+
+const EVENT_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const EVENT_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
 function toDatetimeLocalInput(date: Date): string {
@@ -77,7 +82,7 @@ export default function OrganizerWorkspace({
   const [orgPhone, setOrgPhone] = useState("+91 11 2789 6522");
 
   const [teamMembers, setTeamMembers] = useState([
-    { id: "tm_1", name: "Hardik Jain", email: "hardik@dtu.ac.in", role: "Owner", status: "Active" },
+    { id: "tm_1", name: "Priya Nair", email: "owner@dtu.ac.in", role: "Owner", status: "Active" },
     { id: "tm_2", name: "Rishabh Mehra", email: "mehra.rishabh@dtu.ac.in", role: "Finance Manager", status: "Active" },
     { id: "tm_3", name: "Officer Mehra", email: "mehra@security.org", role: "Gate Staff", status: "Active" },
     { id: "tm_4", name: "Kunal Sen", email: "kunal@dtu.ac.in", role: "Volunteer", status: "Active" }
@@ -133,6 +138,11 @@ export default function OrganizerWorkspace({
   const [eventCapacity, setEventCapacity] = useState(500);
   const [eventStartTime, setEventStartTime] = useState(() => toDatetimeLocalInput(defaultEventStart()));
   const [eventEndTime, setEventEndTime] = useState(() => toDatetimeLocalInput(defaultEventEnd(defaultEventStart())));
+  const [eventImage, setEventImage] = useState<File | null>(null);
+  const [eventImagePreview, setEventImagePreview] = useState("");
+  const [eventImageError, setEventImageError] = useState("");
+  const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+  const eventImageInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Array<{ name: string; price: number; capacity: number }>>([
     { name: "General Pass", price: 150, capacity: 400 },
     { name: "VIP Pass", price: 499, capacity: 100 }
@@ -147,6 +157,10 @@ export default function OrganizerWorkspace({
   const [manualPrice, setManualPrice] = useState(0);
 
   const [toastMessage, setToastMessage] = useState("");
+
+  useEffect(() => () => {
+    if (eventImagePreview) URL.revokeObjectURL(eventImagePreview);
+  }, [eventImagePreview]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -169,7 +183,28 @@ export default function OrganizerWorkspace({
     setCategories(categories.filter((_, i) => i !== index));
   };
 
-  const handleCreateEventSubmit = (e: React.FormEvent) => {
+  const handleEventImageChange = (file: File | null) => {
+    setEventImageError("");
+    if (!file) {
+      setEventImage(null);
+      setEventImagePreview("");
+      return;
+    }
+    if (!EVENT_IMAGE_TYPES.includes(file.type)) {
+      setEventImageError("Choose a JPEG, PNG, or WebP picture.");
+      if (eventImageInputRef.current) eventImageInputRef.current.value = "";
+      return;
+    }
+    if (file.size > EVENT_IMAGE_MAX_BYTES) {
+      setEventImageError("Picture must be 4 MB or smaller.");
+      if (eventImageInputRef.current) eventImageInputRef.current.value = "";
+      return;
+    }
+    setEventImage(file);
+    setEventImagePreview(URL.createObjectURL(file));
+  };
+
+  const handleCreateEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventTitle.trim() || !eventVenue.trim()) {
       alert("Please provide complete title and venue details.");
@@ -184,41 +219,55 @@ export default function OrganizerWorkspace({
       return;
     }
 
-    const newEventId = "ev_" + Date.now();
-    const formattedCategories: TicketCategory[] = categories.map((cat, idx) => ({
-      id: `cat_${newEventId}_${idx}`,
-      eventId: newEventId,
-      name: cat.name,
-      description: `Access tier for ${cat.name}`,
-      price: cat.price,
-      capacity: cat.capacity,
-      soldCount: 0
-    }));
+    setIsCreatingEvent(true);
+    setEventImageError("");
+    try {
+      const bannerUrl = eventImage
+        ? await uploadEventImage(eventImage)
+        : "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
+      const newEventId = "ev_" + Date.now();
+      const formattedCategories: TicketCategory[] = categories.map((cat, idx) => ({
+        id: `cat_${newEventId}_${idx}`,
+        eventId: newEventId,
+        name: cat.name,
+        description: `Access tier for ${cat.name}`,
+        price: cat.price,
+        capacity: cat.capacity,
+        soldCount: 0
+      }));
 
-    const newEvent: EventItem = {
-      id: newEventId,
-      title: eventTitle,
-      description: eventDesc || "No further details provided by the organization.",
-      eventType,
-      venue: eventVenue,
-      startTime: new Date(eventStartTime).toISOString(),
-      endTime: new Date(eventEndTime).toISOString(),
-      bannerUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
-      capacity: eventCapacity,
-      ticketCategories: formattedCategories
-    };
+      const newEvent: EventItem = {
+        id: newEventId,
+        title: eventTitle,
+        description: eventDesc || "No further details provided by the organization.",
+        eventType,
+        venue: eventVenue,
+        startTime: new Date(eventStartTime).toISOString(),
+        endTime: new Date(eventEndTime).toISOString(),
+        bannerUrl,
+        capacity: eventCapacity,
+        ticketCategories: formattedCategories
+      };
 
-    onAddNewEvent(newEvent);
-    showToast(`Successfully launched "${eventTitle}" event!`);
+      onAddNewEvent(newEvent);
+      showToast(`Successfully launched "${eventTitle}" event!`);
 
-    // Reset Form & Switch Tab
-    setEventTitle("");
-    setEventVenue("");
-    setEventDesc("");
-    const nextStart = defaultEventStart();
-    setEventStartTime(toDatetimeLocalInput(nextStart));
-    setEventEndTime(toDatetimeLocalInput(defaultEventEnd(nextStart)));
-    setActiveTab("dashboard");
+      // Reset Form & Switch Tab
+      setEventTitle("");
+      setEventVenue("");
+      setEventDesc("");
+      setEventImage(null);
+      setEventImagePreview("");
+      if (eventImageInputRef.current) eventImageInputRef.current.value = "";
+      const nextStart = defaultEventStart();
+      setEventStartTime(toDatetimeLocalInput(nextStart));
+      setEventEndTime(toDatetimeLocalInput(defaultEventEnd(nextStart)));
+      setActiveTab("dashboard");
+    } catch (error) {
+      setEventImageError(error instanceof Error ? error.message : "Could not upload the event picture.");
+    } finally {
+      setIsCreatingEvent(false);
+    }
   };
 
   const handleManualTicketSubmit = (e: React.FormEvent) => {
@@ -889,6 +938,39 @@ export default function OrganizerWorkspace({
               </div>
             </div>
 
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-outline uppercase" htmlFor="event-cover-picture">Event Cover Picture <span className="normal-case font-medium">(optional)</span></label>
+              <label htmlFor="event-cover-picture" className="cursor-pointer overflow-hidden rounded-xl border border-dashed border-outline-variant bg-surface-container-low hover:border-primary transition-colors">
+                {eventImagePreview ? (
+                  <img src={eventImagePreview} alt="Selected event cover preview" className="h-48 w-full object-cover" />
+                ) : (
+                  <span className="flex min-h-32 flex-col items-center justify-center gap-2 p-5 text-center text-on-surface-variant">
+                    <ImagePlus className="h-7 w-7 text-primary" />
+                    <span className="text-sm font-bold text-charcoal-dark">Choose a picture</span>
+                    <span className="text-xs">JPEG, PNG or WebP · max 4 MB</span>
+                  </span>
+                )}
+              </label>
+              <input
+                ref={eventImageInputRef}
+                id="event-cover-picture"
+                type="file"
+                accept={EVENT_IMAGE_TYPES.join(",")}
+                className="sr-only"
+                onChange={(e) => handleEventImageChange(e.target.files?.[0] ?? null)}
+              />
+              {eventImagePreview && (
+                <button type="button" onClick={() => {
+                  setEventImage(null);
+                  setEventImagePreview("");
+                  if (eventImageInputRef.current) eventImageInputRef.current.value = "";
+                }} className="self-start text-xs font-bold text-status-danger hover:underline">
+                  Remove picture
+                </button>
+              )}
+              {eventImageError && <p role="alert" className="text-xs font-bold text-status-danger">{eventImageError}</p>}
+            </div>
+
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-bold text-outline uppercase">Overview Details / Guidelines</label>
               <textarea
@@ -966,9 +1048,10 @@ export default function OrganizerWorkspace({
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-widest uppercase rounded-xl shadow-lg mt-3 cursor-pointer"
+              disabled={isCreatingEvent}
+              className="w-full py-3.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-widest uppercase rounded-xl shadow-lg mt-3 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Launch Event Pass Block
+              {isCreatingEvent ? "Uploading & Launching…" : "Launch Event Pass Block"}
             </button>
           </form>
         </div>
