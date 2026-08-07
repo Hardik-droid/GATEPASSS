@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "echo PROBE_START; echo SCANNER_MIGRATIONS_DATABASE_URL_LEN=${#SCANNER_MIGRATIONS_DATABASE_URL}; echo SCANNER_DATABASE_URL_LEN=${#SCANNER_DATABASE_URL}; echo PROBE_END; npm run build",
+  "buildCommand": "pip3 install -q -r backend/requirements.txt && python3 -m alembic upgrade head && npm run build",
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.py": {
