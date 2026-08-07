@@ -23,6 +23,12 @@ if not db_url:
     raise RuntimeError(
         "SCANNER_MIGRATIONS_DATABASE_URL (or SCANNER_DATABASE_URL) must be set to run migrations"
     )
+# A bare "postgresql://" (e.g. pasted straight from Neon's dashboard) makes
+# SQLAlchemy default to psycopg2, which this project does not install — it
+# uses psycopg (v3), per backend/requirements.txt. Force the driver rather
+# than trust every place this env var gets set to already say +psycopg.
+if db_url.startswith("postgresql://"):
+    db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 config.set_main_option("sqlalchemy.url", db_url)
 
 target_metadata = Base.metadata
