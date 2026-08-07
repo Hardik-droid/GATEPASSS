@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "pip3 install -q -r backend/requirements.txt && python3 -m alembic upgrade head && npm run build",
+  "buildCommand": "uv pip install --system -q -r backend/requirements.txt && python3 -m alembic upgrade head && npm run build",
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.py": {
