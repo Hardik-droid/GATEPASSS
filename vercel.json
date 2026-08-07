@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "buildCommand": "python3 -c \"import os; v=os.environ.get('SCANNER_MIGRATIONS_DATABASE_URL',''); s=os.environ.get('SCANNER_DATABASE_URL',''); print('--- probe: env var availability at build time ---'); print('SCANNER_MIGRATIONS_DATABASE_URL len=', len(v), 'looks_real=', v.startswith('postgresql')); print('SCANNER_DATABASE_URL len=', len(s), 'looks_real=', s.startswith('postgresql')); print('--- end probe ---')\"; npm run build",
+  "buildCommand": "echo PROBE_START; echo SCANNER_MIGRATIONS_DATABASE_URL_LEN=${#SCANNER_MIGRATIONS_DATABASE_URL}; echo SCANNER_DATABASE_URL_LEN=${#SCANNER_DATABASE_URL}; echo PROBE_END; npm run build",
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.py": {
