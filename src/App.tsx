@@ -349,7 +349,7 @@ export default function App() {
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [user, requests, invitePasses, events, orders, tickets, scanLogs, settlements, auditLogs, isHydrated, backendStatus]);
+  }, [user, requests, invitePasses, events, orders, tickets, scanLogs, settlements, auditLogs, isHydrated]);
 
   // State setter shim retained so existing workflows stay scoped to their current components.
   const persistState = (key: string, data: any, stateSetter: Function) => {
