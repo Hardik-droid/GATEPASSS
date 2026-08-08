@@ -132,22 +132,6 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                 text(
                     """
                     SELECT
-                        concat('owner:', e.id) AS id,
-                        e.id AS event_id,
-                        e.name AS event_name,
-                        e.venue,
-                        e.starts_at AS start_time,
-                        e.ends_at AS end_time,
-                        (CASE
-                            WHEN lower(e.status) IN ('closed', 'cancelled', 'ended') THEN false
-                            WHEN e.ends_at IS NOT NULL AND now() > e.ends_at THEN false
-                            ELSE true
-                        END) AS accepting_entries,
-                        'Owner Gate'::text AS gate
-                    FROM scanner.events e
-                    WHERE lower(e.status) IN ('approved', 'active', 'published')
-                    UNION ALL
-                    SELECT
                         concat('owner:', pe.id) AS id,
                         pe.id AS event_id,
                         pe.title AS event_name,
@@ -160,7 +144,6 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         END) AS accepting_entries,
                         'Owner Gate'::text AS gate
                     FROM public.events pe
-                    WHERE NOT EXISTS (SELECT 1 FROM scanner.events se WHERE se.id = pe.id)
                     ORDER BY accepting_entries DESC, start_time DESC, event_name ASC
                     """
                 )
