@@ -75,6 +75,29 @@ def _scanner_user(db: Session, email: str) -> dict | None:
 
 def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[dict]:
     """Return the events the scanner user can scan."""
+    try:
+        db.execute(
+            text(
+                """
+                CREATE SCHEMA IF NOT EXISTS scanner;
+                CREATE TABLE IF NOT EXISTS scanner.events (
+                    id UUID PRIMARY KEY,
+                    organization_name TEXT NOT NULL DEFAULT 'GatePass',
+                    name TEXT NOT NULL,
+                    starts_at TIMESTAMPTZ,
+                    ends_at TIMESTAMPTZ,
+                    venue TEXT,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                );
+                """
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
     if owner:
         rows = (
             db.execute(

@@ -333,27 +333,31 @@ export class PostgresAppStateStore implements AppStateStore {
           event.capacity,
         ],
       );
-      await client.query(
-        `INSERT INTO scanner.events (
-          id, organization_name, name, starts_at, ends_at, venue, status, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, 'active', now())
-        ON CONFLICT (id) DO UPDATE SET
-          organization_name = EXCLUDED.organization_name,
-          name = EXCLUDED.name,
-          starts_at = EXCLUDED.starts_at,
-          ends_at = EXCLUDED.ends_at,
-          venue = EXCLUDED.venue,
-          status = EXCLUDED.status,
-          updated_at = now()`,
-        [
-          eventDbId,
-          "GatePass",
-          event.title,
-          toDate(event.startTime),
-          toDate(event.endTime),
-          event.venue,
-        ],
-      );
+      try {
+        await client.query(
+          `INSERT INTO scanner.events (
+            id, organization_name, name, starts_at, ends_at, venue, status, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'active', now())
+          ON CONFLICT (id) DO UPDATE SET
+            organization_name = EXCLUDED.organization_name,
+            name = EXCLUDED.name,
+            starts_at = EXCLUDED.starts_at,
+            ends_at = EXCLUDED.ends_at,
+            venue = EXCLUDED.venue,
+            status = EXCLUDED.status,
+            updated_at = now()`,
+          [
+            eventDbId,
+            "GatePass",
+            event.title,
+            toDate(event.startTime),
+            toDate(event.endTime),
+            event.venue,
+          ],
+        );
+      } catch (scannerErr) {
+        console.warn("Non-fatal: scanner.events table sync skipped:", scannerErr);
+      }
 
       for (const category of event.ticketCategories) {
         const categoryDbId = stableUuid("ticket_categories", category.id);
