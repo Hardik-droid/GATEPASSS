@@ -87,19 +87,38 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         e.venue,
                         e.starts_at AS start_time,
                         e.ends_at AS end_time,
-                        COALESCE(now() BETWEEN e.starts_at AND e.ends_at, false) AS accepting_entries,
+                        (CASE
+                            WHEN lower(e.status) IN ('closed', 'cancelled', 'ended') THEN false
+                            WHEN e.ends_at IS NOT NULL AND now() > e.ends_at THEN false
+                            ELSE true
+                        END) AS accepting_entries,
                         'Owner Gate'::text AS gate
                     FROM scanner.events e
                     WHERE lower(e.status) IN ('approved', 'active', 'published')
+                    UNION ALL
+                    SELECT
+                        concat('owner:', pe.id) AS id,
+                        pe.id AS event_id,
+                        pe.title AS event_name,
+                        pe.venue,
+                        pe.start_time AS start_time,
+                        pe.end_time AS end_time,
+                        (CASE
+                            WHEN lower(pe.status) IN ('closed', 'cancelled', 'ended') THEN false
+                            WHEN pe.end_time IS NOT NULL AND now() > pe.end_time THEN false
+                            ELSE true
+                        END) AS accepting_entries,
+                        'Owner Gate'::text AS gate
+                    FROM public.events pe
+                    WHERE lower(pe.status) IN ('approved', 'active', 'published')
+                      AND NOT EXISTS (SELECT 1 FROM scanner.events se WHERE se.id = pe.id)
                     ORDER BY
                         CASE
-                            WHEN now() BETWEEN e.starts_at AND e.ends_at THEN 0
-                            WHEN e.starts_at > now() THEN 1
-                            ELSE 2
+                            WHEN accepting_entries THEN 0
+                            ELSE 1
                         END,
-                        CASE WHEN e.starts_at > now() THEN e.starts_at END,
-                        e.ends_at DESC,
-                        e.name
+                        start_time DESC,
+                        event_name
                     """
                 )
             )
@@ -118,7 +137,11 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         e.venue,
                         e.starts_at AS start_time,
                         e.ends_at AS end_time,
-                        COALESCE(now() BETWEEN e.starts_at AND e.ends_at, false) AS accepting_entries,
+                        (CASE
+                            WHEN lower(e.status) IN ('closed', 'cancelled', 'ended') THEN false
+                            WHEN e.ends_at IS NOT NULL AND now() > e.ends_at THEN false
+                            ELSE true
+                        END) AS accepting_entries,
                         sa.gate
                     FROM scanner.scanner_assignments sa
                     JOIN scanner.events e ON e.id = sa.event_id
@@ -126,12 +149,10 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                       AND lower(e.status) IN ('approved', 'active', 'published')
                     ORDER BY
                         CASE
-                            WHEN now() BETWEEN e.starts_at AND e.ends_at THEN 0
-                            WHEN e.starts_at > now() THEN 1
-                            ELSE 2
+                            WHEN accepting_entries THEN 0
+                            ELSE 1
                         END,
-                        CASE WHEN e.starts_at > now() THEN e.starts_at END,
-                        e.ends_at DESC,
+                        e.starts_at DESC,
                         e.name
                     """
                 ),
