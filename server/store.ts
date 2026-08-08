@@ -139,7 +139,69 @@ export class PostgresAppStateStore implements AppStateStore {
       "SELECT payload FROM app_state WHERE state_key = $1",
       ["default"],
     );
-    return result.rows[0]?.payload ?? null;
+    const payload = result.rows[0]?.payload ?? null;
+
+    try {
+      const dbEventsRes = await this.pool.query<{
+        id: string;
+        title: string;
+        description: string;
+        event_type: string;
+        venue: string;
+        start_time: Date | string;
+        end_time: Date | string;
+        banner_url: string;
+        capacity: number;
+      }>(
+        "SELECT id::text, title, description, event_type, venue, start_time, end_time, banner_url, capacity FROM public.events ORDER BY created_at DESC",
+      );
+
+      if (dbEventsRes.rows.length > 0) {
+        const eventsMap = new Map<string, any>();
+        if (payload?.events) {
+          for (const ev of payload.events) {
+            eventsMap.set(ev.id, ev);
+          }
+        }
+        for (const row of dbEventsRes.rows) {
+          if (!eventsMap.has(row.id)) {
+            eventsMap.set(row.id, {
+              id: row.id,
+              title: row.title,
+              description: row.description || "",
+              eventType: row.event_type || "Concert",
+              venue: row.venue || "",
+              startTime: new Date(row.start_time).toISOString(),
+              endTime: new Date(row.end_time).toISOString(),
+              bannerUrl:
+                row.banner_url ||
+                "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
+              capacity: Number(row.capacity) || 1000,
+              ticketCategories: [],
+            });
+          }
+        }
+        const mergedEvents = Array.from(eventsMap.values());
+        if (payload) {
+          payload.events = mergedEvents;
+        } else {
+          return {
+            events: mergedEvents,
+            tickets: [],
+            orders: [],
+            requests: [],
+            invitePasses: [],
+            scanLogs: [],
+            settlements: [],
+            auditLogs: [],
+          } as any;
+        }
+      }
+    } catch (err) {
+      console.warn("Non-fatal: public.events load merge skipped:", err);
+    }
+
+    return payload;
   }
 
   async save(state: AppStateSnapshot): Promise<void> {
