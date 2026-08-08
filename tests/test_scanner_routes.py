@@ -1,65 +1,16 @@
-import importlib.util
-from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from backend.scanner_routes import (
     ScannerAccessUpdate,
+    _ensure_mobile_scanner,
+    _increment_usage,
+    _lookup_ticket,
     _mobile_scanner_id,
     _scan_result,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _entrypoint(path: str) -> TestClient:
-    file_path = ROOT / path
-    spec = importlib.util.spec_from_file_location(file_path.stem, file_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return TestClient(module.app)
-
-
-@pytest.mark.parametrize(
-    ("entrypoint", "method", "route", "kwargs"),
-    [
-        ("api/scanner/assignments.py", "get", "/api/scanner/assignments", {}),
-        (
-            "api/scanner/access.py",
-            "put",
-            "/api/scanner/access",
-            {
-                "json": {
-                    "email": "staff@example.com",
-                    "event_id": "event-1",
-                    "gate": "Main Gate",
-                    "allowed": True,
-                }
-            },
-        ),
-        (
-            "api/scanner/validate.py",
-            "post",
-            "/api/scanner/validate",
-            {
-                "json": {"event_id": "event-1", "payload": "gp:v1:fake.sig"},
-                "headers": {"X-Idempotency-Key": "test-key-123"},
-            },
-        ),
-    ],
-)
-def test_vercel_scanner_entrypoints_match_their_public_routes(
-    entrypoint: str,
-    method: str,
-    route: str,
-    kwargs: dict,
-) -> None:
-    response = getattr(_entrypoint(entrypoint), method)(route, **kwargs)
-    assert response.status_code == 401
-    assert response.headers["content-type"].startswith("application/json")
 
 
 def test_scanner_grant_email_is_normalized() -> None:
@@ -84,6 +35,75 @@ def test_mobile_scanner_id_is_stable_per_operator_and_event() -> None:
     scanner_id = _mobile_scanner_id("operator-1", "event-1")
     assert scanner_id == _mobile_scanner_id("operator-1", "event-1")
     assert scanner_id != _mobile_scanner_id("operator-1", "event-2")
+
+
+def test_mobile_scanner_registration_failure_is_not_swallowed() -> None:
+    db = MagicMock()
+    db.execute.side_effect = RuntimeError("scanner table unavailable")
+
+    with pytest.raises(RuntimeError, match="scanner table unavailable"):
+        _ensure_mobile_scanner(
+            db,
+            operator_id="operator-1",
+            operator_name="Gate Staff",
+            event_id="event-1",
+            event_name="Launch Night",
+        )
+
+
+def test_ticket_lookup_failure_is_not_retried_in_an_aborted_transaction() -> None:
+    db = MagicMock()
+    db.execute.side_effect = RuntimeError("ticket query failed")
+
+    with pytest.raises(RuntimeError, match="ticket query failed"):
+        _lookup_ticket(db, "attendee@example.com", "event-1")
+    db.execute.assert_called_once()
+
+
+def test_ticket_lookup_prefers_a_valid_ticket_over_cancelled_history() -> None:
+    db = MagicMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
+
+    _lookup_ticket(db, "attendee@example.com", "event-1")
+
+    sql = str(db.execute.call_args_list[0].args[0])
+    valid_priority = sql.index("upper(te.status) IN ('ACTIVE', 'ISSUED', 'PAID')")
+    usage_priority = sql.index("te.entry_count < te.max_entries")
+    assert valid_priority < usage_priority
+
+
+def test_ticket_lookup_locks_public_before_scanner_entitlement() -> None:
+    db = MagicMock()
+    candidate = MagicMock()
+    candidate.scalar_one_or_none.return_value = "ticket-1"
+    public_lock = MagicMock()
+    public_lock.scalar_one_or_none.return_value = "ticket-1"
+    scanner_lock = MagicMock()
+    scanner_lock.mappings.return_value.one_or_none.return_value = None
+    db.execute.side_effect = [candidate, public_lock, scanner_lock]
+
+    assert _lookup_ticket(db, "attendee@example.com", "event-1") is None
+
+    statements = [str(call.args[0]) for call in db.execute.call_args_list]
+    assert "FROM public.tickets" in statements[1]
+    assert "FOR UPDATE" in statements[1]
+    assert "FOR UPDATE OF te" in statements[2]
+
+
+def test_usage_increment_mirrors_public_reporting_in_same_session() -> None:
+    db = MagicMock()
+    scanner_result = MagicMock()
+    scanner_result.scalar_one_or_none.return_value = 1
+    db.execute.side_effect = [scanner_result, MagicMock()]
+
+    assert _increment_usage(db, {"id": "ticket-1"}) is True
+
+    scanner_sql = str(db.execute.call_args_list[0].args[0])
+    public_sql = str(db.execute.call_args_list[1].args[0])
+    assert "UPDATE scanner.ticket_entitlements" in scanner_sql
+    assert "UPDATE public.tickets" in public_sql
+    assert "checked_in_at = COALESCE" in public_sql
+    db.commit.assert_not_called()
 
 
 

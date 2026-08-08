@@ -1,56 +1,85 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import request from "supertest";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from "jose";
-import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
+import { createInitialAppState } from "../src/appState";
 import { UserRole } from "../src/types";
 import { createApp } from "./app";
 import { createNeonVerifier } from "./neonAuth";
-import { TICKET_UPSERT_SQL, type AppStateStore } from "./store";
+import type { RazorpayGateway } from "./razorpay";
+import {
+  EXPECTED_ALEMBIC_HEAD,
+  MemoryAppStateStore,
+  PostgresAppStateStore,
+  runTransaction,
+  TICKET_UPSERT_SQL,
+} from "./store";
 
 const ISS = "https://neon.example/neondb/auth";
+const PAYMENT_SECRET = "test_payment_secret_which_is_not_real";
 
-class MemoryStore implements AppStateStore {
-  private state: AppStateSnapshot | null = null;
-  private eventImages = new Map<string, { contentType: string; data: Buffer }>();
-  async ensureReady() {}
-  async health() {
+class FakeRazorpayGateway implements RazorpayGateway {
+  readonly keyId = "rzp_test_server_key";
+  createCalls = 0;
+
+  async createOrder(input: { amount: number; receipt: string }) {
+    this.createCalls += 1;
+    await Promise.resolve();
+    return {
+      id: `order_${input.receipt.replace(/[^A-Za-z0-9]/g, "")}`,
+      amount: input.amount,
+      currency: "INR" as const,
+    };
+  }
+
+  verifySignature(orderId: string, paymentId: string, signature: string) {
+    return signature === createHmac("sha256", PAYMENT_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
+  }
+
+  sign(orderId: string, paymentId: string): string {
+    return createHmac("sha256", PAYMENT_SECRET)
+      .update(`${orderId}|${paymentId}`)
+      .digest("hex");
+  }
+}
+
+class MemoryStore extends MemoryAppStateStore {
+  private testEventImages = new Map<string, { contentType: string; data: Buffer }>();
+  override async health() {
     return { now: new Date(0).toISOString() };
   }
-  async load() {
-    return this.state;
-  }
-  async save(state: AppStateSnapshot) {
-    this.state = state;
-  }
-  async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer) {
+  override async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer) {
     const id = "11111111-1111-4111-8111-111111111111";
-    this.eventImages.set(id, { contentType, data });
+    this.testEventImages.set(id, { contentType, data });
     return id;
   }
-  async loadEventImage(id: string) {
-    return this.eventImages.get(id) ?? null;
+  override async loadEventImage(id: string) {
+    return this.testEventImages.get(id) ?? null;
   }
 }
 
 // Build an app whose Neon verifier trusts a locally generated Ed25519 key, plus
 // a matching JWT minter — no live Neon Auth call needed.
-async function authedApp() {
+async function authedApp(options: { store?: MemoryStore; gateway?: RazorpayGateway } = {}) {
   const { publicKey, privateKey } = await generateKeyPair("EdDSA");
   const jwk = await exportJWK(publicKey);
   jwk.kid = "k1";
   jwk.alg = "EdDSA";
   const jwks = createLocalJWKSet({ keys: [jwk] });
   const neonVerifier = createNeonVerifier({ jwks, issuer: ISS });
-  const app = createApp({ store: new MemoryStore(), neonVerifier });
+  const store = options.store ?? new MemoryStore();
+  const app = createApp({ store, neonVerifier, razorpayGateway: options.gateway ?? new FakeRazorpayGateway() });
   const mint = (claims: Record<string, unknown> = {}, expSec = 60) =>
     new SignJWT({ sub: "node-user", ...claims })
       .setProtectedHeader({ alg: "EdDSA", kid: "k1" })
       .setIssuer(ISS)
       .setExpirationTime(`${expSec}s`)
       .sign(privateKey);
-  return { app, mint, privateKey };
+  return { app, mint, privateKey, store };
 }
 
 test("health route returns database status (no auth)", async () => {
@@ -150,6 +179,96 @@ test("PUT /api/state persists a valid snapshot", async () => {
   assert.equal(response.body.state.user.name, "Production Test User");
   assert.equal(response.body.state.user.email, "attendee@example.com");
   assert.equal(response.body.state.user.role, "Attendee");
+});
+
+test("attendee state hides other users and organizer-only collections", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint({ email: "hardik.jain@college.edu", name: "Aditya Rao" });
+  const response = await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${token}`)
+    .expect(200);
+  const state = response.body.state;
+  assert.ok(state.orders.length > 0);
+  assert.ok(state.orders.every((order: { buyerEmail: string }) => order.buyerEmail === "hardik.jain@college.edu"));
+  assert.ok(state.tickets.every((ticket: { attendeeEmail: string }) => ticket.attendeeEmail === "hardik.jain@college.edu"));
+  for (const key of ["invitePasses", "scanLogs", "settlements", "auditLogs"] as const) {
+    assert.deepEqual(state[key], []);
+  }
+});
+
+test("attendee PUT cannot replace events, orders, tickets, or financial state", async () => {
+  const { app, mint } = await authedApp();
+  const attendee = await mint({ email: "attendee@example.com", name: "Attendee" });
+  const attendeeState = (await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${attendee}`)
+    .expect(200)).body.state;
+  attendeeState.events = [];
+  attendeeState.orders = [];
+  attendeeState.tickets = [];
+  attendeeState.settlements = [];
+  attendeeState.auditLogs = [];
+  await request(app)
+    .put("/api/state")
+    .set("Authorization", `Bearer ${attendee}`)
+    .send({ state: attendeeState })
+    .expect(204);
+
+  const owner = await mint({ email: "ophardik001@gmail.com", name: "Owner" });
+  const ownerState = (await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${owner}`)
+    .expect(200)).body.state;
+  assert.equal(ownerState.events.length, createInitialAppState().events.length);
+  assert.equal(ownerState.orders.length, createInitialAppState().orders.length);
+  assert.equal(ownerState.tickets.length, createInitialAppState().tickets.length);
+  assert.equal(ownerState.settlements.length, createInitialAppState().settlements.length);
+});
+
+test("attendee PUT accepts only sanitized new pending access requests", async () => {
+  const { app, mint } = await authedApp();
+  const attendee = await mint({ email: "alice@example.com", name: "Verified Alice" });
+  const state = (await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${attendee}`)
+    .expect(200)).body.state;
+  state.requests = [
+    {
+      id: "client-pending",
+      requesterName: "Forged Name",
+      zoneName: "Main Gate",
+      durationHours: "2",
+      purpose: "Volunteer access",
+      status: "pending",
+      requestTime: new Date().toISOString(),
+    },
+    {
+      id: "client-approved",
+      requesterName: "Forged Name",
+      zoneName: "Backstage",
+      durationHours: "9",
+      purpose: "Self approval",
+      status: "approved",
+      requestTime: new Date().toISOString(),
+    },
+  ];
+  await request(app)
+    .put("/api/state")
+    .set("Authorization", `Bearer ${attendee}`)
+    .send({ state })
+    .expect(204);
+
+  const owner = await mint({ email: "ophardik001@gmail.com", name: "Owner" });
+  const ownerState = (await request(app)
+    .get("/api/state")
+    .set("Authorization", `Bearer ${owner}`)
+    .expect(200)).body.state;
+  const saved = ownerState.requests.filter((item: { purpose: string }) => item.purpose === "Volunteer access");
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].requesterName, "Verified Alice");
+  assert.equal(saved[0].status, "pending");
+  assert.equal(ownerState.requests.some((item: { purpose: string }) => item.purpose === "Self approval"), false);
 });
 
 test("event cover upload stores a real image and serves it publicly", async () => {
@@ -259,5 +378,44 @@ test("state sync never truncates the reporting tables", async () => {
   assert.ok(
     !/TRUNCATE/i.test(source),
     "TRUNCATE deletes rows created by other users; use upserts",
+  );
+});
+
+test("runtime readiness only verifies the installed Alembic head", async () => {
+  const statements: string[] = [];
+  const store = Object.create(PostgresAppStateStore.prototype) as PostgresAppStateStore;
+  Object.defineProperty(store, "pool", {
+    value: {
+      query: async (sql: string) => {
+        statements.push(sql);
+        return sql === "SELECT 1"
+          ? { rows: [] }
+          : { rows: [{ version_num: EXPECTED_ALEMBIC_HEAD }] };
+      },
+    },
+  });
+
+  await store.ensureReady();
+
+  assert.deepEqual(statements, [
+    "SELECT 1",
+    "SELECT version_num FROM scanner.alembic_version",
+  ]);
+  assert.ok(statements.every((sql) => !/\b(?:CREATE|ALTER|DROP|TRUNCATE)\b/i.test(sql)));
+});
+
+test("runtime readiness rejects a database below the expected head", async () => {
+  const store = Object.create(PostgresAppStateStore.prototype) as PostgresAppStateStore;
+  Object.defineProperty(store, "pool", {
+    value: {
+      query: async (sql: string) => sql === "SELECT 1"
+        ? { rows: [] }
+        : { rows: [{ version_num: "0002_cleanup_legacy_and_sync" }] },
+    },
+  });
+
+  await assert.rejects(
+    store.ensureReady(),
+    /expected 0003_public_schema, found 0002_cleanup_legacy_and_sync/,
   );
 });

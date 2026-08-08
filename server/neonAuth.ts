@@ -9,11 +9,12 @@ export interface NeonVerifierOptions {
 }
 
 export interface NeonVerifier {
-  verify(token: string): Promise<{ sub: string; email?: string; name?: string }>;
+  verify(token: string): Promise<{ sub: string; issuer: string; email?: string; name?: string }>;
 }
 
 export type AuthenticatedRequest = express.Request & {
   authSubject?: string;
+  authIssuer?: string;
   authEmail?: string;
   authName?: string;
 };
@@ -35,11 +36,14 @@ export function createNeonVerifier(opts: NeonVerifierOptions = {}): NeonVerifier
       const { payload } = await jwtVerify(token, jwks, {
         issuer,
         algorithms: ["EdDSA"],
-        ...(opts.audience ? { audience: opts.audience } : {}),
+        ...((opts.audience ?? config.NEON_AUTH_AUDIENCE) ? {
+          audience: opts.audience ?? config.NEON_AUTH_AUDIENCE,
+        } : {}),
       });
-      if (!payload.sub) throw new Error("missing subject");
+      if (!payload.sub || !payload.iss) throw new Error("missing subject or issuer");
       return {
         sub: payload.sub,
+        issuer: payload.iss,
         email: payload.email as string | undefined,
         name: (payload.name ?? payload.display_name) as string | undefined,
       };
@@ -59,6 +63,7 @@ export function makeAuthenticateNeon(verifier: NeonVerifier) {
       .then((claims) => {
         const authenticatedRequest = req as AuthenticatedRequest;
         authenticatedRequest.authSubject = claims.sub;
+        authenticatedRequest.authIssuer = claims.issuer;
         authenticatedRequest.authEmail = claims.email?.trim().toLowerCase();
         authenticatedRequest.authName = claims.name?.trim() || undefined;
         next();

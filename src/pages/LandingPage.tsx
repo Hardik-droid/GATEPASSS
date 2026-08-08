@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { 
-  Shield, 
-  Smartphone, 
+import {
+  Smartphone,
   Sparkles, 
   Lock, 
   Users, 
@@ -59,10 +58,6 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
           <span className="text-sm font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
             GatePass
           </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse inline-block"></span>
-          <span className="text-[10px] uppercase font-black tracking-widest text-neutral-400">Node Gateway Online</span>
         </div>
       </header>
 
@@ -125,44 +120,8 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
           </div>
         </div>
 
-        {/* Right Column: Interactive Card Preview & Features */}
+        {/* Right Column: Features */}
         <div className="flex-1 w-full max-w-md flex flex-col gap-6 relative">
-          {/* Glassmorphic Mock Card */}
-          <div className="w-full bg-gradient-to-b from-white/10 to-white/[0.02] border border-white/15 rounded-[32px] p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden group">
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-[#ff2bd6] to-cyan-400 opacity-60" />
-            
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-cyan-400" />
-                <span className="text-xs font-black uppercase tracking-wider text-neutral-300">Identity Preview</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                ACTIVE
-              </span>
-            </div>
-
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-black text-xl text-white shadow-lg">
-                AM
-              </div>
-              <div>
-                <h3 className="font-black text-lg text-white uppercase tracking-tight">Alex Morgan</h3>
-                <p className="text-xs text-cyan-400 font-bold uppercase tracking-wider">Student ID: GP-8842-X</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-4 border-t border-white/10 text-xs">
-              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-wider block">Access Level</span>
-                <span className="font-bold text-white mt-0.5 block">Full Campus</span>
-              </div>
-              <div className="bg-white/5 rounded-xl p-3 border border-white/5">
-                <span className="text-[10px] font-black text-neutral-400 uppercase tracking-wider block">Auth Status</span>
-                <span className="font-bold text-emerald-400 mt-0.5 block">Neon Verified</span>
-              </div>
-            </div>
-          </div>
-
           {/* Quick Metrics */}
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-neutral-900/60 border border-white/10 rounded-2xl p-3.5 text-center">

@@ -10,11 +10,14 @@ permanent QR pass that can be loaded and scanned across devices.
 | Concern | Production service |
 | --- | --- |
 | Web app | Vite/React static site on Vercel |
-| Permanent QR pass | Vercel Python Function: `GET /api/qr/me` |
-| Mobile entry scanner | Vercel Python Functions under `/api/scanner/*` |
-| QR credential security | FastAPI in `backend/` with Neon Postgres |
-| Operations state | Node/Express service in `server/`, served as a Vercel Function: `GET/PUT /api/state` |
+| QR pass, scanner, transfers | FastAPI in `backend/`, deployed as its own Render web service, with Neon Postgres |
+| Operations, state, ticket checkout | Node/Express service in `server/`, deployed as its own Render web service |
 | Identity | Neon Auth JWTs verified server-side |
+
+The web app calls the two Render services cross-origin via `VITE_API_BASE_URL`
+(Node service) and `VITE_SCANNER_API_BASE_URL` (FastAPI service). Both
+backends only ever wrap `backend/main.py` and `server/app.ts` respectively —
+there is no separate Vercel Function code path to keep in sync.
 
 The old .NET backend has deliberately been removed. It was not on the
 production request path and could be selected by a Docker deployment, where it
@@ -46,67 +49,100 @@ pip install -r backend/requirements.txt
 npm run dev:full
 ```
 
+`npm run server:dev` (and therefore `npm run dev:full`) and `npm start` run
+`python -m alembic upgrade head` before Node starts. Startup stops if the
+migration fails; the application runtime never creates or alters tables.
+
 This starts:
 
 - Vite at `http://localhost:5173`
 - Node operations API at `http://localhost:3001`
 - FastAPI scanner service at `http://127.0.0.1:8010`
 
-For the scanner schema, run migrations against a configured development
-database before testing scanner flows:
+To run migrations without starting the services:
 
 ```powershell
-python -m alembic upgrade head
+npm run db:migrate
 ```
+
+Alembic owns both `public.*` and `scanner.*` DDL. The SQL in
+`db/postgres18_schema.sql` is migration input, not a manual setup script.
 
 ## Environment variables
 
-Set secrets in Vercel/Railway/your platform's encrypted environment settings,
-never in Git or browser-visible `VITE_*` variables.
+Set secrets in Vercel/Render's encrypted environment settings, never in Git
+or browser-visible `VITE_*` variables.
 
 | Variable | Required by | Purpose |
 | --- | --- | --- |
-| `SCANNER_DATABASE_URL` | QR function / FastAPI | Neon Postgres URL for the scanner schema |
-| `GATEPASS_QR_SIGNING_KEY` | QR function / FastAPI | Stable secret of at least 32 characters; changing it invalidates existing QR passes |
-| `NEON_AUTH_URL` | Server services | Neon Auth issuer URL |
-| `NEON_AUTH_AUDIENCE` | Production FastAPI | Expected JWT audience; required in staging and production |
-| `GATEPASS_PUBLIC_APP_URL` | QR function / FastAPI | Public web origin, for example `https://gatepasss.vercel.app` |
-| `GATEPASS_OWNER_EMAIL` | FastAPI | Exact OAuth email allowed to grant or revoke scanner access |
-| `GATEPASS_ADMIN_EMAILS` | FastAPI | Reserved comma-separated authorised scanner-admin emails |
-| `DATABASE_URL` | `/api/state` Vercel Function | Postgres URL used for app state |
-| `VITE_NEON_AUTH_URL` | Vite build | Public Neon Auth URL (not a secret) |
+| `SCANNER_DATABASE_URL` | FastAPI (Render) | Neon Postgres URL for the scanner schema |
+| `SCANNER_MIGRATIONS_DATABASE_URL` | FastAPI (Render, migration step) | Direct/non-pooler Neon URL used only to run Alembic |
+| `GATEPASS_QR_SIGNING_KEY` | FastAPI (Render) | Stable secret of at least 32 characters; changing it invalidates existing QR passes |
+| `NEON_AUTH_URL` | Both Render services | Neon Auth issuer URL |
+| `NEON_AUTH_AUDIENCE` | Both Render services | Expected JWT audience; required in staging and production |
+| `GATEPASS_PUBLIC_APP_URL` | FastAPI (Render) | Public web origin, for example `https://gatepasss.vercel.app`; also used for CORS |
+| `GATEPASS_OWNER_EMAIL` | Both Render services | Exact OAuth email allowed to grant or revoke scanner access |
+| `GATEPASS_ADMIN_EMAILS` | Both Render services | Reserved comma-separated authorised scanner-admin emails |
+| `DATABASE_URL` | Node service (Render) | Postgres URL used for app state |
+| `CORS_ORIGIN` | Node service (Render) | Comma-separated list of allowed browser origins, for example `https://gatepasss.vercel.app` |
+| `RAZORPAY_KEY_ID` | Node service (Render) | Server-selected Razorpay checkout key ID |
+| `RAZORPAY_KEY_SECRET` | Node service (Render) | HMAC/order API secret; server-only |
+| `VITE_NEON_AUTH_URL` | Vite build (Vercel) | Public Neon Auth URL (not a secret) |
+| `VITE_API_BASE_URL` | Vite build (Vercel) | Public URL of the Render Node service, for example `https://gatepass-server.onrender.com` |
+| `VITE_SCANNER_API_BASE_URL` | Vite build (Vercel) | Public URL of the Render FastAPI service, for example `https://gatepass-scanner.onrender.com` |
 
-Leave `VITE_SCANNER_API_BASE_URL` and `VITE_API_BASE_URL` unset in a Vercel
-production build. Both the QR function (`/api/qr/me`) and the state API
-(`/api/state`) are served from the same origin as the web app; a localhost
-value can never work on a visitor's phone.
+`DATABASE_URL`, `SCANNER_DATABASE_URL`, and
+`SCANNER_MIGRATIONS_DATABASE_URL` must identify the same database (the
+migration URL may use its direct/non-pooler hostname). Ticket synchronization
+uses Postgres triggers between that database's `public` and `scanner` schemas.
+
+`VITE_SCANNER_API_BASE_URL` and `VITE_API_BASE_URL` must be set to the real
+Render service URLs in the Vercel production build — the frontend and
+backends are on different origins, so there is no same-origin fallback
+anymore. `resolveApiBase` (`src/apiBase.ts`) still treats a `localhost`/
+`127.0.0.1` value as "unset" so a stray local override in Vercel can never
+leak into a deployed build.
 
 ## Deploy
 
-### Vercel web app and QR function
+The frontend (Vercel) and the two backends (Render) are three independent
+deployments. Nothing under `api/` exists anymore — Vercel serves only the
+static Vite build.
+
+### FastAPI scanner service (Render)
+
+1. Create a Render **Web Service** from this repo, root directory `.`,
+   runtime **Python**.
+2. Build command: `pip install -r backend/requirements.txt`
+3. Start command: `python -m alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+   — migrations run before Uvicorn binds, matching the "startup stops if the
+   migration fails" rule below.
+4. Health check path: `/health`
+5. Set `APP_ENV=production` plus every FastAPI variable in the table above.
+
+### Node operations/ticket service (Render)
+
+1. Create a second Render **Web Service** from this repo, runtime **Node**.
+2. Build command: `npm ci && npm run build && npm run build:server`
+   (`build` produces `dist/` so the service's static-file fallback has
+   something to serve; `build:server` bundles `server/index.ts`).
+3. Start command: `node dist-server/index.js` — deliberately **not**
+   `npm start`. `npm start`'s `db:migrate` step shells out to Python/Alembic,
+   which this Node runtime doesn't have; the FastAPI service above already
+   owns running migrations.
+4. Health check path: `/api/health`
+5. Set `NODE_ENV=production` plus every Node variable in the table above.
+
+### Vercel web app
 
 1. Import this repository as a Vercel project.
-2. Use the committed `vercel.json`, build command `npm run build`, and output
-   directory `dist`.
-3. Configure the QR-function variables in the table above, including
-   `APP_ENV=production`.
-4. Add `VITE_NEON_AUTH_URL`, `DATABASE_URL` (for `/api/state`), and
-   `NEON_AUTH_URL`/`NEON_AUTH_AUDIENCE` as needed.
-5. Redeploy after changing any `VITE_*` value; Vite embeds those values during
+2. Use the committed `vercel.json` as-is — it's a plain static Vite build, no
+   backend build step. The output directory is `dist`.
+3. Set `VITE_NEON_AUTH_URL`, `VITE_API_BASE_URL` (Node service URL), and
+   `VITE_SCANNER_API_BASE_URL` (FastAPI service URL) as Vercel project
+   environment variables.
+4. Redeploy after changing any `VITE_*` value; Vite embeds those values during
    the build.
-
-The filesystem functions in `api/qr/`, `api/scanner/`, and `api/state.ts`
-expose the FastAPI routes and the Node operations API. The SPA rewrite
-intentionally excludes `/api/*` so API requests do not return `index.html`.
-
-### Node state API
-
-`api/state.ts` wraps `server/app.ts` and runs as a Vercel Node Function in the
-same deployment as the web app — no separate host is required. It needs
-`DATABASE_URL` (or `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD`) and
-`NEON_AUTH_URL`/`VITE_NEON_AUTH_URL` set in the Vercel project. The Railway
-path (`nixpacks.toml`, `server/index.ts` → `dist-server/index.js`) still works
-as a standalone alternative if you'd rather run it off-platform.
 
 ## Mobile scanner
 
@@ -129,6 +165,26 @@ trigger syncs into `scanner.ticket_entitlements` and
 `scanner.ticket_assignments` (falling back to reading `public.tickets`
 directly if the sync hasn't caught up). The scanner deliberately has no
 client-side, legacy-ticket, or demo-data fallback.
+
+## Ticket checkout and state ownership
+
+- `POST /api/tickets/checkout` derives the event, category, price, fees, and
+  attendee identity on the server. Free tickets issue immediately. Paid
+  checkout reserves capacity, creates a Razorpay order with server credentials,
+  and issues only after HMAC signature verification.
+- `POST /api/tickets/manual` is Owner/admin-only, accepts a quantity, and
+  requires the attendee email to already exist in `scanner.users`.
+- Idempotency keys are durable in Postgres. A retry returns the same Razorpay
+  order or the same issued order/tickets; every quantity creates one distinct
+  opaque ticket token.
+- Issuance commits its order, tickets, category sold count, settlement, audit,
+  app-state snapshot, reservation, and trigger-driven scanner rows in one
+  transaction.
+- Attendee `GET /api/state` responses contain public events plus only that
+  attendee's orders/tickets. Invites, scan logs, settlements, audit logs, and
+  other users' access requests are excluded. Attendee `PUT /api/state` can
+  update only the caller profile and add sanitized pending access requests;
+  organizer and financial collections cannot be replaced from the browser.
 
 On mobile, use the HTTPS deployment so the browser can open the rear camera.
 The scanner stops decoding after the first QR result and resumes only when the

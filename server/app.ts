@@ -4,12 +4,12 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
-import { createInitialAppState, type AppStateSnapshot } from "../src/appState.js";
-import { roleForAuthenticatedEmail } from "../src/permissions.js";
+import type { AppStateSnapshot } from "../src/appState.js";
 import { config } from "./config.js";
 import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
-import type { AppStateStore } from "./store.js";
-import { statePayloadSchema } from "./validation.js";
+import { createRazorpayGateway, type RazorpayGateway } from "./razorpay.js";
+import type { AppStateStore, StateIdentity, TicketIdentity } from "./store.js";
+import { checkoutSchema, manualTicketSchema, statePayloadSchema } from "./validation.js";
 import {
   createNeonVerifier,
   makeAuthenticateNeon,
@@ -38,30 +38,42 @@ interface CreateAppOptions {
   store: AppStateStore;
   staticDir?: string;
   neonVerifier?: NeonVerifier;
+  razorpayGateway?: RazorpayGateway;
 }
 
-// The stored snapshot is shared by every user, so its `user` field is whoever
-// saved last. Never serve it back as the caller's identity — overwrite the
-// identity fields with the verified JWT claims.
-function applyOAuthRole(
-  state: AppStateSnapshot,
-  email?: string,
-  name?: string,
-): AppStateSnapshot {
+const adminEmails = new Set(
+  config.GATEPASS_ADMIN_EMAILS.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean),
+);
+
+function ticketIdentity(req: AuthenticatedRequest): TicketIdentity {
+  if (!req.authSubject || !req.authIssuer || !req.authEmail) {
+    throw new HttpError(403, "A verified Neon Auth email is required.");
+  }
   return {
-    ...state,
-    user: {
-      ...state.user,
-      ...(email ? { email } : {}),
-      ...(name ? { name } : {}),
-      role: roleForAuthenticatedEmail(email),
-    },
+    subject: req.authSubject,
+    issuer: req.authIssuer,
+    email: req.authEmail,
+    name: req.authName,
   };
 }
 
-export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) {
+function stateIdentity(req: AuthenticatedRequest): StateIdentity {
+  const identity = ticketIdentity(req);
+  return {
+    ...identity,
+    canManageState: identity.email === config.GATEPASS_OWNER_EMAIL.trim().toLowerCase(),
+  };
+}
+
+function canIssueManually(identity: TicketIdentity): boolean {
+  return identity.email === config.GATEPASS_OWNER_EMAIL.trim().toLowerCase()
+    || adminEmails.has(identity.email);
+}
+
+export function createApp({ store, staticDir, neonVerifier, razorpayGateway }: CreateAppOptions) {
   const app = express();
   const authenticateNeon = makeAuthenticateNeon(neonVerifier ?? createNeonVerifier());
+  const payments = razorpayGateway ?? createRazorpayGateway();
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -98,14 +110,8 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
 
   app.get("/api/state", authenticateNeon, async (req, res, next) => {
     try {
-      const state = (await store.load()) ?? createInitialAppState();
-      res.json({
-        state: applyOAuthRole(
-          state,
-          (req as AuthenticatedRequest).authEmail,
-          (req as AuthenticatedRequest).authName,
-        ),
-      });
+      const state = await store.loadState(stateIdentity(req as AuthenticatedRequest));
+      res.json({ state });
     } catch (error) {
       next(error);
     }
@@ -114,14 +120,32 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.put("/api/state", authenticateNeon, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
-      await store.save(
-        applyOAuthRole(
-          state as AppStateSnapshot,
-          (req as AuthenticatedRequest).authEmail,
-          (req as AuthenticatedRequest).authName,
-        ),
-      );
+      await store.mergeState(stateIdentity(req as AuthenticatedRequest), state as AppStateSnapshot);
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/tickets/checkout", authenticateNeon, async (req, res, next) => {
+    try {
+      const identity = ticketIdentity(req as AuthenticatedRequest);
+      const input = checkoutSchema.parse(req.body);
+      const result = input.action === "prepare"
+        ? await store.prepareCheckout(identity, input, payments)
+        : await store.confirmCheckout(identity, input, payments);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/tickets/manual", authenticateNeon, async (req, res, next) => {
+    try {
+      const identity = ticketIdentity(req as AuthenticatedRequest);
+      if (!canIssueManually(identity)) throw new HttpError(403, "Owner or admin access required.");
+      const input = manualTicketSchema.parse(req.body);
+      res.json(await store.issueManualTickets(identity, input));
     } catch (error) {
       next(error);
     }

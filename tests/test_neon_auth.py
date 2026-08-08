@@ -1,5 +1,7 @@
 import time
 import types
+import uuid
+from unittest.mock import MagicMock
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -136,3 +138,55 @@ def test_unknown_kid_triggers_single_refresh(monkeypatch, keypair):
     ident = security.verify_neon_auth_token(_mint(priv))
     assert ident.subject == "user-123"
     assert calls["n"] == 2 and reset["n"] == 1  # refreshed once, retried once
+
+
+def test_late_ticket_reconciliation_uses_verified_canonical_email():
+    db = MagicMock()
+    user = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        email="  Attendee.Person@Example.COM  ",
+    )
+
+    security._reconcile_ticket_assignments(db, user)
+
+    statement, params = db.execute.call_args.args
+    sql = str(statement)
+    assert "INSERT INTO scanner.ticket_assignments" in sql
+    assert "JOIN scanner.ticket_entitlements" in sql
+    assert "NOT EXISTS" in sql
+    assert params == {
+        "user_id": str(user.id),
+        "email": "attendee.person@example.com",
+    }
+
+
+def test_every_verified_login_reconciles_late_ticket_assignments(monkeypatch):
+    identity = security.NeonAuthIdentity(
+        issuer=ISS,
+        subject="user-123",
+        email="Attendee@Example.COM",
+        name="Attendee",
+        picture=None,
+    )
+    user = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        email="attendee@example.com",
+        display_name="Attendee",
+        photo_url=None,
+        status="active",
+    )
+    db = MagicMock()
+    db.query.return_value.filter_by.return_value.one_or_none.return_value = user
+    reconciled = []
+    monkeypatch.setattr(security, "verify_neon_auth_token", lambda _token: identity)
+    monkeypatch.setattr(
+        security,
+        "_reconcile_ticket_assignments",
+        lambda session, current_user: reconciled.append((session, current_user)),
+    )
+
+    result = security.get_current_user("Bearer valid-token", db)
+
+    assert result is user
+    assert reconciled == [(db, user)]
+    db.commit.assert_called_once_with()

@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { QRCodeSVG } from "qrcode.react";
 import UniversalQrCard from "./UniversalQrCard";
 import { formatLocation } from "../location";
-import { 
-  EventItem, 
-  Ticket, 
-  Order, 
-  UserProfile, 
-  TicketStatus 
-} from "../types";
+import { EventItem, Order, Ticket, UserProfile } from "../types";
+import {
+  confirmTicketCheckout,
+  prepareTicketCheckout,
+  type PaymentRequiredResult,
+  type TicketCheckoutConfirmInput,
+} from "../ticketApi";
+import { completeTicketCheckout } from "../ticketCheckout";
 import { 
   Calendar, 
   MapPin, 
@@ -39,7 +39,61 @@ import {
 interface AttendeeEventsListProps {
   events: EventItem[];
   user: UserProfile;
-  onBookTicket: (order: Order, ticket: Ticket) => void;
+  onBookTicket: (order: Order, tickets: Ticket[]) => void;
+}
+
+interface RazorpayInstance {
+  open(): void;
+  on(event: "payment.failed", callback: (failure: { error?: { description?: string } }) => void): void;
+}
+
+type RazorpayConstructor = new (options: Record<string, unknown>) => RazorpayInstance;
+
+function captureRazorpayConfirmation(
+  payment: PaymentRequiredResult,
+  user: UserProfile,
+): Promise<TicketCheckoutConfirmInput> {
+  return new Promise((resolve, reject) => {
+    const Razorpay = (window as Window & { Razorpay?: RazorpayConstructor }).Razorpay;
+    if (!Razorpay) {
+      reject(new Error("Payment service is unavailable. Please reload and try again."));
+      return;
+    }
+
+    let paymentCaptured = false;
+    const instance = new Razorpay({
+      key: payment.checkout.key,
+      order_id: payment.checkout.orderId,
+      amount: payment.checkout.amount,
+      currency: payment.checkout.currency,
+      name: payment.checkout.name,
+      description: payment.checkout.description,
+      prefill: { name: user.name, email: user.email, contact: user.phone },
+      theme: { color: "#106b47" },
+      modal: {
+        ondismiss: () => {
+          if (!paymentCaptured) reject(new Error("Payment was cancelled."));
+        },
+      },
+      handler: (response: {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+      }) => {
+        paymentCaptured = true;
+        resolve({
+          operationId: payment.operationId,
+          razorpayOrderId: response.razorpay_order_id,
+          razorpayPaymentId: response.razorpay_payment_id,
+          razorpaySignature: response.razorpay_signature,
+        });
+      },
+    });
+    instance.on("payment.failed", (failure) => {
+      reject(new Error(failure.error?.description || "Payment failed. Please try again."));
+    });
+    instance.open();
+  });
 }
 
 export default function AttendeeEventsList({ events, user, onBookTicket }: AttendeeEventsListProps) {
@@ -62,26 +116,15 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTicketCat, setSelectedTicketCat] = useState<string>("");
   const [ticketQty, setTicketQty] = useState(1);
-  const [attendeeName, setAttendeeName] = useState(user.name);
-  const [attendeeEmail, setAttendeeEmail] = useState(user.email);
-  const [attendeePhone, setAttendeePhone] = useState(user.phone);
 
-  // `user` starts as placeholder mock data and is replaced once Neon Auth
-  // resolves the real signed-in identity. The useState() initializers above
-  // only capture that value once, at mount — if this page mounted before
-  // auth resolved, the checkout form (and every ticket booked from it) would
-  // stay stuck showing the placeholder name/email/phone. Re-sync when the
-  // real identity arrives.
-  useEffect(() => {
-    setAttendeeName(user.name);
-    setAttendeeEmail(user.email);
-    setAttendeePhone(user.phone);
-  }, [user.name, user.email, user.phone]);
-  const [paymentMethod, setPaymentMethod] = useState<"online" | "upi" | "cash">("online");
   const [isCheckoutSuccess, setIsCheckoutSuccess] = useState(false);
-  const [lastGeneratedTicketCode, setLastGeneratedTicketCode] = useState("");
-  const [lastBookedTicket, setLastBookedTicket] = useState<{qrToken: string; attendeeName: string; categoryName: string; price: number; orderId: string; eventTitle: string; eventVenue: string; eventDate: string; ticketId: string} | null>(null);
-  const ticketCardRef = useRef<HTMLDivElement>(null);
+  const [isCheckoutSubmitting, setIsCheckoutSubmitting] = useState(false);
+  const [pendingConfirmation, setPendingConfirmation] = useState<TicketCheckoutConfirmInput | null>(null);
+  const checkoutIdempotencyKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingConfirmation) checkoutIdempotencyKey.current = null;
+  }, [selectedEvent?.id, selectedTicketCat, ticketQty, user.name, user.email, user.phone, pendingConfirmation]);
 
   const triggerToast = (msg: string) => {
     setShowToastMessage(msg);
@@ -184,112 +227,46 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
     setSelectedEvent(event);
     setIsBooking(false);
     setIsCheckoutSuccess(false);
+    checkoutIdempotencyKey.current = null;
     if (event.ticketCategories.length > 0) {
       setSelectedTicketCat(event.ticketCategories[0].id);
     }
   };
 
-  const handleConfirmBooking = (e?: React.FormEvent | React.MouseEvent) => {
+  const handleConfirmBooking = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e && e.preventDefault) e.preventDefault();
-    if (!selectedEvent) return;
+    if (!selectedEvent || isCheckoutSubmitting) return;
 
-    const chosenCategory = selectedEvent.ticketCategories.find(c => c.id === selectedTicketCat);
-    if (!chosenCategory) return;
-
-    const totalAmount = chosenCategory.price * ticketQty;
-    const finalAmount = totalAmount + (5 * ticketQty); // including platform fee
-
-    const finalizeBooking = () => {
-      const grossAmount = chosenCategory.price * ticketQty;
-      const platformFee = 5 * ticketQty; 
-      const gatewayFee = chosenCategory.price > 0 ? Number((grossAmount * 0.02).toFixed(2)) : 0;
-      const netAmount = Number((grossAmount - platformFee - gatewayFee).toFixed(2));
-
-      const orderId = "ord_" + Math.floor(100000 + Math.random() * 900000);
-      const newOrder: Order = {
-        id: orderId,
-        eventId: selectedEvent.id,
-        buyerName: attendeeName,
-        buyerEmail: attendeeEmail,
-        buyerPhone: attendeePhone,
-        paymentStatus: "paid",
-        grossAmount,
-        platformFee,
-        gatewayFee,
-        netAmount,
-        paymentMethod: "online",
-        created_at: new Date().toISOString()
-      };
-
-      const passIdCode = "GP-" + Math.floor(1000 + Math.random() * 9000) + "-VX";
-      const qrToken = "TKT_" + selectedEvent.id.toUpperCase() + "_" + chosenCategory.name.toUpperCase().replace(/\s+/g, "_") + "_" + Math.floor(100 + Math.random() * 900) + "_" + orderId;
-
-      const newTicket: Ticket = {
-        id: "tkt_" + Date.now() + "_" + Math.floor(10 + Math.random() * 90),
-        eventId: selectedEvent.id,
-        orderId: orderId,
-        categoryName: chosenCategory.name,
-        price: chosenCategory.price,
-        attendeeName,
-        attendeePhone,
-        attendeeEmail,
-        qrToken,
-        status: TicketStatus.ISSUED,
-        issuedAt: new Date().toISOString()
-      };
-
-      onBookTicket(newOrder, newTicket);
-      setLastGeneratedTicketCode(passIdCode);
-      setLastBookedTicket({
-        qrToken,
-        attendeeName,
-        categoryName: chosenCategory.name,
-        price: chosenCategory.price,
-        orderId,
-        eventTitle: selectedEvent.title,
-        eventVenue: selectedEvent.venue,
-        eventDate: new Date(selectedEvent.startTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-        ticketId: newTicket.id
+    setIsCheckoutSubmitting(true);
+    try {
+      const issued = await completeTicketCheckout(pendingConfirmation, {
+        prepare: () => {
+          const chosenCategory = selectedEvent.ticketCategories.find(c => c.id === selectedTicketCat);
+          if (!chosenCategory) throw new Error("Select a ticket category before booking.");
+          checkoutIdempotencyKey.current ??= crypto.randomUUID();
+          return prepareTicketCheckout({
+            eventId: selectedEvent.id,
+            categoryId: chosenCategory.id,
+            quantity: ticketQty,
+            phone: user.phone,
+            idempotencyKey: checkoutIdempotencyKey.current,
+          });
+        },
+        capturePayment: (payment) => captureRazorpayConfirmation(payment, user),
+        rememberConfirmation: setPendingConfirmation,
+        confirm: confirmTicketCheckout,
       });
+
+      setPendingConfirmation(null);
+      checkoutIdempotencyKey.current = null;
+      onBookTicket(issued.order, issued.tickets);
       setIsCheckoutSuccess(true);
       setTicketQty(1);
-      triggerToast("Ticket successfully generated!");
-    };
-
-    if (totalAmount === 0) {
-      finalizeBooking();
-      return;
-    }
-
-    if ((window as any).Razorpay) {
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_TFruYncZJ3Xznc",
-        amount: finalAmount * 100, // in paisa
-        currency: "INR",
-        name: "GATEPASS",
-        description: `Access Pass for ${selectedEvent.title}`,
-        image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=80&auto=format&fit=crop&q=80",
-        handler: function (response: any) {
-          triggerToast(`Payment successful! ID: ${response.razorpay_payment_id}`);
-          finalizeBooking();
-        },
-        prefill: {
-          name: attendeeName,
-          email: attendeeEmail,
-          contact: attendeePhone
-        },
-        theme: {
-          color: "#106b47"
-        }
-      };
-      
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    } else {
-      triggerToast("Razorpay SDK offline. Simulating payment success...");
-      setTimeout(() => {
-        finalizeBooking();
-      }, 1200);
+      triggerToast(`${issued.tickets.length} ticket${issued.tickets.length === 1 ? "" : "s"} issued successfully!`);
+    } catch (error) {
+      triggerToast(error instanceof Error ? error.message : "Ticket checkout failed.");
+    } finally {
+      setIsCheckoutSubmitting(false);
     }
   };
 
@@ -689,8 +666,10 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
               onClick={() => {
                 setSelectedEvent(null);
                 setIsCheckoutSuccess(false);
+                checkoutIdempotencyKey.current = null;
               }}
-              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 flex items-center justify-center transition-all cursor-pointer z-10"
+              disabled={isCheckoutSubmitting || pendingConfirmation !== null}
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 flex items-center justify-center transition-all cursor-pointer z-10 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -764,7 +743,11 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                 <div className="flex gap-2">
                   <select 
                     value={selectedTicketCat}
-                    onChange={(e) => setSelectedTicketCat(e.target.value)}
+                    onChange={(e) => {
+                      checkoutIdempotencyKey.current = null;
+                      setSelectedTicketCat(e.target.value);
+                    }}
+                    disabled={isCheckoutSubmitting || pendingConfirmation !== null}
                     className="flex-1 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
                   >
                     {selectedEvent.ticketCategories.map(cat => (
@@ -775,7 +758,11 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                   </select>
                   <select 
                     value={ticketQty}
-                    onChange={(e) => setTicketQty(Number(e.target.value))}
+                    onChange={(e) => {
+                      checkoutIdempotencyKey.current = null;
+                      setTicketQty(Number(e.target.value));
+                    }}
+                    disabled={isCheckoutSubmitting || pendingConfirmation !== null}
                     className="w-16 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
                   >
                     {[1, 2, 3, 4, 5].map(q => (
@@ -794,14 +781,27 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
               </span>
             </div>
 
+            {pendingConfirmation && !isCheckoutSuccess && (
+              <p className="mb-3 text-center text-[11px] font-bold text-amber-700" role="status">
+                Payment received. Retry confirmation to finish issuing your tickets.
+              </p>
+            )}
+
             {/* Action Area: Book button / Razorpay / Success state */}
             {!isCheckoutSuccess ? (
               <button 
                 onClick={() => handleConfirmBooking()}
-                className="w-full py-4 bg-[#106b47] hover:bg-[#0c5337] text-white text-sm font-bold tracking-tight rounded-[20px] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg"
+                disabled={isCheckoutSubmitting}
+                className="w-full py-4 bg-[#106b47] hover:bg-[#0c5337] text-white text-sm font-bold tracking-tight rounded-[20px] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Sparkles className="w-4 h-4 text-white/90 animate-pulse" />
-                <span>Book now</span>
+                <span>
+                  {isCheckoutSubmitting
+                    ? "Securing tickets..."
+                    : pendingConfirmation
+                      ? "Retry ticket confirmation"
+                      : "Book now"}
+                </span>
               </button>
             ) : (
               <div className="flex flex-col gap-3">

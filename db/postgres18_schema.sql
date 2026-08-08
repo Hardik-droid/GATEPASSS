@@ -1,5 +1,5 @@
--- GatePass PostgreSQL 18 schema
--- Run this first in pgAdmin 4.
+-- GatePass public schema DDL, executed only by Alembic migrations.
+-- Do not run this manually or from application startup.
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 

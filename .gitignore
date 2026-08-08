@@ -19,6 +19,7 @@ __pycache__
 .venv/
 .pytest_cache/
 .vercel/
+.vercel_python_packages/
 
 .vercel
 

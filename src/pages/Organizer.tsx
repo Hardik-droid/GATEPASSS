@@ -4,6 +4,7 @@ import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
 import { uploadEventImage } from "../api";
+import { issueManualTickets } from "../ticketApi";
 import {
   Plus,
   TrendingUp,
@@ -56,7 +57,7 @@ interface OrganizerWorkspaceProps {
   settlements: Settlement[];
   auditLogs: AuditLog[];
   onAddNewEvent: (newEvent: EventItem) => void;
-  onIssueManualTicket: (ticket: Omit<Ticket, "id" | "status" | "issuedAt">) => void;
+  onIssueManualTicket: (order: Order, tickets: Ticket[]) => void;
   onProcessRefund: (ticketId: string) => void;
 }
 
@@ -153,8 +154,10 @@ export default function OrganizerWorkspace({
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [manualPhone, setManualPhone] = useState("");
-  const [manualCategory, setManualCategory] = useState("");
-  const [manualPrice, setManualPrice] = useState(0);
+  const [manualCategoryId, setManualCategoryId] = useState("");
+  const [manualQuantity, setManualQuantity] = useState(1);
+  const [isManualIssuing, setIsManualIssuing] = useState(false);
+  const manualIdempotencyKey = useRef<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
 
@@ -270,28 +273,37 @@ export default function OrganizerWorkspace({
     }
   };
 
-  const handleManualTicketSubmit = (e: React.FormEvent) => {
+  const handleManualTicketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualEventId || !manualName || !manualCategory) {
-      alert("Please select event, category and attendee details.");
+    if (!manualEventId || !manualCategoryId || !manualName.trim() || !manualEmail.trim() || !manualPhone.trim()) {
+      alert("Please select an event and category, then provide the attendee's name, email, and phone.");
       return;
     }
 
-    onIssueManualTicket({
-      eventId: manualEventId,
-      orderId: "ord_manual_" + Date.now(),
-      categoryName: manualCategory,
-      price: manualPrice,
-      attendeeName: manualName,
-      attendeePhone: manualPhone || "+91 00000 00000",
-      attendeeEmail: manualEmail || "manual@offline.org",
-      qrToken: "GP_MAN_" + Math.random().toString(36).substr(2, 9).toUpperCase()
-    });
-
-    showToast(`Offline Ticket Issued successfully to ${manualName}!`);
-    setManualName("");
-    setManualEmail("");
-    setManualPhone("");
+    setIsManualIssuing(true);
+    try {
+      manualIdempotencyKey.current ??= crypto.randomUUID();
+      const issued = await issueManualTickets({
+        eventId: manualEventId,
+        categoryId: manualCategoryId,
+        attendeeEmail: manualEmail.trim(),
+        attendeeName: manualName.trim(),
+        attendeePhone: manualPhone.trim(),
+        quantity: manualQuantity,
+        idempotencyKey: manualIdempotencyKey.current,
+      });
+      onIssueManualTicket(issued.order, issued.tickets);
+      showToast(`${issued.tickets.length} offline ticket${issued.tickets.length === 1 ? "" : "s"} issued to ${manualName.trim()}!`);
+      setManualName("");
+      setManualEmail("");
+      setManualPhone("");
+      setManualQuantity(1);
+      manualIdempotencyKey.current = null;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Manual ticket issuance failed.");
+    } finally {
+      setIsManualIssuing(false);
+    }
   };
 
   const exportCSV = (reportName: string) => {
@@ -1076,11 +1088,13 @@ export default function OrganizerWorkspace({
                   value={manualEventId}
                   onChange={(e) => {
                     const id = e.target.value;
+                    manualIdempotencyKey.current = null;
                     setManualEventId(id);
                     const selectedEv = events.find(ev => ev.id === id);
                     if (selectedEv && selectedEv.ticketCategories.length > 0) {
-                      setManualCategory(selectedEv.ticketCategories[0].name);
-                      setManualPrice(selectedEv.ticketCategories[0].price);
+                      setManualCategoryId(selectedEv.ticketCategories[0].id);
+                    } else {
+                      setManualCategoryId("");
                     }
                   }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none cursor-pointer"
@@ -1097,25 +1111,22 @@ export default function OrganizerWorkspace({
                   <label className="text-xs font-bold text-outline uppercase">Choose Category Tier</label>
                   <select
                     required
-                    value={manualCategory}
+                    value={manualCategoryId}
                     onChange={(e) => {
-                      const name = e.target.value;
-                      setManualCategory(name);
-                      const ev = events.find(ev => ev.id === manualEventId);
-                      const cat = ev?.ticketCategories.find(c => c.name === name);
-                      if (cat) setManualPrice(cat.price);
+                      manualIdempotencyKey.current = null;
+                      setManualCategoryId(e.target.value);
                     }}
                     className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none cursor-pointer"
                   >
                     {events.find(ev => ev.id === manualEventId)?.ticketCategories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name} (₹{cat.price})</option>
+                      <option key={cat.id} value={cat.id}>{cat.name} (₹{cat.price})</option>
                     ))}
                   </select>
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-outline uppercase">Attendee Full Name</label>
                 <input
@@ -1123,7 +1134,10 @@ export default function OrganizerWorkspace({
                   required
                   placeholder="e.g. Ramesh Singh"
                   value={manualName}
-                  onChange={(e) => setManualName(e.target.value)}
+                  onChange={(e) => {
+                    manualIdempotencyKey.current = null;
+                    setManualName(e.target.value);
+                  }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
                 />
               </div>
@@ -1132,9 +1146,13 @@ export default function OrganizerWorkspace({
                 <label className="text-xs font-bold text-outline uppercase">Contact Mobile Number</label>
                 <input
                   type="text"
+                  required
                   placeholder="e.g. +91 99999 12345"
                   value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
+                  onChange={(e) => {
+                    manualIdempotencyKey.current = null;
+                    setManualPhone(e.target.value);
+                  }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
                 />
               </div>
@@ -1143,9 +1161,29 @@ export default function OrganizerWorkspace({
                 <label className="text-xs font-bold text-outline uppercase">Contact Email Address</label>
                 <input
                   type="email"
+                  required
                   placeholder="e.g. ramesh@gmail.com"
                   value={manualEmail}
-                  onChange={(e) => setManualEmail(e.target.value)}
+                  onChange={(e) => {
+                    manualIdempotencyKey.current = null;
+                    setManualEmail(e.target.value);
+                  }}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-outline uppercase">Quantity</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={10}
+                  value={manualQuantity}
+                  onChange={(e) => {
+                    manualIdempotencyKey.current = null;
+                    setManualQuantity(Number(e.target.value));
+                  }}
                   className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
                 />
               </div>
@@ -1153,9 +1191,10 @@ export default function OrganizerWorkspace({
 
             <button
               type="submit"
-              className="w-full py-3 bg-charcoal-dark hover:bg-opacity-95 text-white text-xs font-bold uppercase tracking-widest rounded-xl shadow cursor-pointer mt-2"
+              disabled={isManualIssuing}
+              className="w-full py-3 bg-charcoal-dark hover:bg-opacity-95 text-white text-xs font-bold uppercase tracking-widest rounded-xl shadow cursor-pointer mt-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Generate &amp; Register Cash Ticket (Issues QR Code)
+              {isManualIssuing ? "Registering cash tickets..." : "Generate & Register Cash Tickets"}
             </button>
           </form>
         </div>

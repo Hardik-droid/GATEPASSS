@@ -59,8 +59,6 @@ def _entitlement_dict(
     valid_until: datetime | None = None,
     transfer_id: str | None = None,
     ticket_type: str = "General Pass",
-    source: str | None = None,
-    checked_in_at: datetime | None = None,
 ) -> dict:
     d: dict = {
         "id": str(uuid.uuid4()),
@@ -74,10 +72,6 @@ def _entitlement_dict(
         "holder_name": holder_name,
         "original_owner_name": original_owner_name,
     }
-    if source:
-        d["_source"] = source
-    if checked_in_at:
-        d["_checked_in_at"] = checked_in_at
     return d
 
 
@@ -427,25 +421,46 @@ class TestValidateHappyPath:
             json, status = _post(auth_client)
             assert json["attendee"] == {"name": "Jane Doe"}
 
+    @patch("backend.scanner_routes._lookup_scanner_event")
+    @patch("backend.scanner_routes.parse_qr_payload", return_value=("pid", "sig"))
+    @patch("backend.scanner_routes.verify_qr_signature", return_value=True)
+    def test_audit_log_records_scanned_attendee_not_operator(
+        self, mock_verify, mock_parse, mock_event,
+        mock_db, owner_user, auth_client, attendee_user,
+    ):
+        mock_event.return_value = _event_dict()
+        credential = _mock_credential()
+        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = credential
+        mock_db.get.return_value = attendee_user
+        entitlement = _entitlement_dict()
+        with (
+            patch("backend.scanner_routes._lookup_ticket", return_value=entitlement),
+            patch("backend.scanner_routes._increment_usage", return_value=True),
+            patch("backend.scanner_routes._save_scan", side_effect=lambda _db, **kw: kw["result"]) as save,
+        ):
+            json, status = _post(auth_client)
 
-class TestValidatePublicTicketsFallback:
-    """The public.tickets fallback path for attendees not in scanner.users."""
+        assert status == 200
+        assert json["decision"] == "APPROVED"
+        assert save.call_args.kwargs["user_id"] == str(attendee_user.id)
+        assert save.call_args.kwargs["user_id"] != str(owner_user.id)
+
+
+class TestValidateCanonicalTickets:
+    """Canonical scanner entitlements enforce the single-entry contract."""
 
     @patch("backend.scanner_routes._lookup_scanner_event")
     @patch("backend.scanner_routes.parse_qr_payload", return_value=("pid", "sig"))
     @patch("backend.scanner_routes.verify_qr_signature", return_value=True)
     def test_already_checked_in_rejected(self, mock_verify, mock_parse, mock_event,
                                           mock_db, owner_user, auth_client, attendee_user):
-        """Public.tickets fallback: checked_in_at is set → already used."""
+        """An entitlement at its entry limit is already used."""
         mock_event.return_value = _event_dict()
         cred = _mock_credential()
         mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = cred
         mock_db.get.return_value = attendee_user
-        now = datetime.now(timezone.utc)
         entitlement = _entitlement_dict(
             entry_count=1, max_entries=1,
-            source="public.tickets",
-            checked_in_at=now,
         )
         with patch("backend.scanner_routes._lookup_ticket", return_value=entitlement):
             json, status = _post(auth_client)
@@ -455,17 +470,15 @@ class TestValidatePublicTicketsFallback:
     @patch("backend.scanner_routes._lookup_scanner_event")
     @patch("backend.scanner_routes.parse_qr_payload", return_value=("pid", "sig"))
     @patch("backend.scanner_routes.verify_qr_signature", return_value=True)
-    def test_public_tickets_happy_path(self, mock_verify, mock_parse, mock_event,
-                                        mock_db, owner_user, auth_client, attendee_user):
-        """Public.tickets fallback: first check-in succeeds."""
+    def test_canonical_ticket_happy_path(self, mock_verify, mock_parse, mock_event,
+                                         mock_db, owner_user, auth_client, attendee_user):
+        """An unused canonical entitlement is approved."""
         mock_event.return_value = _event_dict()
         cred = _mock_credential()
         mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = cred
         mock_db.get.return_value = attendee_user
         entitlement = _entitlement_dict(
             entry_count=0, max_entries=1,
-            source="public.tickets",
-            checked_in_at=None,
         )
         with (
             patch("backend.scanner_routes._lookup_ticket", return_value=entitlement),
@@ -474,6 +487,48 @@ class TestValidatePublicTicketsFallback:
             json, status = _post(auth_client)
             assert status == 200
             assert json["decision"] == "APPROVED"
+
+
+class TestValidateDurability:
+    """Approval is returned only after its durable scan log commits."""
+
+    @patch("backend.scanner_routes._lookup_scanner_event")
+    @patch("backend.scanner_routes._ensure_mobile_scanner", return_value="scanner-id")
+    @patch("backend.scanner_routes.parse_qr_payload", return_value=("pid", "sig"))
+    @patch("backend.scanner_routes.verify_qr_signature", return_value=True)
+    @patch("backend.scanner_routes._lookup_ticket", return_value=_entitlement_dict())
+    @patch("backend.scanner_routes._increment_usage", return_value=True)
+    def test_log_write_failure_never_returns_approved(
+        self,
+        mock_increment,
+        mock_ticket,
+        mock_verify,
+        mock_parse,
+        mock_scanner,
+        mock_event,
+        mock_db,
+        owner_user,
+        auth_client,
+        attendee_user,
+    ):
+        mock_event.return_value = _event_dict()
+        credential = _mock_credential()
+        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = credential
+        mock_db.get.return_value = attendee_user
+
+        def execute(statement, *_args, **_kwargs):
+            if "INSERT INTO scanner.scan_logs" in str(statement):
+                raise RuntimeError("scan log unavailable")
+            result = MagicMock()
+            result.scalar_one_or_none.return_value = None
+            return result
+
+        mock_db.execute.side_effect = execute
+
+        with pytest.raises(RuntimeError, match="scan log unavailable"):
+            _post(auth_client)
+        mock_increment.assert_called_once()
+        mock_db.commit.assert_not_called()
 
 
 class TestValidateIdempotency:

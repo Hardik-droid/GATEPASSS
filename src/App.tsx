@@ -513,146 +513,62 @@ export default function App() {
     persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
   };
 
-  // Callback: Book Event Ticket (From AttendeeEventsList)
-  const handleBookTicket = (newOrder: Order, newTicket: Ticket) => {
-    // 1. Add order to orders
-    persistState("gps_orders", [newOrder, ...orders], setOrders);
+  // Both attendee checkout and owner cash issuance arrive here only after the
+  // authoritative ticket API has committed the order and every ticket.
+  const handleIssuedTickets = (newOrder: Order, issuedTickets: Ticket[]) => {
+    if (issuedTickets.length === 0) return;
 
-    // 2. Add ticket to tickets
-    persistState("gps_tickets", [newTicket, ...tickets], setTickets);
+    const ticketIds = new Set(issuedTickets.map((ticket) => ticket.id));
+    persistState(
+      "gps_orders",
+      (current: Order[]) => [newOrder, ...current.filter((order) => order.id !== newOrder.id)],
+      setOrders,
+    );
+    persistState(
+      "gps_tickets",
+      (current: Ticket[]) => [...issuedTickets, ...current.filter((ticket) => !ticketIds.has(ticket.id))],
+      setTickets,
+    );
 
-    // 3. Update events list (incrementing category soldCount)
-    const updatedEvents = events.map(ev => {
-      if (ev.id === newTicket.eventId) {
-        return {
-          ...ev,
-          ticketCategories: ev.ticketCategories.map(cat => {
-            if (cat.name === newTicket.categoryName) {
-              return { ...cat, soldCount: (cat.soldCount || 0) + 1 };
-            }
-            return cat;
-          })
-        };
-      }
-      return ev;
-    });
-    persistState("gps_events", updatedEvents, setEvents);
+    const firstTicket = issuedTickets[0];
+    persistState(
+      "gps_events",
+      (current: EventItem[]) => current.map((event) => event.id === firstTicket.eventId
+        ? {
+            ...event,
+            ticketCategories: event.ticketCategories.map((category) => category.name === firstTicket.categoryName
+              ? { ...category, soldCount: category.soldCount + issuedTickets.length }
+              : category),
+          }
+        : event),
+      setEvents,
+    );
 
-    // 4. Update settlements
-    const updatedSettlements = settlements.map(set => {
-      if (set.eventId === newTicket.eventId) {
-        const isCash = newOrder.paymentMethod === "cash";
-        return {
-          ...set,
-          grossSales: set.grossSales + newTicket.price,
-          platformFees: set.platformFees + newOrder.platformFee,
-          gatewayFees: set.gatewayFees + (newOrder.gatewayFee || 0),
-          manualCollections: set.manualCollections + (isCash ? newTicket.price : 0),
-          netSettlement: set.netSettlement + newOrder.netAmount
-        };
-      }
-      return set;
-    });
-    persistState("gps_settlements", updatedSettlements, setSettlements);
+    const isCash = newOrder.paymentMethod === "cash";
+    persistState(
+      "gps_settlements",
+      (current: Settlement[]) => current.map((settlement) => settlement.eventId === firstTicket.eventId
+        ? {
+            ...settlement,
+            grossSales: settlement.grossSales + newOrder.grossAmount,
+            platformFees: settlement.platformFees + newOrder.platformFee,
+            gatewayFees: settlement.gatewayFees + newOrder.gatewayFee,
+            manualCollections: settlement.manualCollections + (isCash ? newOrder.grossAmount : 0),
+            netSettlement: settlement.netSettlement + newOrder.netAmount,
+          }
+        : settlement),
+      setSettlements,
+    );
 
-    // 5. Generate matching InvitePass so that the attendee immediately sees it in their "Digital Identity" active list
-    const passIdCode = "GP-" + Math.floor(1000 + Math.random() * 9000) + "-VX";
-    const companionPass: InvitePass = {
-      id: "pass_ev_" + Date.now(),
-      title: events.find(e => e.id === newTicket.eventId)?.title || "Event Entry Pass",
-      category: "EVENT",
-      subCategory: newTicket.categoryName,
-      passIdCode,
-      status: "APPROVED",
-      validityText: "Valid: " + new Date(events.find(e => e.id === newTicket.eventId)?.startTime || "").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }),
-      usageText: "SINGLE ENTRY PASS",
-      usageType: "limited",
-      entriesTotal: 1,
-      entriesUsed: 0,
-      qrToken: newTicket.qrToken
-    };
-    persistState("gps_invites", [companionPass, ...invitePasses], setInvitePasses);
-
-    // 6. Add Audit Log entry
+    const eventName = events.find((event) => event.id === firstTicket.eventId)?.title || "Event";
     const addedAudit: AuditLog = {
       id: "aud_" + Date.now(),
       timestamp: new Date().toISOString(),
-      actor: `${newTicket.attendeeName} (Attendee)`,
-      action: "Ticket Purchased",
-      details: `Purchased [${newTicket.categoryName}] ticket for '${events.find(e => e.id === newTicket.eventId)?.title || "Event"}' via ${newOrder.paymentMethod.toUpperCase()}. Order ID: ${newOrder.id}. QR token generated.`
+      actor: isCash ? "Cash Register Staff" : `${firstTicket.attendeeName} (Attendee)`,
+      action: isCash ? "Manual Pass Issued" : "Ticket Purchased",
+      details: `${issuedTickets.length} [${firstTicket.categoryName}] ticket${issuedTickets.length === 1 ? "" : "s"} issued for '${eventName}'. Order ID: ${newOrder.id}.`,
     };
-    persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
-  };
-
-  // Callback: Issue Manual/Cash Ticket (Organizer Workspace Module 4 Flow E)
-  const handleIssueManualTicket = (newTkt: Omit<Ticket, "id" | "status" | "issuedAt">) => {
-    const ticketId = "tkt_manual_" + Date.now();
-    const addedTicket: Ticket = {
-      ...newTkt,
-      id: ticketId,
-      status: TicketStatus.ISSUED,
-      issuedAt: new Date().toISOString()
-    };
-    persistState("gps_tickets", [addedTicket, ...tickets], setTickets);
-
-    // Create companion Manual Order
-    const addedOrder: Order = {
-      id: newTkt.orderId,
-      eventId: newTkt.eventId,
-      buyerName: newTkt.attendeeName,
-      buyerEmail: newTkt.attendeeEmail,
-      buyerPhone: newTkt.attendeePhone,
-      paymentStatus: "paid",
-      grossAmount: newTkt.price,
-      platformFee: 5, // Flat ₹5/ticket fee
-      gatewayFee: 0, // No online gateway charge for cash
-      netAmount: newTkt.price - 5,
-      paymentMethod: "cash",
-      created_at: new Date().toISOString()
-    };
-    persistState("gps_orders", [addedOrder, ...orders], setOrders);
-
-    // Update Category counts
-    const updatedEvents = events.map(ev => {
-      if (ev.id === newTkt.eventId) {
-        return {
-          ...ev,
-          ticketCategories: ev.ticketCategories.map(cat => {
-            if (cat.name === newTkt.categoryName) {
-              return { ...cat, soldCount: cat.soldCount + 1 };
-            }
-            return cat;
-          })
-        };
-      }
-      return ev;
-    });
-    persistState("gps_events", updatedEvents, setEvents);
-
-    // Update Settlements values
-    const updatedSettlements = settlements.map(set => {
-      if (set.eventId === newTkt.eventId) {
-        return {
-          ...set,
-          grossSales: set.grossSales + newTkt.price,
-          platformFees: set.platformFees + 5,
-          manualCollections: set.manualCollections + newTkt.price,
-          netSettlement: set.netSettlement + (newTkt.price - 5)
-        };
-      }
-      return set;
-    });
-    persistState("gps_settlements", updatedSettlements, setSettlements);
-
-    // Audit log
-    const addedAudit: AuditLog = {
-      id: "aud_" + Date.now(),
-      timestamp: new Date().toISOString(),
-      actor: "Cash Register Staff",
-      action: "Manual Pass Issued",
-      details: `Logged offline cash sale for '${newTkt.attendeeName}' [${newTkt.categoryName}]. QR Ticket printed.`
-    };
-    persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+    persistState("gps_auditlogs", (current: AuditLog[]) => [addedAudit, ...current], setAuditLogs);
   };
 
   // Callback: Process Refund / Void QR (Organizer Workspace Control Room)
@@ -1135,7 +1051,7 @@ export default function App() {
               <AttendeeEventsList 
                 events={events}
                 user={user}
-                onBookTicket={handleBookTicket}
+                onBookTicket={handleIssuedTickets}
               />
             } 
           />
@@ -1150,7 +1066,7 @@ export default function App() {
                 settlements={settlements}
                 auditLogs={auditLogs}
                 onAddNewEvent={handleAddNewEvent}
-                onIssueManualTicket={handleIssueManualTicket}
+                onIssueManualTicket={handleIssuedTickets}
                 onProcessRefund={handleProcessRefund}
               /> : <Navigate to="/" replace />
             } 

@@ -149,5 +149,34 @@ export const statePayloadSchema = z.object({
   state: appStateSchema,
 });
 
+const ticketSelectionSchema = z.object({
+  eventId: requiredString.max(160),
+  categoryId: requiredString.max(160),
+  quantity: z.coerce.number().int().min(1).max(20),
+  idempotencyKey: z.uuid(),
+});
+
+export const checkoutSchema = z.discriminatedUnion("action", [
+  ticketSelectionSchema.extend({
+    action: z.literal("prepare"),
+    phone: requiredString.max(80),
+  }).strict(),
+  z.object({
+    action: z.literal("confirm"),
+    operationId: z.uuid(),
+    razorpayOrderId: z.string().trim().regex(/^order_[A-Za-z0-9]+$/).max(100),
+    razorpayPaymentId: z.string().trim().regex(/^pay_[A-Za-z0-9]+$/).max(100),
+    razorpaySignature: z.string().trim().regex(/^[a-f0-9]{64}$/i),
+  }).strict(),
+]);
+
+export const manualTicketSchema = ticketSelectionSchema.extend({
+  attendeeEmail: z.string().trim().toLowerCase().email().max(320),
+  attendeeName: requiredString.max(200),
+  attendeePhone: requiredString.max(80),
+}).strict();
+
 export type ValidAppState = z.infer<typeof appStateSchema>;
+export type CheckoutInput = z.infer<typeof checkoutSchema>;
+export type ManualTicketInput = z.infer<typeof manualTicketSchema>;
 

@@ -3,13 +3,13 @@
 #
 # These MUST stay excluded. Tailwind v4's automatic source detection scans the
 # whole project, so a browser profile full of cache files makes the build run
-# out of memory; and the Python functions bundle whatever is uploaded, so large
-# directories blow past the 500 MB function limit.
+# out of memory.
 .dotnet
 .dotnet-tools
 .event-image-edge-profile
 .freebuff
 .vercel
+.vercel_python_packages
 .git
 
 node_modules
@@ -21,4 +21,7 @@ __pycache__
 loop-engineering
 docs
 tests
+backend
+alembic
+server
 GatepassApi

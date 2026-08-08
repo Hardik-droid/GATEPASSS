@@ -1,4 +1,3 @@
-import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
@@ -277,33 +276,30 @@ def _ensure_mobile_scanner(
     event_id: str,
     event_name: str,
 ) -> str:
-    """Upsert a virtual mobile scanner entry. Falls back to the deterministic id if the table is unavailable."""
+    """Upsert the durable scanner row used by scan_logs."""
     scanner_id = _mobile_scanner_id(operator_id, event_id)
-    try:
-        db.execute(
-            text(
-                """
-                INSERT INTO scanner.scanners (
-                    id, name, organization_name, purpose, event_id, gate_id, status, created_at, updated_at
-                )
-                VALUES (
-                    :id, :name, 'GatePass', 'TICKET_VALIDATION', :event_id, NULL, 'ACTIVE', now(), now()
-                )
-                ON CONFLICT (id)
-                DO UPDATE SET
-                    name = EXCLUDED.name,
-                    status = 'ACTIVE',
-                    updated_at = now()
-                """
-            ),
-            {
-                "id": scanner_id,
-                "name": f"Mobile · {operator_name} · {event_name}",
-                "event_id": event_id,
-            },
-        )
-    except Exception:
-        pass  # Scanner registration is best-effort
+    db.execute(
+        text(
+            """
+            INSERT INTO scanner.scanners (
+                id, name, organization_name, purpose, event_id, gate_id, status, created_at, updated_at
+            )
+            VALUES (
+                :id, :name, 'GatePass', 'TICKET_VALIDATION', :event_id, NULL, 'ACTIVE', now(), now()
+            )
+            ON CONFLICT (id)
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                status = 'ACTIVE',
+                updated_at = now()
+            """
+        ),
+        {
+            "id": scanner_id,
+            "name": f"Mobile · {operator_name} · {event_name}",
+            "event_id": event_id,
+        },
+    )
     return scanner_id
 
 
@@ -337,44 +333,78 @@ def _save_scan(
     user_id: str | None = None,
     ticket_id: str | None = None,
 ) -> dict:
-    """Persist the scan result to scanner.scan_logs. Best-effort on failure."""
-    try:
+    """Persist the scan result and commit the scan transaction atomically."""
+    scan_id = str(uuid.uuid4())
+    db.execute(
+        text(
+            """
+            INSERT INTO scanner.scan_logs (
+                id, scanner_id, qr_credential_id, user_id, ticket_id,
+                purpose, event_id, gate_id, decision, reason,
+                idempotency_key, scanned_at, metadata
+            )
+            VALUES (
+                :id, :scanner_id, NULL, :user_id, :ticket_id,
+                'TICKET_VALIDATION', :event_id, :gate, :decision, :reason,
+                :idempotency_key, now(), CAST(:metadata AS jsonb)
+            )
+            """
+        ),
+        {
+            "id": scan_id,
+            "scanner_id": scanner_id,
+            "user_id": user_id,
+            "ticket_id": ticket_id,
+            "event_id": event_id,
+            "gate": gate,
+            "decision": result["decision"],
+            "reason": result["reason"],
+            "idempotency_key": idempotency_key,
+            "metadata": json.dumps(result),
+        },
+    )
+    if ticket_id is not None:
         db.execute(
             text(
                 """
-                INSERT INTO scanner.scan_logs (
-                    id, scanner_id, qr_credential_id, user_id, ticket_id,
-                    purpose, event_id, gate_id, decision, reason,
-                    idempotency_key, scanned_at, metadata
+                INSERT INTO public.scan_logs (
+                    id, ticket_id, event_id, event_name, attendee_name,
+                    category_name, scan_result, scan_time, gate_name, scanned_by
                 )
-                VALUES (
-                    :id, :scanner_id, NULL, :user_id, :ticket_id,
-                    'TICKET_VALIDATION', :event_id, :gate, :decision, :reason,
-                    :idempotency_key, now(), CAST(:metadata AS jsonb)
-                )
+                SELECT
+                    :id, t.id, t.event_id, e.title, t.attendee_name,
+                    t.category_name,
+                    (CASE
+                        WHEN :decision = 'APPROVED' THEN 'valid'
+                        WHEN :reason = 'ALREADY_USED' THEN 'already_used'
+                        WHEN :reason = 'EVENT_MISMATCH' THEN 'wrong_event'
+                        WHEN :reason = 'TICKET_CANCELLED' THEN 'cancelled'
+                        WHEN :reason = 'TICKET_REFUNDED' THEN 'refunded'
+                        ELSE 'invalid'
+                    END)::public.scan_result,
+                    now(), :gate, s.name
+                FROM public.tickets t
+                JOIN public.events e ON e.id = t.event_id
+                JOIN scanner.scanners s ON s.id = :scanner_id
+                WHERE t.id = :ticket_id
+                ON CONFLICT (id) DO NOTHING
                 """
             ),
             {
-                "id": str(uuid.uuid4()),
-                "scanner_id": scanner_id,
-                "user_id": user_id,
+                "id": scan_id,
                 "ticket_id": ticket_id,
-                "event_id": event_id,
-                "gate": gate,
+                "scanner_id": scanner_id,
                 "decision": result["decision"],
                 "reason": result["reason"],
-                "idempotency_key": idempotency_key,
-                "metadata": json.dumps(result),
+                "gate": gate,
             },
         )
-    except Exception:
-        pass
     db.commit()
     return result
 
 
 def _lookup_scanner_event(db: Session, event_id: str) -> dict | None:
-    """Look up an event, preferring scanner.events, falling back to public.events."""
+    """Look up the scanner-authoritative event."""
     row = (
         db.execute(
             text(
@@ -389,125 +419,76 @@ def _lookup_scanner_event(db: Session, event_id: str) -> dict | None:
         .mappings()
         .one_or_none()
     )
-    if row:
-        return dict(row)
+    return dict(row) if row else None
 
-    # Fallback: public.events (may not yet be synced by trigger)
+
+def _lookup_ticket(db: Session, email: str, event_id: str) -> dict | None:
+    """Lock public then scanner rows and return the best current assignment."""
+    normalized_email = email.strip().lower()
+    ticket_id = (
+        db.execute(
+            text(
+                """
+                SELECT te.id
+                FROM scanner.ticket_assignments ta
+                JOIN scanner.ticket_entitlements te ON te.id = ta.ticket_id
+                JOIN scanner.users u ON u.id = ta.assigned_to_user_id
+                WHERE lower(u.email) = :email
+                  AND upper(ta.status) = 'ACTIVE'
+                  AND te.event_id = :event_id
+                ORDER BY
+                    CASE WHEN upper(te.status) IN ('ACTIVE', 'ISSUED', 'PAID') THEN 0 ELSE 1 END,
+                    CASE WHEN te.entry_count < te.max_entries THEN 0 ELSE 1 END,
+                    te.created_at
+                LIMIT 1
+                """
+            ),
+            {"email": normalized_email, "event_id": event_id},
+        )
+        .scalar_one_or_none()
+    )
+    if ticket_id is None:
+        return None
+
+    # The public-to-scanner trigger always locks public.tickets before the
+    # entitlement. Take the same order here to avoid scan/refund deadlocks.
+    db.execute(
+        text("SELECT id FROM public.tickets WHERE id = :ticket_id FOR UPDATE"),
+        {"ticket_id": ticket_id},
+    ).scalar_one_or_none()
+
     row = (
         db.execute(
             text(
                 """
-                SELECT id, title, venue, start_time, end_time, 'active'::text AS status
-                FROM public.events
-                WHERE id = :event_id
+                SELECT
+                    te.id,
+                    te.ticket_type,
+                    te.status,
+                    te.valid_from,
+                    te.valid_until,
+                    te.entry_count,
+                    te.max_entries,
+                    ta.transfer_id,
+                    u.display_name AS holder_name,
+                    purchaser.display_name AS original_owner_name
+                FROM scanner.ticket_assignments ta
+                JOIN scanner.ticket_entitlements te ON te.id = ta.ticket_id
+                JOIN scanner.users u ON u.id = ta.assigned_to_user_id
+                LEFT JOIN scanner.users purchaser ON purchaser.id = te.purchased_by_user_id
+                WHERE te.id = :ticket_id
+                  AND lower(u.email) = :email
+                  AND upper(ta.status) = 'ACTIVE'
+                  AND te.event_id = :event_id
+                FOR UPDATE OF te
                 """
             ),
-            {"event_id": event_id},
+            {"ticket_id": ticket_id, "email": normalized_email, "event_id": event_id},
         )
         .mappings()
         .one_or_none()
     )
     return dict(row) if row else None
-
-
-def _lookup_ticket(db: Session, email: str, event_id: str) -> dict | None:
-    """Find an active ticket for this attendee and event.
-
-    Prefers the scanner.* tables (populated by sync triggers from public.tickets);
-    falls back to public.tickets directly.
-    """
-    # 1. Try scanner.ticket_entitlements + scanner.ticket_assignments
-    try:
-        row = (
-            db.execute(
-                text(
-                    """
-                    SELECT
-                        te.id,
-                        te.ticket_type,
-                        te.status,
-                        te.valid_from,
-                        te.valid_until,
-                        te.entry_count,
-                        te.max_entries,
-                        ta.transfer_id,
-                        u.display_name AS holder_name,
-                        purchaser.display_name AS original_owner_name
-                    FROM scanner.ticket_assignments ta
-                    JOIN scanner.ticket_entitlements te ON te.id = ta.ticket_id
-                    JOIN scanner.users u ON u.id = ta.assigned_to_user_id
-                    LEFT JOIN scanner.users purchaser ON purchaser.id = te.purchased_by_user_id
-                    WHERE lower(u.email) = :email
-                      AND upper(ta.status) = 'ACTIVE'
-                      AND te.event_id = :event_id
-                    ORDER BY
-                        CASE WHEN te.entry_count < te.max_entries THEN 0 ELSE 1 END,
-                        te.created_at
-                    LIMIT 1
-                    FOR UPDATE OF te
-                    """
-                ),
-                {"email": email.strip().lower(), "event_id": event_id},
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if row:
-            return dict(row)
-    except Exception:
-        pass  # Fall through to public.tickets
-
-    # 2. Fallback: public.tickets directly (uses checked_in_at as usage gate)
-    try:
-        row = (
-            db.execute(
-                text(
-                    """
-                    SELECT
-                        t.id,
-                        t.category_name AS ticket_type,
-                        CASE
-                            WHEN t.status IN ('issued', 'paid') THEN 'active'
-                            ELSE t.status
-                        END AS status,
-                        t.attendee_name AS holder_name,
-                        t.checked_in_at,
-                        COALESCE(o.buyer_name, t.attendee_name) AS original_owner_name
-                    FROM public.tickets t
-                    LEFT JOIN public.orders o ON o.id = t.order_id
-                    WHERE lower(t.attendee_email) = :email
-                      AND t.event_id = :event_id
-                      AND t.status NOT IN ('cancelled', 'refunded', 'expired')
-                    ORDER BY t.issued_at
-                    LIMIT 1
-                    FOR UPDATE OF t
-                    """
-                ),
-                {"email": email.strip().lower(), "event_id": event_id},
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if row:
-            checked_in = row["checked_in_at"] is not None
-            return {
-                "id": row["id"],
-                "ticket_type": row["ticket_type"],
-                "status": str(row["status"]).upper(),
-                "valid_from": None,
-                "valid_until": None,
-                "entry_count": 1 if checked_in else 0,
-                "max_entries": 1,
-                "transfer_id": None,
-                "holder_name": row["holder_name"],
-                "original_owner_name": row["original_owner_name"],
-                "_source": "public.tickets",
-                "_checked_in_at": row["checked_in_at"],
-            }
-    except Exception:
-        pass
-
-    return None
 
 
 @router.post("/validate")
@@ -562,27 +543,24 @@ def validate_ticket(
         text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
         {"key": f"{scanner_id}:{idempotency_key}"},
     )
-    try:
-        previous = (
-            db.execute(
-                text(
-                    """
-                    SELECT metadata
-                    FROM scanner.scan_logs
-                    WHERE scanner_id = :scanner_id
-                      AND idempotency_key = :idempotency_key
-                    ORDER BY scanned_at DESC
-                    LIMIT 1
-                    """
-                ),
-                {"scanner_id": scanner_id, "idempotency_key": idempotency_key},
-            ).scalar_one_or_none()
-        )
-        if previous is not None:
-            db.rollback()
-            return previous
-    except Exception:
-        pass  # scan_logs table may not exist yet
+    previous = (
+        db.execute(
+            text(
+                """
+                SELECT metadata
+                FROM scanner.scan_logs
+                WHERE scanner_id = :scanner_id
+                  AND idempotency_key = :idempotency_key
+                ORDER BY scanned_at DESC
+                LIMIT 1
+                """
+            ),
+            {"scanner_id": scanner_id, "idempotency_key": idempotency_key},
+        ).scalar_one_or_none()
+    )
+    if previous is not None:
+        db.rollback()
+        return previous
 
     now = datetime.now(timezone.utc)
     event_status = str(event.get("status", "active")).lower()
@@ -622,11 +600,13 @@ def validate_ticket(
                           result=_scan_result(decision="REJECTED", reason="ACCOUNT_INACTIVE",
                                               message="The attendee account is inactive."))
 
+    attendee_user_id = str(scanned_user.id)
+
     # ── 7. Look up the attendee's ticket  ─────────────────────────────────
     entitlement = _lookup_ticket(db, scanned_user.email, request.event_id)
     if entitlement is None:
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
-                          event_id=request.event_id, gate=gate, user_id=operator_id,
+                          event_id=request.event_id, gate=gate, user_id=attendee_user_id,
                           result=_scan_result(decision="REJECTED", reason="NO_ACTIVE_TICKET",
                                               message="No ticket for this event is assigned to this attendee.",
                                               attendee_name=scanned_user.display_name))
@@ -656,7 +636,7 @@ def validate_ticket(
                               ticket=ticket, ownership=ownership)
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                           event_id=request.event_id, gate=gate, result=result,
-                          user_id=operator_id, ticket_id=entitlement["id"])
+                          user_id=attendee_user_id, ticket_id=entitlement["id"])
 
     if entitlement.get("valid_from") and entitlement["valid_from"] > now:
         result = _scan_result(decision="REJECTED", reason="TICKET_NOT_STARTED",
@@ -665,7 +645,7 @@ def validate_ticket(
                               ticket=ticket, ownership=ownership)
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                           event_id=request.event_id, gate=gate,
-                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+                          user_id=attendee_user_id, ticket_id=entitlement["id"], result=result)
 
     if entitlement.get("valid_until") and entitlement["valid_until"] < now:
         result = _scan_result(decision="REJECTED", reason="TICKET_EXPIRED",
@@ -674,7 +654,7 @@ def validate_ticket(
                               ticket=ticket, ownership=ownership)
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                           event_id=request.event_id, gate=gate,
-                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+                          user_id=attendee_user_id, ticket_id=entitlement["id"], result=result)
 
     if entitlement["entry_count"] >= entitlement["max_entries"]:
         result = _scan_result(decision="REJECTED", reason="ALREADY_USED",
@@ -683,7 +663,7 @@ def validate_ticket(
                               ticket=ticket, ownership=ownership)
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                           event_id=request.event_id, gate=gate,
-                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+                          user_id=attendee_user_id, ticket_id=entitlement["id"], result=result)
 
     # ── 10. Increment usage  ──────────────────────────────────────────────
     if not _increment_usage(db, entitlement):
@@ -693,7 +673,7 @@ def validate_ticket(
                               ticket=ticket, ownership=ownership)
         return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                           event_id=request.event_id, gate=gate,
-                          user_id=operator_id, ticket_id=entitlement["id"], result=result)
+                          user_id=attendee_user_id, ticket_id=entitlement["id"], result=result)
 
     ticket["entry_count"] = entitlement["entry_count"] + 1
     result = _scan_result(decision="APPROVED", reason="VALID_TICKET", message="Entry approved.",
@@ -701,31 +681,11 @@ def validate_ticket(
                           ticket=ticket, ownership=ownership)
     return _save_scan(db, scanner_id=scanner_id, idempotency_key=idempotency_key,
                       event_id=request.event_id, gate=gate,
-                      result=result, user_id=operator_id, ticket_id=entitlement["id"])
+                      result=result, user_id=attendee_user_id, ticket_id=entitlement["id"])
 
 
 def _increment_usage(db: Session, entitlement: dict) -> bool:
-    """Increment a ticket's usage counter.
-
-    Scanner schema: UPDATE scanner.ticket_entitlements SET entry_count += 1
-    Public fallback: UPDATE public.tickets SET checked_in_at = now()
-    """
-    source = entitlement.get("_source")
-    if source == "public.tickets":
-        if entitlement["_checked_in_at"] is not None:
-            return False
-        db.execute(
-            text(
-                """
-                UPDATE public.tickets
-                SET checked_in_at = now(), updated_at = now()
-                WHERE id = :ticket_id AND checked_in_at IS NULL
-                """
-            ),
-            {"ticket_id": entitlement["id"]},
-        )
-        return True
-
+    """Increment scanner usage and mirror public reporting in one transaction."""
     updated = db.execute(
         text(
             """
@@ -737,4 +697,26 @@ def _increment_usage(db: Session, entitlement: dict) -> bool:
         ),
         {"ticket_id": entitlement["id"]},
     ).scalar_one_or_none()
-    return updated is not None
+    if updated is None:
+        return False
+
+    # Synchronized public tickets use the same UUID as their entitlement. A
+    # scanner-native entitlement simply updates zero rows here. Any database
+    # failure still aborts the transaction, so an approval cannot be returned
+    # without its durable usage/reporting writes.
+    db.execute(
+        text(
+            """
+            UPDATE public.tickets
+            SET status = CASE
+                    WHEN status IN ('cancelled', 'refunded', 'expired') THEN status
+                    ELSE 'checked_in'
+                END,
+                checked_in_at = COALESCE(checked_in_at, now()),
+                updated_at = now()
+            WHERE id = :ticket_id
+            """
+        ),
+        {"ticket_id": entitlement["id"]},
+    )
+    return True

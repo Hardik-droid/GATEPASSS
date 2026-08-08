@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import jwt
 from fastapi import Depends, Header, HTTPException
 from jwt import PyJWKClient
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -91,6 +92,35 @@ def verify_neon_auth_token(token: str) -> NeonAuthIdentity:
     )
 
 
+def _reconcile_ticket_assignments(db: Session, user: User) -> None:
+    """Attach active tickets issued before this verified account existed."""
+    db.execute(
+        text(
+            """
+            INSERT INTO scanner.ticket_assignments (
+                id, ticket_id, assigned_to_user_id, status, assigned_at
+            )
+            SELECT
+                gen_random_uuid(), te.id, :user_id, 'active', now()
+            FROM public.tickets t
+            JOIN scanner.ticket_entitlements te ON te.id = t.id
+            WHERE lower(t.attendee_email) = :email
+              AND t.status IN ('issued', 'paid', 'checked_in')
+              AND lower(te.status) IN ('active', 'issued', 'paid')
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM scanner.ticket_assignments active_assignment
+                  WHERE active_assignment.ticket_id = te.id
+                    AND lower(active_assignment.status) = 'active'
+              )
+            ON CONFLICT (ticket_id) WHERE status = 'active'
+            DO NOTHING
+            """
+        ),
+        {"user_id": str(user.id), "email": user.email.strip().lower()},
+    )
+
+
 def get_current_user(
     authorization: str = Header(default=""),
     db: Session = Depends(get_db),
@@ -108,30 +138,30 @@ def get_current_user(
         .filter_by(google_issuer=identity.issuer, google_subject=identity.subject)
         .one_or_none()
     )
-    if user is None:
+    created = user is None
+    canonical_email = identity.email.strip().lower()
+    if created:
         user = User(
             google_issuer=identity.issuer,
             google_subject=identity.subject,
-            email=identity.email,
+            email=canonical_email,
             display_name=identity.name,
             photo_url=identity.picture,
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        db.flush()
     else:
-        changed = False
-        if user.email != identity.email:
-            user.email = identity.email
-            changed = True
+        if user.email != canonical_email:
+            user.email = canonical_email
         if identity.picture and user.photo_url != identity.picture:
             user.photo_url = identity.picture
-            changed = True
-        if changed:
-            db.commit()
 
     if user.status != "active":
         raise HTTPException(403, "Account disabled")
+    _reconcile_ticket_assignments(db, user)
+    db.commit()
+    if created:
+        db.refresh(user)
     return user
 
 
