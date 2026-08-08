@@ -155,21 +155,13 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         pe.start_time AS start_time,
                         pe.end_time AS end_time,
                         (CASE
-                            WHEN lower(pe.status) IN ('closed', 'cancelled', 'ended') THEN false
                             WHEN pe.end_time IS NOT NULL AND now() > pe.end_time THEN false
                             ELSE true
                         END) AS accepting_entries,
                         'Owner Gate'::text AS gate
                     FROM public.events pe
-                    WHERE lower(pe.status) IN ('approved', 'active', 'published')
-                      AND NOT EXISTS (SELECT 1 FROM scanner.events se WHERE se.id = pe.id)
-                    ORDER BY
-                        CASE
-                            WHEN accepting_entries THEN 0
-                            ELSE 1
-                        END,
-                        start_time DESC,
-                        event_name
+                    WHERE NOT EXISTS (SELECT 1 FROM scanner.events se WHERE se.id = pe.id)
+                    ORDER BY accepting_entries DESC, start_time DESC, event_name ASC
                     """
                 )
             )
@@ -198,13 +190,7 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                     JOIN scanner.events e ON e.id = sa.event_id
                     WHERE sa.scanner_user_id = :scanner_user_id
                       AND lower(e.status) IN ('approved', 'active', 'published')
-                    ORDER BY
-                        CASE
-                            WHEN accepting_entries THEN 0
-                            ELSE 1
-                        END,
-                        e.starts_at DESC,
-                        e.name
+                    ORDER BY e.starts_at DESC, e.name
                     """
                 ),
                 {"scanner_user_id": scanner_user_id},
@@ -217,28 +203,31 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
 
 def _owner_grants(db: Session) -> list[dict]:
     """List all delegated scanner assignments (owner only)."""
-    rows = (
-        db.execute(
-            text(
-                """
-                SELECT
-                    sa.id,
-                    u.display_name AS name,
-                    u.email,
-                    sa.event_id,
-                    e.name AS event_name,
-                    sa.gate
-                FROM scanner.scanner_assignments sa
-                JOIN scanner.users u ON u.id = sa.scanner_user_id
-                JOIN scanner.events e ON e.id = sa.event_id
-                ORDER BY lower(u.email), e.starts_at DESC
-                """
+    try:
+        rows = (
+            db.execute(
+                text(
+                    """
+                    SELECT
+                        sa.id,
+                        u.display_name AS name,
+                        u.email,
+                        sa.event_id,
+                        e.name AS event_name,
+                        sa.gate
+                    FROM scanner.scanner_assignments sa
+                    JOIN scanner.users u ON u.id = sa.scanner_user_id
+                    JOIN scanner.events e ON e.id = sa.event_id
+                    ORDER BY lower(u.email), e.starts_at DESC
+                    """
+                )
             )
+            .mappings()
+            .all()
         )
-        .mappings()
-        .all()
-    )
-    return [dict(row) for row in rows]
+        return [dict(row) for row in rows]
+    except Exception:
+        return []
 
 
 @router.get("/assignments")
