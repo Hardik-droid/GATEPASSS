@@ -54,23 +54,51 @@ def _is_owner(user: User) -> bool:
 
 
 def _scanner_user(db: Session, email: str) -> dict | None:
-    """Look up a user in scanner.users by email."""
-    row = (
-        db.execute(
-            text(
-                """
-                SELECT id, email, display_name AS name
-                FROM scanner.users
-                WHERE lower(email) = :email
-                LIMIT 1
-                """
-            ),
-            {"email": email.strip().lower()},
+    """Look up a user in scanner.users by email with fallback to public.users."""
+    clean_email = email.strip().lower()
+    try:
+        row = (
+            db.execute(
+                text(
+                    """
+                    SELECT id, email, display_name AS name
+                    FROM scanner.users
+                    WHERE lower(email) = :email
+                    LIMIT 1
+                    """
+                ),
+                {"email": clean_email},
+            )
+            .mappings()
+            .one_or_none()
         )
-        .mappings()
-        .one_or_none()
-    )
-    return dict(row) if row else None
+        if row:
+            return dict(row)
+    except Exception:
+        pass
+
+    try:
+        row = (
+            db.execute(
+                text(
+                    """
+                    SELECT id, email, name
+                    FROM public.users
+                    WHERE lower(email) = :email
+                    LIMIT 1
+                    """
+                ),
+                {"email": clean_email},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if row:
+            return dict(row)
+    except Exception:
+        pass
+
+    return None
 
 
 def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[dict]:
@@ -240,22 +268,8 @@ def update_scanner_access(
     if not _is_owner(user):
         raise HTTPException(403, "Only the Owner can manage scanner access")
 
-    # Find the event in scanner.events
-    event = (
-        db.execute(
-            text(
-                """
-                SELECT id, name
-                FROM scanner.events
-                WHERE id = :event_id
-                  AND lower(status) IN ('approved', 'active', 'published')
-                """
-            ),
-            {"event_id": request.event_id},
-        )
-        .mappings()
-        .one_or_none()
-    )
+    # Find the event in scanner.events or public.events
+    event = _lookup_scanner_event(db, request.event_id)
     if event is None:
         raise HTTPException(404, "Event not found or not approved")
 
