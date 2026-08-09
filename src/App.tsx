@@ -908,31 +908,29 @@ export default function App() {
       </div>
       
       {/* Sticky Top Navbar Container (Reserves document flow height cleanly without overlapping page content) */}
-      <header className="sticky top-0 z-50 w-full bg-transparent">
+      <header className={`sticky top-0 z-50 w-full bg-[#F3EEEB]/90 backdrop-blur-md border-b border-black/10 transition-all duration-300 ${
+        isScrolled ? "h-[72px]" : "h-[88px]"
+      }`}>
         {/* Mobile Top Header (shown on xl:hidden) */}
-        <div className={`w-full px-4 sm:px-6 flex justify-between items-center xl:hidden transition-all duration-300 ${
-          isScrolled 
-            ? "py-2.5 bg-[#F8F5F2]/96 backdrop-blur-md border-b border-black/10 shadow-sm"
-            : "py-3.5 bg-[#F8F5F2] border-b border-black/10"
-        }`}>
-          <div className="flex items-center gap-1">
+        <div className="w-full h-full px-4 sm:px-6 flex justify-between items-center xl:hidden">
+          <div className="flex items-center gap-1.5">
             <div>
-              <h1 className="text-base font-black text-charcoal-dark tracking-tight">GatePass</h1>
-              <p className="text-[9px] uppercase tracking-wider text-outline font-bold">Organizer &amp; Entry Operating System</p>
+              <h1 className="text-base font-black text-[#171719] tracking-tight uppercase">GatePass</h1>
+              <p className="text-[9px] uppercase tracking-wider text-[#938C87] font-bold">Organizer &amp; Entry OS</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             {canAccessOrganizer && (
               <button
                 onClick={() => handlePerspectiveSwitch(perspective === "attendee" ? "organizer" : "attendee")}
-                className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1 bg-primary-container text-on-primary-container"
+                className="text-[10px] font-extrabold uppercase px-3 py-1.5 rounded-full shadow-sm flex items-center gap-1 bg-[#171719] text-[#F8F5F2]"
               >
                 {perspective === "attendee" ? "Organizer Mode" : "User Mode"}
               </button>
             )}
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="grid size-11 place-items-center rounded-lg hover:bg-surface-container text-charcoal-dark"
+              className="grid size-11 place-items-center rounded-lg hover:bg-black/5 text-[#171719]"
               aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
               aria-expanded={mobileMenuOpen}
               aria-controls="primary-navigation-drawer"
@@ -942,205 +940,197 @@ export default function App() {
           </div>
         </div>
 
-        {/* Desktop Morphing Floating Navbar Container */}
-        <div className={`hidden xl:block w-full transition-all duration-300 ${
-          isScrolled ? "pt-3.5 pb-2 px-6" : "pt-0 pb-0 px-0"
-        }`}>
-          <aside 
-            id="primary-navigation-drawer" 
-            className={`transition-all duration-360 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-              isScrolled 
-                ? "w-[calc(100%-48px)] max-w-[1720px] mx-auto h-[68px] rounded-[20px] bg-[#F8F5F2]/96 backdrop-blur-md border border-black/10 shadow-[0_10px_32px_rgba(32,27,24,0.08)] px-8" 
-                : "w-full max-w-full h-[88px] rounded-none bg-[#F8F5F2] border-b border-black/10 shadow-none px-10"
-            } flex items-center justify-between`}
-          >
-            {/* GROUP 1: LEFT AREA — LOGO + PERSPECTIVE MODE SWITCH */}
-            <div className="flex items-center gap-7 flex-shrink-0">
-              {/* Logo and Connection Status */}
-              <div className="flex items-center gap-1.5">
-                <h1 className={`font-black text-charcoal-dark tracking-tighter uppercase leading-none transition-all duration-300 ${
-                  isScrolled ? "text-2xl" : "text-3xl"
-                }`}>GatePass</h1>
-                <div className={`w-2.5 h-2.5 rounded-full ml-1.5 flex-shrink-0 ${
+        {/* Desktop Reference-Style 3-Zone Navbar */}
+        <div className="hidden xl:flex w-full h-full max-w-[1720px] mx-auto px-8 xl:px-12 items-center justify-between">
+          {/* GROUP 1: LEFT AREA — BRAND LOGO + PERSPECTIVE MODE TOGGLE */}
+          <div className="flex items-center gap-6 flex-shrink-0">
+            {/* Logo and Connection Status */}
+            <div className="flex items-center gap-1.5">
+              <h1 className="text-2xl xl:text-3xl font-black text-[#171719] tracking-tighter uppercase leading-none">
+                GatePass
+              </h1>
+              <div 
+                className={`w-2.5 h-2.5 rounded-full ml-1 flex-shrink-0 ${
                   backendStatus === "connected" ? "bg-emerald-400" :
                   backendStatus === "offline" ? "bg-amber-400" :
                   "bg-gray-300 animate-pulse"
-                }`} title={backendStatus === "connected" ? "Connected" : backendStatus === "offline" ? "Offline mode" : "Connecting..."} />
-              </div>
-
-              {/* Perspective Selector Swapper */}
-              {canAccessOrganizer && (
-                <div className="bg-surface-container/80 p-1 rounded-xl flex items-center gap-1 border border-outline-variant/30 flex-shrink-0">
-                  <button
-                    onClick={() => {
-                      handlePerspectiveSwitch("attendee");
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
-                      perspective === "attendee" ? "bg-primary text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-                    }`}
-                  >
-                    Attendee
-                  </button>
-                  <button
-                    onClick={() => {
-                      handlePerspectiveSwitch("organizer");
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
-                      perspective === "organizer"
-                        ? "bg-primary text-white shadow"
-                        : "text-on-surface-variant hover:text-charcoal-dark"
-                    }`}
-                  >
-                    Organizer
-                  </button>
-                </div>
-              )}
+                }`} 
+                title={backendStatus === "connected" ? "Connected" : backendStatus === "offline" ? "Offline mode" : "Connecting..."} 
+              />
             </div>
 
-            {/* GROUP 2: CENTER AREA — NAVIGATION ROUTES */}
-            <nav className="flex items-center gap-8 mx-auto">
-              {perspective === "attendee" ? (
-                /* ATTENDEE ROUTES */
-                <>
-                  <NavLink
-                    to="/"
-                    end
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Home</span>
-                  </NavLink>
-
-                  <NavLink
-                    to="/request"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Request Temp Access</span>
-                  </NavLink>
-
-                  <NavLink
-                    to="/approvals"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest relative ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Approvals &amp; Invites</span>
-                    {pendingApprovalsCount > 0 && (
-                      <span className="absolute -right-3.5 -top-1.5 w-4 h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-charcoal-dark">
-                        <AnimatedNumber value={pendingApprovalsCount} className="text-[9px]" />
-                      </span>
-                    )}
-                  </NavLink>
-
-                  <NavLink
-                    to="/events"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Events &amp; Concerts</span>
-                  </NavLink>
-                </>
-              ) : (
-                /* ORGANIZER ROUTES */
-                <>
-                  <NavLink
-                    to="/organizer"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Control Room &amp; Workspace</span>
-                  </NavLink>
-
-                  <NavLink
-                    to="/scanner"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) => 
-                      `transition-all cursor-pointer text-xs uppercase tracking-widest ${
-                        isActive 
-                          ? "text-[#171719] font-extrabold underline decoration-2 underline-offset-8"
-                          : "text-on-surface-variant hover:text-charcoal-dark opacity-70 hover:opacity-100 font-semibold"
-                      }`
-                    }
-                  >
-                    <span>Gate Checkout Scanner</span>
-                  </NavLink>
-                </>
-              )}
-            </nav>
-
-            {/* GROUP 3: RIGHT AREA — GATES FLIP CONTROLS + USER PROFILE */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              {/* GATES Interactive Control */}
-              <div className={`hidden 2xl:block transition-all duration-300 ${isScrolled ? "scale-90" : "scale-100"}`}>
-                <SocialFlipButton
-                  items={[
-                    { letter: "G", icon: <FaGithub />, label: "GitHub", href: "https://github.com" },
-                    { letter: "A", icon: <FaLinkedin />, label: "LinkedIn", href: "https://linkedin.com" },
-                    { letter: "T", icon: <FaInstagram />, label: "Instagram", href: "https://instagram.com" },
-                    { letter: "E", icon: <FaEnvelope />, label: "Email", href: "mailto:hello@gatepass.io" },
-                    { letter: "S", icon: <FaGlobe />, label: "Website", href: "#" },
-                  ]}
-                  className="!p-0 !gap-1"
-                />
-              </div>
-
-              {/* User Avatar + Profile details */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (perspective === "attendee") {
-                    navigate("/identity");
-                  }
-                }}
-                disabled={perspective !== "attendee"}
-                className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity disabled:cursor-default"
-              >
-                <div className="text-right">
-                  <h4 className="text-xs font-bold text-charcoal-dark group-hover:text-primary transition-colors">{user.name}</h4>
-                  <p className="text-[10px] text-outline uppercase font-semibold">Verified Member</p>
-                </div>
-                <img 
-                  src={user.avatarUrl} 
-                  alt={user.name} 
-                  className={`rounded-full object-cover border border-outline-variant group-hover:border-primary transition-all duration-300 ${
-                    isScrolled ? "w-9 h-9" : "w-11 h-11"
+            {/* Perspective Selector Swapper */}
+            {canAccessOrganizer && (
+              <div className="bg-[#F8F5F2]/80 p-1 rounded-xl flex items-center gap-1 border border-black/10 flex-shrink-0">
+                <button
+                  onClick={() => {
+                    handlePerspectiveSwitch("attendee");
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                    perspective === "attendee" 
+                      ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                      : "text-[#625B57] hover:text-[#171719]"
                   }`}
-                />
-              </button>
+                >
+                  Attendee
+                </button>
+                <button
+                  onClick={() => {
+                    handlePerspectiveSwitch("organizer");
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer ${
+                    perspective === "organizer"
+                      ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+                      : "text-[#625B57] hover:text-[#171719]"
+                  }`}
+                >
+                  Organizer
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* GROUP 2: CENTER AREA — ROUNDED NAVIGATION CAPSULE */}
+          <nav className="bg-[#F8F5F2]/85 border border-black/10 backdrop-blur-md rounded-[22px] p-1.5 shadow-sm flex items-center gap-1 mx-auto">
+            {perspective === "attendee" ? (
+              /* ATTENDEE ROUTES */
+              <>
+                <NavLink
+                  to="/"
+                  end
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Home</span>
+                </NavLink>
+
+                <NavLink
+                  to="/request"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Request Temp Access</span>
+                </NavLink>
+
+                <NavLink
+                  to="/approvals"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer relative ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Approvals &amp; Invites</span>
+                  {pendingApprovalsCount > 0 && (
+                    <span className="absolute -right-1 -top-1 w-4 h-4 bg-status-danger rounded-full text-[9px] font-bold text-white flex items-center justify-center animate-bounce border border-white">
+                      <AnimatedNumber value={pendingApprovalsCount} className="text-[9px]" />
+                    </span>
+                  )}
+                </NavLink>
+
+                <NavLink
+                  to="/events"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Events &amp; Concerts</span>
+                </NavLink>
+              </>
+            ) : (
+              /* ORGANIZER ROUTES */
+              <>
+                <NavLink
+                  to="/organizer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Control Room &amp; Workspace</span>
+                </NavLink>
+
+                <NavLink
+                  to="/scanner"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                      isActive 
+                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                    }`
+                  }
+                >
+                  <span>Gate Checkout Scanner</span>
+                </NavLink>
+              </>
+            )}
+          </nav>
+
+          {/* GROUP 3: RIGHT AREA — GATES FLIP CONTROLS + USER PROFILE */}
+          <div className="flex items-center gap-5 flex-shrink-0">
+            {/* GATES Interactive Control */}
+            <div className={`hidden 2xl:block transition-all duration-300 ${isScrolled ? "scale-95" : "scale-100"}`}>
+              <SocialFlipButton
+                items={[
+                  { letter: "G", icon: <FaGithub />, label: "GitHub", href: "https://github.com" },
+                  { letter: "A", icon: <FaLinkedin />, label: "LinkedIn", href: "https://linkedin.com" },
+                  { letter: "T", icon: <FaInstagram />, label: "Instagram", href: "https://instagram.com" },
+                  { letter: "E", icon: <FaEnvelope />, label: "Email", href: "mailto:hello@gatepass.io" },
+                  { letter: "S", icon: <FaGlobe />, label: "Website", href: "#" },
+                ]}
+                className="!p-0 !gap-1"
+              />
             </div>
-          </aside>
+
+            {/* User Avatar + Profile details */}
+            <button
+              type="button"
+              onClick={() => {
+                if (perspective === "attendee") {
+                  navigate("/identity");
+                }
+              }}
+              disabled={perspective !== "attendee"}
+              className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity disabled:cursor-default"
+            >
+              <div className="text-right">
+                <h4 className="text-xs font-bold text-[#171719] group-hover:text-[#42566E] transition-colors">{user.name}</h4>
+                <p className="text-[10px] text-[#938C87] uppercase font-semibold">Verified Member</p>
+              </div>
+              <img 
+                src={user.avatarUrl} 
+                alt={user.name} 
+                className="w-11 h-11 rounded-full object-cover border border-black/10 group-hover:border-[#42566E] transition-all duration-300"
+              />
+            </button>
+          </div>
         </div>
       </header>
 
