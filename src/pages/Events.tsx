@@ -589,9 +589,10 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                       </div>
                     </div>
 
-                    <div className="p-5 flex flex-col flex-1 justify-between gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <h4 className="text-base font-bold text-[#171719] group-hover:text-[#42566E] transition-colors truncate">
+                    <div className="p-[18px_22px_20px] flex flex-col justify-start h-auto flex-1">
+                      {/* Title + Subtitle Group */}
+                      <div className="flex flex-col gap-1 mb-3.5">
+                        <h4 className="text-xl font-extrabold text-[#171719] leading-tight group-hover:text-[#42566E] transition-colors line-clamp-2">
                           {event.title}
                         </h4>
                         <p className="text-xs text-[#625B57] line-clamp-2 leading-relaxed">
@@ -599,13 +600,17 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                         </p>
                       </div>
 
-                      <div className="flex flex-col gap-2 pt-3 border-t border-black/10 text-xs text-[#625B57]">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3.5 h-3.5 text-[#42566E] flex-shrink-0" />
+                      {/* Divider */}
+                      <div className="w-full border-t border-black/10 my-3.5" />
+
+                      {/* Date & Location Metadata Group */}
+                      <div className="flex flex-col gap-2 text-xs text-[#625B57] font-medium">
+                        <div className="flex items-center gap-2.5">
+                          <Calendar className="w-4 h-4 text-[#42566E] flex-shrink-0" />
                           <span>{new Date(event.startTime).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-3.5 h-3.5 text-[#42566E] flex-shrink-0" />
+                        <div className="flex items-center gap-2.5">
+                          <MapPin className="w-4 h-4 text-[#42566E] flex-shrink-0" />
                           <span className="truncate">{event.venue}</span>
                         </div>
                       </div>
