@@ -25,6 +25,8 @@ import {
   validateScannerQr,
 } from "../scannerApi";
 
+import { isEventExpired } from "../eventUtils";
+
 function cameraErrorMessage(error: unknown): string {
   if (!window.isSecureContext) {
     return "Camera access requires HTTPS. Open the secure GatePass URL.";
@@ -70,6 +72,15 @@ export default function Scanner({ onToast }: ScannerProps) {
   const [grantEventId, setGrantEventId] = useState("");
   const [grantGate, setGrantGate] = useState("Main Gate");
   const [grantBusy, setGrantBusy] = useState(false);
+  const [_nowTick, setNowTick] = useState(Date.now());
+
+  // 30-second interval re-evaluation so events reaching end_time auto-hide from scanner selector.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNowTick(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -77,7 +88,11 @@ export default function Scanner({ onToast }: ScannerProps) {
   const scanInFlightRef = useRef(false);
   const cameraSessionRef = useRef(0);
 
-  const selectedAssignment = access?.assignments.find(
+  const visibleAssignments = (access?.assignments ?? []).filter(
+    (assignment) => !isEventExpired(assignment.end_time),
+  );
+
+  const selectedAssignment = visibleAssignments.find(
     (assignment) => assignment.event_id === selectedEventId,
   );
 
@@ -103,15 +118,18 @@ export default function Scanner({ onToast }: ScannerProps) {
     try {
       const next = await fetchScannerAccess();
       setAccess(next);
+      const activeAssignments = next.assignments.filter(
+        (assignment) => !isEventExpired(assignment.end_time),
+      );
       setSelectedEventId((current) => {
-        const selected = next.assignments.find(
+        const selected = activeAssignments.find(
           (assignment) => assignment.event_id === current,
         );
         return selected?.accepting_entries
           ? current
-          : next.assignments.find((assignment) => assignment.accepting_entries)?.event_id
+          : activeAssignments.find((assignment) => assignment.accepting_entries)?.event_id
             ?? selected?.event_id
-            ?? next.assignments[0]?.event_id
+            ?? activeAssignments[0]?.event_id
             ?? "";
       });
       setGrantEventId((current) =>
@@ -324,7 +342,7 @@ export default function Scanner({ onToast }: ScannerProps) {
     );
   }
 
-  if (access.assignments.length === 0) {
+  if (visibleAssignments.length === 0) {
     return (
       <div className="grid min-h-[60dvh] place-items-center px-4">
         <div className="w-full max-w-md border border-neutral-200 bg-white p-7 text-center shadow-sm">
@@ -578,7 +596,7 @@ export default function Scanner({ onToast }: ScannerProps) {
               }}
               className="mt-2 min-h-12 w-full border border-neutral-300 bg-white px-3 font-bold text-charcoal-dark"
             >
-              {access.assignments.map((assignment) => (
+              {visibleAssignments.map((assignment) => (
                 <option key={assignment.id} value={assignment.event_id}>
                   {assignment.event_name} · {assignment.accepting_entries ? "Open now" : "Closed"}
                 </option>

@@ -36,6 +36,8 @@ import {
   Lock
 } from "lucide-react";
 
+import { isEventExpired } from "../eventUtils";
+
 interface AttendeeEventsListProps {
   events: EventItem[];
   user: UserProfile;
@@ -46,6 +48,15 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
   const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+  const [_nowTick, setNowTick] = useState(Date.now());
+
+  // Periodic 30-second tick so events that expire while the user is viewing the page auto-hide smoothly.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNowTick(Date.now());
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
   // Custom states matching Shotgun visual uploads
   const [currentLocation, setCurrentLocation] = useState("Detecting location…");
@@ -164,8 +175,10 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
   // Filter Categories list
   const filterCategories = ["All", "Concert", "College Fest", "Marathon", "Workshop"];
 
-  // Filtered Events
+  // Filtered Events (Active/non-expired events only for Public Events listing)
   const filteredEvents = events.filter(event => {
+    if (isEventExpired(event.endTime)) return false;
+
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           event.venue.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           event.description.toLowerCase().includes(searchTerm.toLowerCase());
