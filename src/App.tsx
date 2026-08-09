@@ -1098,9 +1098,9 @@ export default function App() {
           </nav>
 
           {/* GROUP 3: RIGHT AREA — GATES FLIP CONTROLS + USER PROFILE */}
-          <div className="flex items-center gap-5 flex-shrink-0">
+          <div className="flex items-center gap-4 flex-shrink-0">
             {/* GATES Interactive Control */}
-            <div className={`hidden 2xl:block transition-all duration-300 ${isScrolled ? "scale-95" : "scale-100"}`}>
+            <div className="hidden 2xl:block flex-shrink-0">
               <SocialFlipButton
                 items={[
                   { letter: "G", icon: <FaGithub />, label: "GitHub", href: "https://github.com" },
@@ -1109,7 +1109,11 @@ export default function App() {
                   { letter: "E", icon: <FaEnvelope />, label: "Email", href: "mailto:hello@gatepass.io" },
                   { letter: "S", icon: <FaGlobe />, label: "Website", href: "#" },
                 ]}
-                className="!p-0 !gap-1"
+                className="!p-0"
+                containerClassName="!p-[6px] !px-2.5 !gap-[5px] !rounded-[15px] !bg-[#171719] !border-white/10 h-[46px] shadow-sm"
+                itemClassName="!w-[31px] !h-[31px]"
+                frontClassName="!bg-white/8 !text-[#F8F5F2] !text-[16px] !font-extrabold !rounded-[9px] !border !border-white/5"
+                backClassName="!bg-black !text-white !text-sm !rounded-[9px]"
               />
             </div>
 

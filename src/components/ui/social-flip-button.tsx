@@ -24,6 +24,7 @@ export interface SocialItem {
 interface SocialFlipButtonProps {
     items?: SocialItem[];
     className?: string;
+    containerClassName?: string;
     itemClassName?: string;
     frontClassName?: string;
     backClassName?: string;
@@ -134,6 +135,7 @@ const SocialFlipNode = ({
 export default function SocialFlipButton({
     items = defaultItems,
     className,
+    containerClassName,
     itemClassName,
     frontClassName,
     backClassName,
@@ -144,7 +146,10 @@ export default function SocialFlipButton({
     return (
         <div className={cn("flex items-center justify-center gap-4 p-4", className)}>
             <div
-                className="group relative flex items-center justify-center gap-2 rounded-2xl bg-white p-4 shadow-sm dark:bg-black border border-neutral-200 dark:border-neutral-800"
+                className={cn(
+                    "group relative flex items-center justify-center gap-2 rounded-2xl bg-white p-4 shadow-sm dark:bg-black border border-neutral-200 dark:border-neutral-800",
+                    containerClassName
+                )}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => {
                     setIsHovered(false);
