@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { createInitialAppState, type AppStateSnapshot } from "../src/appState.js";
+import { isEventExpired } from "../src/eventUtils.js";
 import { roleForAuthenticatedEmail } from "../src/permissions.js";
 import { config } from "./config.js";
 import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
@@ -100,7 +101,8 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.get("/api/events", async (_req, res, next) => {
     try {
       const state = (await store.load()) ?? createInitialAppState();
-      res.json({ events: state.events });
+      const activeEvents = (state.events || []).filter((e) => !isEventExpired(e.endTime));
+      res.json({ events: activeEvents });
     } catch (error) {
       next(error);
     }

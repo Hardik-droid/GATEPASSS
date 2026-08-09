@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { UserProfile, InvitePass } from "../types";
+import { isPassExpired } from "../eventUtils";
 import { fetchMyQrPayload } from "../scannerQr";
 import { authClient } from "../auth";
 import { QRCodeSVG } from "qrcode.react";
@@ -67,83 +68,17 @@ const SIMULATED_PASSES: InvitePass[] = [
 ];
 
 function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
-  if (pass.status === "EXPIRED" || pass.status === "REVOKED") {
+  if (isPassExpired(pass)) {
     return "EXPIRED";
   }
   if (pass.status === "PENDING") {
     return "UPCOMING";
   }
-
   const text = pass.validityText.toLowerCase();
-
   if (text.includes("tomorrow")) {
     return "UPCOMING";
   }
-
-  if (text.includes("expired")) {
-    return "EXPIRED";
-  }
-
-  if (text.includes("today")) {
-    const expMatch = text.match(/expires:\s*today,\s*(\d{1,2}):(\d{2})\s*(am|pm)/) || text.match(/exp:\s*(\d{1,2}):(\d{2})/);
-    if (expMatch) {
-      const [_, h, m, ap] = expMatch;
-      let hour = parseInt(h);
-      if (ap && ap.toLowerCase() === "pm" && hour < 12) hour += 12;
-      if (ap && ap.toLowerCase() === "am" && hour === 12) hour = 0;
-      const min = parseInt(m);
-
-      const now = new Date();
-      const curHour = now.getHours();
-      const curMin = now.getMinutes();
-
-      if (curHour > hour || (curHour === hour && curMin > min)) {
-        return "EXPIRED";
-      }
-      return "ACTIVE";
-    }
-
-    const rangeMatch = text.match(/(\d{1,2}):(\d{2})\s*(am|pm)\s*-\s*(\d{1,2}):(\d{2})\s*(am|pm)/);
-    if (rangeMatch) {
-      const [_, sh, sm, sap, eh, em, eap] = rangeMatch;
-      const parseHour = (hourStr: string, apStr: string) => {
-        let hr = parseInt(hourStr);
-        if (apStr.toLowerCase() === "pm" && hr < 12) hr += 12;
-        if (apStr.toLowerCase() === "am" && hr === 12) hr = 0;
-        return hr;
-      };
-      const startHour = parseHour(sh, sap);
-      const startMin = parseInt(sm);
-      const endHour = parseHour(eh, eap);
-      const endMin = parseInt(em);
-
-      const now = new Date();
-      const currentHour = now.getHours();
-      const currentMin = now.getMinutes();
-
-      const currentMinutes = currentHour * 60 + currentMin;
-      const startMinutes = startHour * 60 + startMin;
-      const endMinutes = endHour * 60 + endMin;
-
-      if (currentMinutes < startMinutes) {
-        return "UPCOMING";
-      } else if (currentMinutes > endMinutes) {
-        return "EXPIRED";
-      } else {
-        return "ACTIVE";
-      }
-    }
-  }
-
-  if (text.includes("expires in")) {
-    return "ACTIVE";
-  }
-
-  if (text.includes("24/7") || text.includes("allowed") || text.includes("standard")) {
-    return "ACTIVE";
-  }
-
-  return pass.status === "APPROVED" ? "ACTIVE" : "EXPIRED";
+  return "ACTIVE";
 }
 
 export default function IdentityCard({

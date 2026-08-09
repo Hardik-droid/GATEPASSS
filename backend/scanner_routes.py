@@ -138,13 +138,11 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         pe.venue,
                         pe.start_time AS start_time,
                         pe.end_time AS end_time,
-                        (CASE
-                            WHEN pe.end_time IS NOT NULL AND now() > pe.end_time THEN false
-                            ELSE true
-                        END) AS accepting_entries,
+                        true AS accepting_entries,
                         'Owner Gate'::text AS gate
                     FROM public.events pe
-                    ORDER BY accepting_entries DESC, start_time DESC, event_name ASC
+                    WHERE pe.end_time IS NULL OR now() <= pe.end_time
+                    ORDER BY start_time DESC, event_name ASC
                     """
                 )
             )
@@ -163,16 +161,13 @@ def _event_assignments(db: Session, scanner_user_id: str, owner: bool) -> list[d
                         e.venue,
                         e.starts_at AS start_time,
                         e.ends_at AS end_time,
-                        (CASE
-                            WHEN lower(e.status) IN ('closed', 'cancelled', 'ended') THEN false
-                            WHEN e.ends_at IS NOT NULL AND now() > e.ends_at THEN false
-                            ELSE true
-                        END) AS accepting_entries,
+                        true AS accepting_entries,
                         sa.gate
                     FROM scanner.scanner_assignments sa
                     JOIN scanner.events e ON e.id = sa.event_id
                     WHERE sa.scanner_user_id = :scanner_user_id
                       AND lower(e.status) IN ('approved', 'active', 'published')
+                      AND (e.ends_at IS NULL OR now() <= e.ends_at)
                     ORDER BY e.starts_at DESC, e.name
                     """
                 ),
@@ -502,9 +497,11 @@ def _lookup_ticket(db: Session, email: str, event_id: str) -> dict | None:
                         END AS status,
                         t.attendee_name AS holder_name,
                         t.checked_in_at,
-                        COALESCE(o.buyer_name, t.attendee_name) AS original_owner_name
+                        COALESCE(o.buyer_name, t.attendee_name) AS original_owner_name,
+                        e.end_time AS valid_until
                     FROM public.tickets t
                     LEFT JOIN public.orders o ON o.id = t.order_id
+                    LEFT JOIN public.events e ON e.id = t.event_id
                     WHERE lower(t.attendee_email) = :email
                       AND t.event_id = :event_id
                       AND t.status NOT IN ('cancelled', 'refunded', 'expired')
@@ -525,7 +522,7 @@ def _lookup_ticket(db: Session, email: str, event_id: str) -> dict | None:
                 "ticket_type": row["ticket_type"],
                 "status": str(row["status"]).upper(),
                 "valid_from": None,
-                "valid_until": None,
+                "valid_until": row.get("valid_until"),
                 "entry_count": 1 if checked_in else 0,
                 "max_entries": 1,
                 "transfer_id": None,
