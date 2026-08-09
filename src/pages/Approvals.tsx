@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AccessRequest, InvitePass } from "../types";
+import KineticHeading from "../components/ui/KineticHeading";
 import {
   createTransfer,
   fetchMyTickets,
@@ -152,7 +153,12 @@ export default function ApprovalsInvites({
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">Approvals &amp; Invites</h2>
+          <KineticHeading
+            accent="Clearance control."
+            primary="Approvals & Invites"
+            size="md"
+            lightMode={true}
+          />
           <p className="text-sm text-on-surface-variant mt-1">
             Manage pending security access requests and active visitor passes.
           </p>

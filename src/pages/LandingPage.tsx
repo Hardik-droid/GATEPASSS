@@ -13,6 +13,7 @@ import {
 import { motion } from "motion/react";
 import { MorphText } from "../components/ui/morph-text";
 import { AnimatedNumber } from "../components/ui/animated-number";
+import KineticHeading from "../components/ui/KineticHeading";
 import { authClient } from "../auth";
 
 interface LandingPageProps {
@@ -72,12 +73,12 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
             <span>Smart Campus Access Portal</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight leading-none text-white">
-            Seamless Entry.<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff2bd6] to-cyan-400">
-              Absolute Control.
-            </span>
-          </h1>
+          <KineticHeading
+            accent="Seamless Entry."
+            primary="Absolute Control."
+            size="xl"
+            align="center"
+          />
 
           <p className="text-sm md:text-base text-neutral-400 leading-relaxed font-medium">
             GatePass integrates single-token secure QR identity, instant validation checkpoints, and Razorpay-powered event registration into one unified system. Authenticate via Google OAuth to proceed.

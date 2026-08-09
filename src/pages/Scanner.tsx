@@ -24,6 +24,7 @@ import {
   updateScannerAccess,
   validateScannerQr,
 } from "../scannerApi";
+import KineticHeading from "../components/ui/KineticHeading";
 
 import { isEventExpired } from "../eventUtils";
 
@@ -392,12 +393,12 @@ export default function Scanner({ onToast }: ScannerProps) {
           <ArrowLeft className="size-5" />
         </Link>
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-primary">
-            Live entry control
-          </p>
-          <h1 className="truncate text-2xl font-black text-charcoal-dark">
-            Mobile Scanner
-          </h1>
+          <KineticHeading
+            accent="Ready for entry."
+            primary="Mobile Scanner"
+            size="md"
+            lightMode={true}
+          />
         </div>
       </header>
 

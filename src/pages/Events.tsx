@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import UniversalQrCard from "./UniversalQrCard";
+import KineticHeading from "../components/ui/KineticHeading";
 import { formatLocation } from "../location";
 import { 
   EventItem, 
@@ -433,9 +434,13 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
             <Music2 className="h-3.5 w-3.5 text-[#ff2bd6] animate-spin-slow" />
             Nightlife by GatePass
           </div>
-          <h1 className="mt-6 text-4xl md:text-7xl font-black uppercase leading-[.85] tracking-tight text-white drop-shadow-[0_0_42px_rgba(255,43,214,.34)]">
-            Scan. Enter. <br className="md:hidden" />No chaos.
-          </h1>
+          <KineticHeading
+            accent="Live events."
+            primary="Scan. Enter. No chaos."
+            size="xl"
+            align="center"
+            className="mt-6"
+          />
           <p className="mt-5 max-w-xl text-xs md:text-sm font-semibold text-white/80 leading-relaxed">
             DJ nights, club drops, VIP tables, afterparties, and QR entry that keeps the door moving offline or online.
           </p>

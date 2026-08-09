@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus } from "../types";
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
+import KineticHeading from "../components/ui/KineticHeading";
 import {
   Plus,
   TrendingUp,
@@ -279,8 +280,13 @@ export default function OrganizerWorkspace({
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h2 className="text-2xl font-black text-charcoal-dark tracking-tight">GatePass Organizer Console</h2>
-            <p className="text-sm text-on-surface-variant">
+            <KineticHeading
+              accent="Create the event."
+              primary="GatePass handles access."
+              size="md"
+              lightMode={true}
+            />
+            <p className="text-sm text-on-surface-variant mt-1">
               Immersion suite to create events, reconcile manual sales, view live scan audits, and track settlements.
             </p>
           </div>

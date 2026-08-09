@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Fingerprint, ShieldCheck } from "lucide-react";
+import KineticHeading from "./ui/KineticHeading";
 
 interface PostLoginIntroProps {
   userEmail?: string | null;
@@ -91,16 +92,14 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
         </div>
 
         {/* GATEPASS Wordmark & User Email */}
-        <div
-          style={{
-            animation: "postLoginTextEnter 450ms cubic-bezier(0.22, 1, 0.36, 1) 750ms both",
-          }}
-          className="flex flex-col items-center gap-1"
-        >
-          <h1 className="text-2xl font-black text-white uppercase tracking-wider">
-            GATEPASS
-          </h1>
-          <p className="text-xs text-neutral-400 font-medium tracking-wide">
+        <div className="flex flex-col items-center gap-1">
+          <KineticHeading
+            accent="Identity verified."
+            primary="GATEPASS"
+            size="md"
+            align="center"
+          />
+          <p className="text-xs text-neutral-400 font-medium tracking-wide mt-1">
             {userEmail ? userEmail : "Access System Ready"}
           </p>
         </div>
