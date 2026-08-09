@@ -134,6 +134,20 @@ export default function App() {
   // Selected pass for Wallet details
   const [selectedWalletPass, setSelectedWalletPass] = useState<InvitePass | undefined>(undefined);
 
+  // Scroll-morph navbar state
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrolled = window.scrollY > 40;
+      if (scrolled !== isScrolled) {
+        setIsScrolled(scrolled);
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isScrolled]);
+
   const addToast = useCallback((type: ToastMessage["type"], text: string) => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, type, text }]);
@@ -893,8 +907,15 @@ export default function App() {
         ))}
       </div>
       
-      {/* Top Bar Navigation (Responsive Sidebar Drawer Trigger) */}
-      <header className="w-full bg-white border-b border-outline-variant/30 sticky top-0 z-40 px-4 sm:px-6 py-4 flex justify-between items-center xl:hidden">
+      {/* Reserved spacing block on desktop so document content under navbar never layout-shifts */}
+      <div className="hidden xl:block h-[84px] w-full pointer-events-none" />
+
+      {/* Top Bar Navigation (Responsive Sidebar Drawer Trigger for Mobile) */}
+      <header className={`w-full sticky top-0 z-40 px-4 sm:px-6 flex justify-between items-center xl:hidden transition-all duration-300 ${
+        isScrolled 
+          ? "top-2 bg-[#F8F5F2]/95 backdrop-blur-md py-2.5 rounded-2xl border border-black/10 shadow-md mx-3 w-[calc(100%-24px)]"
+          : "bg-[#F8F5F2] border-b border-black/10 py-3.5"
+      }`}>
         <div className="flex items-center gap-1">
           <div>
             <h1 className="text-base font-black text-charcoal-dark tracking-tight">GatePass</h1>
@@ -922,14 +943,23 @@ export default function App() {
         </div>
       </header>
 
-      {/* Responsive Left Sidebar Navigation (Desktop view + Mobile Overlay Drawer) */}
-      <aside id="primary-navigation-drawer" className={`fixed xl:sticky top-0 left-0 h-screen xl:h-auto w-64 xl:w-full bg-white border-r xl:border-r-0 xl:border-b border-outline-variant/40 flex flex-col xl:flex-row xl:items-center justify-between py-6 xl:py-4 px-4 xl:px-10 shadow-sm z-50 transition-transform duration-300 ${
-        mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
-      }`}>
+      {/* Responsive Navigation Bar (Desktop Morphing Floating Bar + Mobile Overlay Drawer) */}
+      <aside 
+        id="primary-navigation-drawer" 
+        className={`fixed left-0 right-0 z-50 transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full xl:translate-x-0"
+        } ${
+          isScrolled 
+            ? "xl:top-3.5 xl:w-[calc(100%-48px)] xl:max-w-[1480px] xl:mx-auto xl:rounded-[22px] xl:bg-[#F8F5F2]/95 xl:backdrop-blur-md xl:border xl:border-black/10 xl:shadow-[0_10px_35px_rgba(32,27,24,0.08)] xl:py-3 xl:px-8" 
+            : "xl:top-0 xl:w-full xl:max-w-full xl:rounded-none xl:bg-[#F8F5F2] xl:border-b xl:border-black/10 xl:shadow-none xl:py-4 xl:px-10"
+        } h-screen xl:h-auto w-64 xl:w-full bg-white flex flex-col xl:flex-row xl:items-center justify-between py-6 px-4`}
+      >
         <div className="flex flex-col xl:flex-row xl:items-center gap-6 xl:gap-8">
           {/* Logo and Branding header */}
           <div className="flex items-center gap-1.5 px-2 xl:px-0">
-            <h1 className="text-xl xl:text-3xl font-black text-charcoal-dark tracking-tighter uppercase leading-none">GatePass</h1>
+            <h1 className={`text-xl xl:text-3xl font-black text-charcoal-dark tracking-tighter uppercase leading-none transition-all duration-300 ${
+              isScrolled ? "xl:text-2xl" : "xl:text-3xl"
+            }`}>GatePass</h1>
             {/* Connection status indicator (Issue #9) */}
             <div className={`w-2.5 h-2.5 rounded-full ml-1.5 flex-shrink-0 ${
               backendStatus === "connected" ? "bg-emerald-400" :
@@ -983,8 +1013,8 @@ export default function App() {
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -998,8 +1028,8 @@ export default function App() {
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -1013,8 +1043,8 @@ export default function App() {
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest relative ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -1027,15 +1057,14 @@ export default function App() {
                   )}
                 </NavLink>
 
-
                 <NavLink
                   to="/events"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -1052,8 +1081,8 @@ export default function App() {
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -1067,8 +1096,8 @@ export default function App() {
                   className={({ isActive }) => 
                     `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
                       isActive 
-                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
+                        ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary font-extrabold"
+                        : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-70 xl:hover:opacity-100 font-semibold"
                     }`
                   }
                 >
@@ -1080,9 +1109,9 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Desktop Sidebar Footer -> Now Header Avatar + Social Links */}
+        {/* Desktop Sidebar Footer -> Header Avatar + GATES Social Controls */}
         <div className="border-t border-surface-container xl:border-t-0 pt-4 xl:pt-0 mt-auto xl:mt-0 flex flex-col xl:flex-row gap-2 xl:items-center">
-          {/* Social Flip Buttons — hidden on mobile, shown on desktop */}
+          {/* Social Flip Buttons — GATES interactive control */}
           <div className="hidden 2xl:block">
             <SocialFlipButton
               items={[
@@ -1112,7 +1141,9 @@ export default function App() {
             <img 
               src={user.avatarUrl} 
               alt={user.name} 
-              className="w-10 h-10 xl:w-12 xl:h-12 rounded-full object-cover border border-outline-variant group-hover:border-primary transition-colors"
+              className={`rounded-full object-cover border border-outline-variant group-hover:border-primary transition-all duration-300 ${
+                isScrolled ? "w-9 h-9 xl:w-10 xl:h-10" : "w-10 h-10 xl:w-12 xl:h-12"
+              }`}
             />
             <div className="truncate xl:hidden">
               <h4 className="text-xs font-bold text-charcoal-dark truncate">{user.name}</h4>
