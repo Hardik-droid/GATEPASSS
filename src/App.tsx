@@ -30,6 +30,7 @@ import OrganizerWorkspace from "./pages/Organizer";
 import AttendeeEventsList from "./pages/Events";
 import HomeUpdates from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
+import LoadingScreen from "./components/LoadingScreen";
 import { MorphText } from "./components/ui/morph-text";
 import AnimatedButton from "./components/ui/animated-button";
 import SocialFlipButton from "./components/ui/social-flip-button";
@@ -118,6 +119,7 @@ export default function App() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "offline">("loading");
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isLoaderMounted, setIsLoaderMounted] = useState(true);
 
   // Auth state (Issue #1 & #4)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -790,30 +792,18 @@ export default function App() {
     persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
   };
 
-  if (!isHydrated) {
+  if (isLoaderMounted) {
     return (
-      <div className="fixed inset-0 z-[90] bg-background flex flex-col items-center justify-center gap-6">
-        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-          <Fingerprint className="w-9 h-9" />
-        </div>
-        <MorphText
-          words={["GATEPASS", "SECURE", "VERIFIED", "ACCESS"]}
-          interval={1800}
-          fontSize="clamp(1.8rem, 5vw, 3rem)"
-          fontFamily='"Inter", sans-serif'
-          className="text-charcoal-dark"
-        />
-        <div className="flex items-center gap-2 text-sm text-on-surface-variant">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span>Connecting to server…</span>
-        </div>
-      </div>
+      <LoadingScreen
+        isHydrated={isHydrated}
+        onExitComplete={() => setIsLoaderMounted(false)}
+      />
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-background font-sans text-on-background">
+      <div className="min-h-screen bg-background font-sans text-on-background animate-app-enter">
         <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
           {toasts.map((toast) => (
             <div
@@ -851,7 +841,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen xl:h-screen bg-background font-sans text-on-background flex flex-col xl:overflow-hidden pb-20 xl:pb-0">
+    <div className="min-h-screen xl:h-screen bg-background font-sans text-on-background flex flex-col xl:overflow-hidden pb-20 xl:pb-0 animate-app-enter">
       {/* Toast Notifications (Issue #2) */}
       <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
         {toasts.map((toast) => (
