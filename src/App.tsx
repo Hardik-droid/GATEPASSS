@@ -307,9 +307,22 @@ export default function App() {
 
       try {
         if (!token) {
-          applyStateSnapshot(createInitialAppState(), identity);
-          // Never "connected" here: there is no verified session, so this
-          // snapshot must never be eligible for the autosave effect below.
+          // No auth token — try loading persisted events from the public endpoint
+          // so previously created events still appear after refresh.
+          const fallback = createInitialAppState();
+          try {
+            const eventsRes = await fetch(`${API_BASE_URL}/api/events`);
+            if (eventsRes.ok) {
+              const { events: dbEvents } = await eventsRes.json();
+              if (Array.isArray(dbEvents) && dbEvents.length > 0) {
+                fallback.events = dbEvents;
+              }
+            }
+          } catch (evtErr) {
+            console.warn("Public events fetch skipped:", evtErr);
+          }
+          if (cancelled) return;
+          applyStateSnapshot(fallback, identity);
           setBackendStatus("offline");
           return;
         }
@@ -319,9 +332,21 @@ export default function App() {
         applyStateSnapshot(remoteState ?? createInitialAppState(), identity);
         setBackendStatus("connected");
       } catch (error) {
-        console.error("Backend state load failed, using fallback data.", error);
+        console.error("Backend state load failed, trying public events fallback.", error);
         if (cancelled) return;
-        applyStateSnapshot(createInitialAppState(), identity);
+        const fallback = createInitialAppState();
+        try {
+          const eventsRes = await fetch(`${API_BASE_URL}/api/events`);
+          if (eventsRes.ok) {
+            const { events: dbEvents } = await eventsRes.json();
+            if (Array.isArray(dbEvents) && dbEvents.length > 0) {
+              fallback.events = dbEvents;
+            }
+          }
+        } catch (evtErr) {
+          console.warn("Public events fetch skipped:", evtErr);
+        }
+        applyStateSnapshot(fallback, identity);
         setBackendStatus("offline");
       } finally {
         if (!cancelled) {
@@ -336,15 +361,21 @@ export default function App() {
     };
   }, []);
 
-  // Persist state changes
+  // Persist state changes — retry-friendly: a transient save failure does NOT
+  // permanently disable autosave. The effect keeps firing on every state change
+  // so the next mutation has a chance to succeed.
   useEffect(() => {
-    if (!isHydrated || backendStatus !== "connected") return;
+    if (!isHydrated) return;
     if (!sessionStorage.getItem("neon_auth_token")) return;
 
     const timeoutId = window.setTimeout(() => {
-      saveAppState(currentStateSnapshot()).catch((error) => {
-        console.error("Backend state save failed.", error);
-        setBackendStatus("offline");
+      saveAppState(currentStateSnapshot()).then(() => {
+        // If we were offline, a successful save means we recovered.
+        setBackendStatus("connected");
+      }).catch((error) => {
+        console.warn("Backend state save failed (will retry on next change).", error);
+        // Do NOT set backendStatus to "offline" — that would permanently
+        // disable autosave until a full page reload.
       });
     }, 300);
 
@@ -484,6 +515,7 @@ export default function App() {
 
   // Callback: Add New Event (Organizer Workspace Builder)
   const handleAddNewEvent = (newEvent: EventItem) => {
+    // 1. Optimistic UI update — show the event immediately.
     const updated = [newEvent, ...events];
     persistState("gps_events", updated, setEvents);
 
@@ -513,18 +545,36 @@ export default function App() {
     const nextAudit = [addedAudit, ...auditLogs];
     persistState("gps_auditlogs", nextAudit, setAuditLogs);
 
-    // Synchronously insert event into Neon PostgreSQL via POST /api/events
-    createEventApi(newEvent)
+    // 2. PERSIST to Neon PostgreSQL — try BOTH paths and ensure at least one succeeds.
+    //    Path A: POST /api/events (dedicated atomic insert)
+    //    Path B: PUT  /api/state  (full state blob save → syncReportingTables)
+    const persistA = createEventApi(newEvent)
       .then((res) => {
         if (res?.event?.id) {
           setEvents((current) =>
             current.map((e) => (e.id === newEvent.id ? { ...e, id: res.event.id } : e)),
           );
         }
+        return true;
       })
       .catch((err) => {
-        console.error("POST /api/events persistence error:", err);
+        console.warn("POST /api/events failed:", err);
+        return false;
       });
+
+    const persistB = saveAppState({
+      ...currentStateSnapshot(),
+      events: updated,
+    }).then(() => true).catch((err) => {
+      console.warn("PUT /api/state failed:", err);
+      return false;
+    });
+
+    Promise.all([persistA, persistB]).then(([a, b]) => {
+      if (!a && !b) {
+        addToast("error", `Failed to save "${newEvent.title}" to database. Your event will be lost on refresh. Please check your connection and try again.`);
+      }
+    });
   };
 
   // Callback: Book Event Ticket (From AttendeeEventsList)
