@@ -68,7 +68,7 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
         
         {/* Main Copywriting */}
         <div className="flex flex-col items-center gap-5">
-          <div className="inline-flex items-center gap-2 bg-[#2F756A]/10 border border-[#2F756A]/20 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-[#2F756A]">
+          <div className="inline-flex items-center gap-2 bg-[#42566E]/10 border border-[#42566E]/20 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-[#42566E]">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Smart Campus Access Portal</span>
           </div>

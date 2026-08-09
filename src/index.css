@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  /* GatePass Premium Warm Neutral Design System Tokens */
+  /* GatePass Premium Design System Tokens */
   --gp-bg-primary: #F3EEEB;
   --gp-bg-secondary: #E8E1DD;
   --gp-surface: #F8F5F2;
@@ -20,9 +20,15 @@
   --gp-text-secondary: #625B57;
   --gp-text-muted: #938C87;
 
-  --gp-accent: #2F756A;
-  --gp-accent-active: #438F82;
-  --gp-accent-soft: rgba(47, 117, 106, 0.10);
+  /* Brand Accent: Deep Mineral Blue / Slate Navy */
+  --gp-accent: #42566E;
+  --gp-accent-active: #58708C;
+  --gp-accent-soft: rgba(66, 86, 110, 0.10);
+  --gp-accent-border: rgba(66, 86, 110, 0.26);
+
+  /* Operational Success: Muted Sage Green */
+  --gp-success: #55765F;
+  --gp-success-soft: rgba(85, 118, 95, 0.11);
 
   --gp-danger: #A34F4C;
   --gp-danger-soft: rgba(163, 79, 76, 0.10);
@@ -74,7 +80,8 @@
   --color-on-primary: #F8F5F2;
   --color-inverse-surface: #171719;
   --color-on-tertiary-fixed: #171719;
-  --color-status-success: #2F756A;
+  --color-status-success: #55765F;
+  --color-brand-accent: #42566E;
   --color-pass-temporary: #E8E1DD;
   --color-primary-fixed: #E8E1DD;
   --color-on-primary-container: #F8F5F2;

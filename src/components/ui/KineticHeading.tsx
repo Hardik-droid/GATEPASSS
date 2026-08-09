@@ -46,7 +46,7 @@ export const KineticHeading: React.FC<KineticHeadingProps> = ({
             animationDelay: `${delay}ms`,
             willChange: "transform, opacity",
           }}
-          className={`inline-block font-serif italic font-normal tracking-normal text-emerald-500 dark:text-emerald-400 animate-kinetic-accent`}
+          className={`inline-block font-serif italic font-normal tracking-normal text-[#42566E] dark:text-[#58708C] animate-kinetic-accent`}
         >
           {accent}
         </span>

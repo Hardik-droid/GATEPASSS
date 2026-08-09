@@ -70,7 +70,7 @@ export default function LoadingScreen({ isHydrated, onExitComplete }: LoadingScr
       >
         <Loader2
           style={{ willChange: "transform" }}
-          className="w-4 h-4 text-[#2F756A] animate-spin-smooth"
+          className="w-4 h-4 text-[#42566E] animate-spin-smooth"
         />
         <span>Connecting to server…</span>
       </div>

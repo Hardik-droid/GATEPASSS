@@ -66,20 +66,20 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
       >
         {/* Subtle Pearlescent Light Sweep Effect across card */}
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-shimmer-pass pointer-events-none" />
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2F756A] via-[#766052] to-[#2F756A] opacity-70" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#42566E] via-[#766052] to-[#42566E] opacity-70" />
 
-        {/* Identity Verified Top Badge */}
+        {/* Identity Verified Top Badge (Operational Success: Muted Sage Green) */}
         <div
           style={{
             animation: "postLoginBadgeEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) 500ms both",
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#2F756A]/15 text-[#438F82] border border-[#2F756A]/30"
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#55765F]/15 text-[#55765F] border border-[#55765F]/30"
         >
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>IDENTITY VERIFIED</span>
         </div>
 
-        {/* Central Fingerprint Icon Box */}
+        {/* Central Fingerprint Icon Box (Brand Accent: Mineral Blue) */}
         <div
           style={{
             animation: "postLoginIconEnter 450ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both",
@@ -87,7 +87,7 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
           className="w-20 h-20 rounded-3xl bg-[#242321] border border-white/10 p-0.5 shadow-xl flex items-center justify-center relative group"
         >
           <div className="w-full h-full bg-[#171719] rounded-[22px] flex items-center justify-center text-white">
-            <Fingerprint className="w-10 h-10 text-[#2F756A] animate-pulse" />
+            <Fingerprint className="w-10 h-10 text-[#42566E] animate-pulse" />
           </div>
         </div>
 
@@ -104,14 +104,14 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
           </p>
         </div>
 
-        {/* Activated System Status Indicator */}
+        {/* Activated System Status Indicator (Mineral Blue Connected Indicator) */}
         <div
           style={{
             animation: "postLoginStatusEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) 950ms both",
           }}
-          className="flex items-center gap-2 pt-2 border-t border-white/10 w-full justify-center text-[10px] uppercase font-black tracking-widest text-[#2F756A]"
+          className="flex items-center gap-2 pt-2 border-t border-white/10 w-full justify-center text-[10px] uppercase font-black tracking-widest text-[#42566E]"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#2F756A] animate-ping" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#42566E] animate-ping" />
           <span>SESSION AUTHENTICATED</span>
         </div>
       </div>
