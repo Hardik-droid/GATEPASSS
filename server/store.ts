@@ -195,8 +195,51 @@ export class PostgresAppStateStore implements AppStateStore {
                 row.banner_url ||
                 "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
               capacity: Number(row.capacity) || 1000,
-              ticketCategories: [],
+              ticketCategories: [
+                {
+                  id: `cat_${row.id}_0`,
+                  eventId: row.id,
+                  name: "General Pass",
+                  description: "General Access Tier",
+                  price: 150,
+                  capacity: Number(row.capacity) || 500,
+                  soldCount: 0,
+                },
+                {
+                  id: `cat_${row.id}_1`,
+                  eventId: row.id,
+                  name: "VIP Pass",
+                  description: "VIP Access Tier",
+                  price: 499,
+                  capacity: 100,
+                  soldCount: 0,
+                },
+              ],
             });
+          } else {
+            const existingEv = eventsMap.get(row.id);
+            if (!existingEv.ticketCategories || existingEv.ticketCategories.length === 0) {
+              existingEv.ticketCategories = [
+                {
+                  id: `cat_${row.id}_0`,
+                  eventId: row.id,
+                  name: "General Pass",
+                  description: "General Access Tier",
+                  price: 150,
+                  capacity: Number(row.capacity) || 500,
+                  soldCount: 0,
+                },
+                {
+                  id: `cat_${row.id}_1`,
+                  eventId: row.id,
+                  name: "VIP Pass",
+                  description: "VIP Access Tier",
+                  price: 499,
+                  capacity: 100,
+                  soldCount: 0,
+                },
+              ];
+            }
           }
         }
         const mergedEvents = Array.from(eventsMap.values());
@@ -324,6 +367,56 @@ export class PostgresAppStateStore implements AppStateStore {
         console.warn("Non-fatal: scanner.events table sync skipped during createEvent:", scannerErr);
       }
 
+      const categoriesToSave = (eventData.ticketCategories && eventData.ticketCategories.length > 0)
+        ? eventData.ticketCategories
+        : [
+            {
+              id: `cat_${eventDbId}_0`,
+              eventId: eventDbId,
+              name: "General Pass",
+              description: "General Access Tier",
+              price: 150,
+              capacity: Number(eventData.capacity) || 500,
+              soldCount: 0,
+            },
+            {
+              id: `cat_${eventDbId}_1`,
+              eventId: eventDbId,
+              name: "VIP Pass",
+              description: "VIP Access Tier",
+              price: 499,
+              capacity: 100,
+              soldCount: 0,
+            },
+          ];
+
+      for (const cat of categoriesToSave) {
+        const catDbId = stableUuid("ticket_categories", cat.id);
+        try {
+          await client.query(
+            `INSERT INTO ticket_categories (
+              id, event_id, name, description, price, capacity, sold_count
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (id) DO UPDATE SET
+              name = EXCLUDED.name,
+              price = EXCLUDED.price,
+              capacity = EXCLUDED.capacity,
+              sold_count = EXCLUDED.sold_count`,
+            [
+              catDbId,
+              eventDbId,
+              cat.name,
+              cat.description || "",
+              cat.price || 0,
+              cat.capacity || 500,
+              cat.soldCount || 0,
+            ],
+          );
+        } catch (catErr) {
+          console.warn("Non-fatal: ticket_categories insert skipped:", catErr);
+        }
+      }
+
       await client.query("COMMIT");
 
       const createdRow = res.rows[0];
@@ -337,7 +430,7 @@ export class PostgresAppStateStore implements AppStateStore {
         endTime: new Date(createdRow.end_time).toISOString(),
         bannerUrl: createdRow.banner_url,
         capacity: Number(createdRow.capacity),
-        ticketCategories: eventData.ticketCategories || [],
+        ticketCategories: categoriesToSave,
       };
 
       return {

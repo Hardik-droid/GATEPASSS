@@ -185,7 +185,12 @@ export default function OrganizerWorkspace({
     }
 
     const newEventId = "ev_" + Date.now();
-    const formattedCategories: TicketCategory[] = categories.map((cat, idx) => ({
+    const categoriesSource = categories.length > 0 ? categories : [
+      { name: "General Pass", price: 150, capacity: 400 },
+      { name: "VIP Pass", price: 499, capacity: 100 }
+    ];
+
+    const formattedCategories: TicketCategory[] = categoriesSource.map((cat, idx) => ({
       id: `cat_${newEventId}_${idx}`,
       eventId: newEventId,
       name: cat.name,

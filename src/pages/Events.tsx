@@ -180,12 +180,40 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
     return matchesSearch && categoryQuery;
   });
 
+  const getEventTicketCategories = (event: EventItem | null) => {
+    if (!event) return [];
+    if (event.ticketCategories && event.ticketCategories.length > 0) {
+      return event.ticketCategories;
+    }
+    return [
+      {
+        id: `cat_${event.id}_0`,
+        eventId: event.id,
+        name: "General Pass",
+        description: "General Access Tier",
+        price: 150,
+        capacity: event.capacity || 500,
+        soldCount: 0,
+      },
+      {
+        id: `cat_${event.id}_1`,
+        eventId: event.id,
+        name: "VIP Pass",
+        description: "VIP Access Tier",
+        price: 499,
+        capacity: 100,
+        soldCount: 0,
+      },
+    ];
+  };
+
   const handleOpenEventDetails = (event: EventItem) => {
     setSelectedEvent(event);
     setIsBooking(false);
     setIsCheckoutSuccess(false);
-    if (event.ticketCategories.length > 0) {
-      setSelectedTicketCat(event.ticketCategories[0].id);
+    const cats = getEventTicketCategories(event);
+    if (cats.length > 0) {
+      setSelectedTicketCat(cats[0].id);
     }
   };
 
@@ -193,7 +221,8 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
     if (e && e.preventDefault) e.preventDefault();
     if (!selectedEvent) return;
 
-    const chosenCategory = selectedEvent.ticketCategories.find(c => c.id === selectedTicketCat);
+    const cats = getEventTicketCategories(selectedEvent);
+    const chosenCategory = cats.find(c => c.id === selectedTicketCat) || cats[0];
     if (!chosenCategory) return;
 
     const totalAmount = chosenCategory.price * ticketQty;
@@ -755,44 +784,50 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
             <div className="border-t border-neutral-100 w-full my-1.5" />
 
             {/* Selector for Ticket Categories & Quantities if multiple exist and not checked out */}
-            {!isCheckoutSuccess && (
-              <div className="my-3 flex flex-col gap-2 bg-neutral-50/60 p-3 rounded-2xl border border-neutral-100">
-                <div className="flex items-center justify-between text-[11px] font-bold text-neutral-500 uppercase">
-                  <span>Category</span>
-                  <span>Quantity</span>
-                </div>
-                <div className="flex gap-2">
-                  <select 
-                    value={selectedTicketCat}
-                    onChange={(e) => setSelectedTicketCat(e.target.value)}
-                    className="flex-1 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
-                  >
-                    {selectedEvent.ticketCategories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name} ({cat.price === 0 ? "FREE" : `₹${cat.price.toLocaleString()}`})
-                      </option>
-                    ))}
-                  </select>
-                  <select 
-                    value={ticketQty}
-                    onChange={(e) => setTicketQty(Number(e.target.value))}
-                    className="w-16 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
-                  >
-                    {[1, 2, 3, 4, 5].map(q => (
-                      <option key={q} value={q}>{q}x</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
+            {!isCheckoutSuccess && (() => {
+              const catsToRender = getEventTicketCategories(selectedEvent);
+              const activeCat = catsToRender.find(c => c.id === selectedTicketCat) || catsToRender[0];
+              return (
+                <>
+                  <div className="my-3 flex flex-col gap-2 bg-neutral-50/60 p-3 rounded-2xl border border-neutral-100">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-neutral-500 uppercase">
+                      <span>Category</span>
+                      <span>Quantity</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <select 
+                        value={selectedTicketCat || activeCat?.id}
+                        onChange={(e) => setSelectedTicketCat(e.target.value)}
+                        className="flex-1 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
+                      >
+                        {catsToRender.map(cat => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name} ({cat.price === 0 ? "FREE" : `₹${cat.price.toLocaleString()}`})
+                          </option>
+                        ))}
+                      </select>
+                      <select 
+                        value={ticketQty}
+                        onChange={(e) => setTicketQty(Number(e.target.value))}
+                        className="w-16 p-2 text-xs font-bold text-neutral-800 bg-white border border-neutral-200 rounded-xl outline-none"
+                      >
+                        {[1, 2, 3, 4, 5].map(q => (
+                          <option key={q} value={q}>{q}x</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-            {/* Pricing Section */}
-            <div className="mb-5 mt-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 block">FROM</span>
-              <span className="text-3xl font-black tracking-tight text-neutral-950">
-                ₹{((selectedEvent.ticketCategories.find(c => c.id === selectedTicketCat)?.price || 0) * ticketQty).toLocaleString()}
-              </span>
-            </div>
+                  {/* Pricing Section */}
+                  <div className="mb-5 mt-2">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 block">FROM</span>
+                    <span className="text-3xl font-black tracking-tight text-neutral-950">
+                      ₹{((activeCat?.price || 0) * ticketQty).toLocaleString()}
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Action Area: Book button / Razorpay / Success state */}
             {!isCheckoutSuccess ? (
