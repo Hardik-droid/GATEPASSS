@@ -25,7 +25,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ShieldAlert,
-  Smartphone
+  Smartphone,
+  CheckCircle2
 } from "lucide-react";
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
@@ -323,46 +324,64 @@ export default function OrganizerWorkspace({
       </div>
 
       {/* Ribbon Navigator Toggles */}
-      <div className="w-full bg-white/70 p-1.5 rounded-xl flex flex-wrap gap-1 border border-outline-variant/30">
+      <div className="w-full bg-[#F8F5F2] p-1.5 rounded-2xl flex flex-wrap gap-1.5 border border-black/10 shadow-sm mb-7">
         <button
           onClick={() => setActiveTab("dashboard")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "dashboard" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "dashboard"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Control Room (Live)
         </button>
         <button
           onClick={() => setActiveTab("builder")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "builder" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "builder"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Event Builder
         </button>
         <button
           onClick={() => setActiveTab("manual")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "manual" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "manual"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Manual/Cash Sales
         </button>
         <button
           onClick={() => setActiveTab("settlement")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "settlement" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "settlement"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Settlements &amp; Fees
         </button>
         <button
           onClick={() => setActiveTab("audit")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "audit" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "audit"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Audit Ledger
         </button>
         <button
           onClick={() => setActiveTab("org")}
-          className={`flex-1 min-w-[120px] py-2 text-center rounded-lg font-bold text-xs tracking-wider transition-all cursor-pointer ${activeTab === "org" ? "bg-charcoal-dark text-white shadow" : "text-on-surface-variant hover:text-charcoal-dark"
-            }`}
+          className={`flex-1 min-w-[120px] py-2 px-3 text-center rounded-xl font-bold text-xs tracking-wider transition-all cursor-pointer ${
+            activeTab === "org"
+              ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+              : "text-[#625B57] hover:text-[#171719] font-semibold"
+          }`}
         >
           Org &amp; Settings
         </button>
@@ -372,60 +391,59 @@ export default function OrganizerWorkspace({
       {activeTab === "dashboard" && (
         <div className="flex flex-col gap-6" id="dashboard-tab-content">
           {/* Bento live statistics cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Sales Volume */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Gross Sales Volume</span>
-                <DollarSign className="w-4 h-4 text-primary" />
-              </div>
-              <h3 className="text-2xl font-black text-charcoal-dark flex items-center">
-                ₹<AnimatedNumber value={totalSalesVolume} className="text-2xl font-black" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {/* 1. Gross Sales Volume (No Dollar Icon) */}
+            <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
+              <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Gross Sales Volume</span>
+              <h3 className="text-3xl font-extrabold text-[#171719] my-2 tabular-nums flex items-center">
+                ₹<AnimatedNumber value={totalSalesVolume} className="text-3xl font-extrabold tabular-nums" />
               </h3>
-              <span className="text-[10px] text-outline font-medium mt-2 flex items-center gap-1">
-                From {orders.length} digital/manual reservations
+              <span className="text-[11px] text-[#625B57] font-medium">
+                {orders.length} reservations
               </span>
             </div>
 
-            {/* Total Checked In */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Checked In / Used</span>
-                <ShieldCheck className="w-4 h-4 text-status-success" />
+            {/* 2. Total Checked In / Used (Subtle Sage Green Check Icon) */}
+            <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Checked In / Used</span>
+                <CheckCircle2 className="w-4 h-4 text-[#55765F]" />
               </div>
-              <h3 className="text-2xl font-black text-status-success flex items-center">
-                <AnimatedNumber value={totalCheckedIn} className="text-2xl font-black" /> <span className="text-sm font-semibold text-outline ml-1">/ {tickets.length}</span>
+              <h3 className="text-3xl font-extrabold text-[#55765F] my-1.5 tabular-nums flex items-center gap-1.5">
+                <AnimatedNumber value={totalCheckedIn} className="text-3xl font-extrabold tabular-nums" />
+                <span className="text-sm font-bold text-[#938C87]">/ {tickets.length}</span>
               </h3>
-              {/* Progress bar */}
-              <div className="w-full bg-surface-container h-1.5 rounded-full mt-2 overflow-hidden">
+              {/* Clean thin progress bar */}
+              <div className="w-full bg-[#171719]/10 h-1.5 rounded-full overflow-hidden">
                 <div
-                  className="bg-status-success h-full rounded-full transition-all"
+                  className="bg-[#55765F] h-full rounded-full transition-all"
                   style={{ width: `${tickets.length ? (totalCheckedIn / tickets.length) * 100 : 0}%` }}
-                ></div>
+                />
               </div>
             </div>
 
-            {/* Duplicate Scan Attempts */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black text-status-danger uppercase tracking-wider">Blocked Fraud Scans</span>
-                <AlertOctagon className="w-4 h-4 text-status-danger" />
+            {/* 3. Blocked Fraud Scans (Subtle Muted Red Warning Icon) */}
+            <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Blocked Fraud Scans</span>
+                <AlertOctagon className="w-4 h-4 text-[#A34F4C]" />
               </div>
-              <h3 className="text-2xl font-black text-status-danger"><AnimatedNumber value={duplicateScanAttempts} className="text-2xl font-black" /></h3>
-              <span className="text-[10px] text-status-danger font-medium mt-2 flex items-center gap-1">
-                Same-QR duplicated screenshots blocked
+              <h3 className="text-3xl font-extrabold text-[#A34F4C] my-2 tabular-nums">
+                <AnimatedNumber value={duplicateScanAttempts} className="text-3xl font-extrabold tabular-nums" />
+              </h3>
+              <span className="text-[11px] text-[#625B57] font-medium">
+                Duplicate QR attempts blocked
               </span>
             </div>
 
-            {/* Refunded Count */}
-            <div className="bg-white rounded-xl p-4 shadow-sm border border-outline-variant/30 flex flex-col justify-between">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-wider">Cancellations / Refunds</span>
-                <Users className="w-4 h-4 text-outline" />
-              </div>
-              <h3 className="text-2xl font-black text-charcoal-dark"><AnimatedNumber value={totalRefunded} className="text-2xl font-black" /></h3>
-              <span className="text-[10px] text-outline font-medium mt-2">
-                Voided from database instantly
+            {/* 4. Cancellations / Refunds (No Icon) */}
+            <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
+              <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Cancellations / Refunds</span>
+              <h3 className="text-3xl font-extrabold text-[#171719] my-2 tabular-nums">
+                <AnimatedNumber value={totalRefunded} className="text-3xl font-extrabold tabular-nums" />
+              </h3>
+              <span className="text-[11px] text-[#625B57] font-medium">
+                Voided reservations
               </span>
             </div>
           </div>
