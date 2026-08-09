@@ -573,9 +573,9 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                   <div 
                     key={event.id}
                     onClick={() => handleOpenEventDetails(event)}
-                    className="bg-[#F8F5F2] rounded-2xl border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.04)] hover:shadow-[0_12px_32px_rgba(49,40,36,0.08)] hover:-translate-y-0.5 hover:border-[#42566E]/40 transition-all duration-200 overflow-hidden flex flex-col justify-between cursor-pointer group"
+                    className="bg-[#F8F5F2] rounded-2xl border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.04)] hover:shadow-[0_12px_32px_rgba(49,40,36,0.08)] hover:-translate-y-0.5 hover:border-[#42566E]/40 transition-all duration-200 overflow-hidden flex flex-col justify-start cursor-pointer group"
                   >
-                    <div className="h-44 w-full relative overflow-hidden bg-[#E8E1DD]">
+                    <div className="h-48 w-full relative overflow-hidden bg-[#E8E1DD] flex-shrink-0">
                       <img 
                         src={event.bannerUrl} 
                         alt={event.title} 
@@ -589,28 +589,26 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                       </div>
                     </div>
 
-                    <div className="p-[18px_22px_20px] flex flex-col justify-start h-auto flex-1">
+                    <div className="p-[16px_20px_17px] flex flex-col justify-start h-auto">
                       {/* Title + Subtitle Group */}
-                      <div className="flex flex-col gap-1 mb-3.5">
-                        <h4 className="text-xl font-extrabold text-[#171719] leading-tight group-hover:text-[#42566E] transition-colors line-clamp-2">
+                      <div className="flex flex-col gap-0.5">
+                        <h4 className="text-[18px] font-extrabold text-[#171719] leading-tight group-hover:text-[#42566E] transition-colors line-clamp-1">
                           {event.title}
                         </h4>
-                        <p className="text-xs text-[#625B57] line-clamp-2 leading-relaxed">
+                        <p className="text-[13px] text-[#625B57] leading-snug truncate">
                           {event.description}
                         </p>
                       </div>
 
-                      {/* Divider */}
-                      <div className="w-full border-t border-black/10 my-3.5" />
-
-                      {/* Date & Location Metadata Group */}
-                      <div className="flex flex-col gap-2 text-xs text-[#625B57] font-medium">
-                        <div className="flex items-center gap-2.5">
-                          <Calendar className="w-4 h-4 text-[#42566E] flex-shrink-0" />
+                      {/* Single Row Metadata (No Divider) */}
+                      <div className="flex items-center gap-2.5 text-[12.5px] text-[#625B57] font-medium mt-3 flex-wrap sm:flex-nowrap min-w-0">
+                        <div className="inline-flex items-center gap-1.5 flex-shrink-0">
+                          <Calendar className="w-3.5 h-3.5 text-[#42566E] flex-shrink-0" />
                           <span>{new Date(event.startTime).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>
                         </div>
-                        <div className="flex items-center gap-2.5">
-                          <MapPin className="w-4 h-4 text-[#42566E] flex-shrink-0" />
+                        <span className="text-[#938C87] text-[10px] hidden sm:inline flex-shrink-0">·</span>
+                        <div className="inline-flex items-center gap-1.5 min-w-0 truncate">
+                          <MapPin className="w-3.5 h-3.5 text-[#42566E] flex-shrink-0" />
                           <span className="truncate">{event.venue}</span>
                         </div>
                       </div>
