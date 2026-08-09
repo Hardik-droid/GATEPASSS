@@ -992,8 +992,12 @@ export default function App() {
             )}
           </div>
 
-          {/* GROUP 2: CENTER AREA — ROUNDED NAVIGATION CAPSULE */}
-          <nav className="bg-[#F8F5F2]/85 border border-black/10 backdrop-blur-md rounded-[22px] p-1.5 shadow-sm flex items-center gap-1 mx-auto">
+          {/* GROUP 2: CENTER AREA — COMPACT ULTRA-SUBTLE GLASS NAVIGATION CAPSULE */}
+          <nav className={`w-fit mx-auto h-[42px] px-1.5 rounded-[19px] border backdrop-blur-[14px] shadow-[0_4px_18px_rgba(32,27,24,0.04)] flex items-center gap-1 transition-all duration-300 ${
+            isScrolled 
+              ? "bg-white/25 border-white/30 shadow-sm" 
+              : "bg-white/14 border-white/20"
+          }`}>
             {perspective === "attendee" ? (
               /* ATTENDEE ROUTES */
               <>
@@ -1002,10 +1006,10 @@ export default function App() {
                   end
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
@@ -1016,10 +1020,10 @@ export default function App() {
                   to="/request"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
@@ -1030,10 +1034,10 @@ export default function App() {
                   to="/approvals"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer relative ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer relative ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
@@ -1049,10 +1053,10 @@ export default function App() {
                   to="/events"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
@@ -1066,10 +1070,10 @@ export default function App() {
                   to="/organizer"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
@@ -1080,10 +1084,10 @@ export default function App() {
                   to="/scanner"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-9 px-4 rounded-[14px] flex items-center justify-center text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
                       isActive 
-                        ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-black/5"
+                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
+                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
                     }`
                   }
                 >
