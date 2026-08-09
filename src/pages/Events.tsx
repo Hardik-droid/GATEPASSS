@@ -427,25 +427,25 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
 
         {/* Featured Spotlight Card */}
         {afterlifeSpotlight && (
-          <section className="flex flex-col gap-4">
-            <h3 className="text-xs font-black uppercase tracking-wider text-[#938C87]">Featured Spotlight</h3>
+          <section className="flex flex-col gap-3.5 max-w-[1120px] mx-auto w-full mt-6 mb-10">
+            <h3 className="text-xs sm:text-sm font-extrabold text-[#746D68] uppercase tracking-wider">Featured Spotlight</h3>
             
             <div 
               onClick={() => handleOpenEventDetails(afterlifeSpotlight)}
-              className="bg-[#F8F5F2] rounded-2xl border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.04)] overflow-hidden flex flex-col md:flex-row hover:border-[#42566E]/40 transition-all duration-300 cursor-pointer group"
+              className="bg-[#F8F5F2] rounded-[16px] border border-black/10 shadow-[0_10px_30px_rgba(32,27,24,0.07)] overflow-hidden flex flex-col md:flex-row hover:border-[#42566E]/40 transition-all duration-300 cursor-pointer group"
             >
-              <div className="relative md:w-1/2 h-64 md:h-80 overflow-hidden bg-[#E8E1DD]">
+              <div className="relative md:w-1/2 h-[210px] md:h-[280px] lg:h-[320px] overflow-hidden bg-[#E8E1DD] flex-shrink-0">
                 <img 
                   src={afterlifeSpotlight.bannerUrl || "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=1200&auto=format&fit=crop&q=80"} 
                   alt={afterlifeSpotlight.title} 
-                  className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                  className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
                 />
-                <div className="absolute top-4 left-4 bg-[#171719]/80 backdrop-blur-md text-[#F8F5F2] text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border border-white/10">
+                <div className="absolute top-4 left-4 h-[31px] px-3.5 bg-[#F8F5F2]/90 backdrop-blur-md text-[#42566E] text-[11px] font-bold uppercase tracking-wider rounded-[10px] border border-black/10 flex items-center shadow-sm">
                   Featured Experience
                 </div>
               </div>
 
-              <div className="p-6 md:p-8 flex flex-col justify-between md:w-1/2 gap-4">
+              <div className="p-6 md:p-8 flex flex-col justify-between md:w-1/2 gap-4 flex-1">
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold tracking-wider text-[#42566E] uppercase bg-[#42566E]/10 px-2.5 py-1 rounded-md">
@@ -458,7 +458,7 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
                       <Heart className={`w-4 h-4 ${favorites.includes("ev6") ? "fill-[#A34F4C] text-[#A34F4C]" : "text-[#625B57]"}`} />
                     </button>
                   </div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-[#171719] tracking-tight group-hover:text-[#42566E] transition-colors mt-1">
+                  <h2 className="text-xl md:text-2xl font-extrabold text-[#171719] tracking-tight group-hover:text-[#42566E] transition-colors mt-1">
                     {afterlifeSpotlight.title}
                   </h2>
                   <p className="text-xs text-[#625B57] line-clamp-3 leading-relaxed mt-1">
