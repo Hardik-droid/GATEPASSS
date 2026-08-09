@@ -96,6 +96,23 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
       next(error);
     }
   });
+  app.get("/api/events", async (_req, res, next) => {
+    try {
+      const state = (await store.load()) ?? createInitialAppState();
+      res.json({ events: state.events });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/events", authenticateNeon, async (req, res, next) => {
+    try {
+      const result = await store.createEvent(req.body.event);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // QR and scanner endpoints are served exclusively by the FastAPI scanner
   // service (the sole QR/scan authority). The former Node mock routes

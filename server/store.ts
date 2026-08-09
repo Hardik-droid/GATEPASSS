@@ -11,6 +11,7 @@ export interface AppStateStore {
   health(): Promise<{ now: string }>;
   load(): Promise<AppStateSnapshot | null>;
   save(state: AppStateSnapshot): Promise<void>;
+  createEvent(eventData: any): Promise<any>;
   saveEventImage(uploadedBy: string, contentType: string, data: Buffer): Promise<string>;
   loadEventImage(id: string): Promise<{ contentType: string; data: Buffer } | null>;
 }
@@ -31,6 +32,23 @@ export class MemoryAppStateStore implements AppStateStore {
 
   async save(state: AppStateSnapshot): Promise<void> {
     this.state = state;
+  }
+
+  async createEvent(eventData: any): Promise<any> {
+    if (!this.state) {
+      this.state = {
+        events: [],
+        tickets: [],
+        orders: [],
+        requests: [],
+        invitePasses: [],
+        scanLogs: [],
+        settlements: [],
+        auditLogs: [],
+      } as any;
+    }
+    this.state.events.unshift(eventData);
+    return { event: eventData, default_gate: { id: "owner_gate", name: "Owner Gate" } };
   }
 
   async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer): Promise<string> {
@@ -217,6 +235,106 @@ export class PostgresAppStateStore implements AppStateStore {
       );
       await this.syncReportingTables(client, state);
       await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  async createEvent(eventData: any): Promise<any> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const organizationId = "org_001";
+      const eventDbId = stableUuid("events", eventData.id || randomUUID());
+
+      const res = await client.query<{
+        id: string;
+        title: string;
+        description: string;
+        event_type: string;
+        venue: string;
+        start_time: Date | string;
+        end_time: Date | string;
+        banner_url: string;
+        capacity: number;
+      }>(
+        `INSERT INTO events (
+          id, organization_id, title, description, event_type, venue, start_time, end_time, banner_url, capacity
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          organization_id = EXCLUDED.organization_id,
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          event_type = EXCLUDED.event_type,
+          venue = EXCLUDED.venue,
+          start_time = EXCLUDED.start_time,
+          end_time = EXCLUDED.end_time,
+          banner_url = EXCLUDED.banner_url,
+          capacity = EXCLUDED.capacity,
+          updated_at = now()
+        RETURNING id::text, title, description, event_type, venue, start_time, end_time, banner_url, capacity`,
+        [
+          eventDbId,
+          organizationId,
+          eventData.title,
+          eventData.description || "",
+          eventData.eventType || "Concert",
+          eventData.venue || "",
+          toDate(eventData.startTime),
+          toDate(eventData.endTime),
+          eventData.bannerUrl || "",
+          eventData.capacity || 1000,
+        ],
+      );
+
+      try {
+        await client.query(
+          `INSERT INTO scanner.events (
+            id, organization_name, name, starts_at, ends_at, venue, status, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'active', now())
+          ON CONFLICT (id) DO UPDATE SET
+            organization_name = EXCLUDED.organization_name,
+            name = EXCLUDED.name,
+            starts_at = EXCLUDED.starts_at,
+            ends_at = EXCLUDED.ends_at,
+            venue = EXCLUDED.venue,
+            status = EXCLUDED.status,
+            updated_at = now()`,
+          [
+            eventDbId,
+            "GatePass",
+            eventData.title,
+            toDate(eventData.startTime),
+            toDate(eventData.endTime),
+            eventData.venue,
+          ],
+        );
+      } catch (scannerErr) {
+        console.warn("Non-fatal: scanner.events table sync skipped during createEvent:", scannerErr);
+      }
+
+      await client.query("COMMIT");
+
+      const createdRow = res.rows[0];
+      const createdEvent = {
+        id: createdRow.id,
+        title: createdRow.title,
+        description: createdRow.description,
+        eventType: createdRow.event_type,
+        venue: createdRow.venue,
+        startTime: new Date(createdRow.start_time).toISOString(),
+        endTime: new Date(createdRow.end_time).toISOString(),
+        bannerUrl: createdRow.banner_url,
+        capacity: Number(createdRow.capacity),
+        ticketCategories: eventData.ticketCategories || [],
+      };
+
+      return {
+        event: createdEvent,
+        default_gate: { id: stableUuid("gates", eventDbId), name: "Owner Gate" },
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

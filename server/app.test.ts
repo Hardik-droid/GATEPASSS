@@ -24,6 +24,9 @@ class MemoryStore implements AppStateStore {
   async save(state: AppStateSnapshot) {
     this.state = state;
   }
+  async createEvent(eventData: any) {
+    return { event: eventData, default_gate: { id: "g_1", name: "Owner Gate" } };
+  }
   async saveEventImage(_uploadedBy: string, contentType: string, data: Buffer) {
     const id = "11111111-1111-4111-8111-111111111111";
     this.eventImages.set(id, { contentType, data });

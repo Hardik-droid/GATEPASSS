@@ -4,7 +4,7 @@ import {
   INITIAL_USER
 } from "./mockData";
 import { createInitialAppState, type AppStateSnapshot } from "./appState";
-import { loadAppState, saveAppState } from "./api";
+import { loadAppState, saveAppState, createEventApi } from "./api";
 import { 
   UserProfile, 
   AccessRequest, 
@@ -510,7 +510,21 @@ export default function App() {
       action: "Event Published",
       details: `Published "${newEvent.title}" (${newEvent.eventType}) at ${newEvent.venue}.`
     };
-    persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+    const nextAudit = [addedAudit, ...auditLogs];
+    persistState("gps_auditlogs", nextAudit, setAuditLogs);
+
+    // Synchronously insert event into Neon PostgreSQL via POST /api/events
+    createEventApi(newEvent)
+      .then((res) => {
+        if (res?.event?.id) {
+          setEvents((current) =>
+            current.map((e) => (e.id === newEvent.id ? { ...e, id: res.event.id } : e)),
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("POST /api/events persistence error:", err);
+      });
   };
 
   // Callback: Book Event Ticket (From AttendeeEventsList)
