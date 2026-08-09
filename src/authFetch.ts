@@ -29,3 +29,12 @@ export async function authFetch(url: string, init: RequestInit = {}): Promise<Re
   }
   return res;
 }
+
+export async function optionalAuthFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const token = await currentAuthToken();
+  const headers: Record<string, string> = { Accept: "application/json", ...(init.headers as Record<string, string> ?? {}) };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return fetch(url, { ...init, headers });
+}

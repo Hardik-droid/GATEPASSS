@@ -366,7 +366,6 @@ export default function App() {
   // so the next mutation has a chance to succeed.
   useEffect(() => {
     if (!isHydrated) return;
-    if (!sessionStorage.getItem("neon_auth_token")) return;
 
     const timeoutId = window.setTimeout(() => {
       saveAppState(currentStateSnapshot()).then(() => {

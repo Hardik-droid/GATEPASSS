@@ -66,3 +66,25 @@ export function makeAuthenticateNeon(verifier: NeonVerifier) {
       .catch(() => res.status(401).json({ error: "Unauthorized: invalid Neon Auth token." }));
   };
 }
+
+export function makeOptionalAuthenticateNeon(verifier: NeonVerifier) {
+  return (req: express.Request, _res: express.Response, next: express.NextFunction): void => {
+    const header = req.headers.authorization;
+    if (!header?.startsWith("Bearer ")) {
+      next();
+      return;
+    }
+    verifier
+      .verify(header.slice(7))
+      .then((claims) => {
+        const authenticatedRequest = req as AuthenticatedRequest;
+        authenticatedRequest.authSubject = claims.sub;
+        authenticatedRequest.authEmail = claims.email?.trim().toLowerCase();
+        authenticatedRequest.authName = claims.name?.trim() || undefined;
+        next();
+      })
+      .catch(() => {
+        next();
+      });
+  };
+}

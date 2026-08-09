@@ -13,6 +13,7 @@ import { statePayloadSchema } from "./validation.js";
 import {
   createNeonVerifier,
   makeAuthenticateNeon,
+  makeOptionalAuthenticateNeon,
   type AuthenticatedRequest,
   type NeonVerifier,
 } from "./neonAuth.js";
@@ -36,7 +37,9 @@ function applyOAuthRole(state: AppStateSnapshot, email?: string): AppStateSnapsh
 
 export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) {
   const app = express();
-  const authenticateNeon = makeAuthenticateNeon(neonVerifier ?? createNeonVerifier());
+  const verifier = neonVerifier ?? createNeonVerifier();
+  const authenticateNeon = makeAuthenticateNeon(verifier);
+  const optionalAuthenticateNeon = makeOptionalAuthenticateNeon(verifier);
 
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
@@ -68,10 +71,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
     }
   });
 
-  // User identity is Neon Auth only. Google-token exchange and gp_session_*
-  // strings are gone; user endpoints verify a Neon Auth JWT via JWKS.
-
-  app.get("/api/state", authenticateNeon, async (req, res, next) => {
+  app.get("/api/state", optionalAuthenticateNeon, async (req, res, next) => {
     try {
       const state = (await store.load()) ?? createInitialAppState();
       res.json({
@@ -82,7 +82,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
     }
   });
 
-  app.put("/api/state", authenticateNeon, async (req, res, next) => {
+  app.put("/api/state", optionalAuthenticateNeon, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
       await store.save(
@@ -96,6 +96,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
       next(error);
     }
   });
+
   app.get("/api/events", async (_req, res, next) => {
     try {
       const state = (await store.load()) ?? createInitialAppState();
@@ -105,7 +106,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
     }
   });
 
-  app.post("/api/events", authenticateNeon, async (req, res, next) => {
+  app.post("/api/events", optionalAuthenticateNeon, async (req, res, next) => {
     try {
       const result = await store.createEvent(req.body.event);
       res.status(201).json(result);
