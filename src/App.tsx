@@ -31,6 +31,7 @@ import AttendeeEventsList from "./pages/Events";
 import HomeUpdates from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
 import LoadingScreen from "./components/LoadingScreen";
+import PostLoginIntro from "./components/PostLoginIntro";
 import { MorphText } from "./components/ui/morph-text";
 import AnimatedButton from "./components/ui/animated-button";
 import SocialFlipButton from "./components/ui/social-flip-button";
@@ -120,6 +121,7 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "offline">("loading");
   const [isHydrated, setIsHydrated] = useState(false);
   const [isLoaderMounted, setIsLoaderMounted] = useState(true);
+  const [showPostLoginIntro, setShowPostLoginIntro] = useState(false);
 
   // Auth state (Issue #1 & #4)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -190,10 +192,17 @@ export default function App() {
     setIsAuthenticated(false);
     setAuthEmail(null);
     setCanAccessScanner(false);
+    setShowPostLoginIntro(false);
     sessionStorage.removeItem("neon_auth_token");
     sessionStorage.removeItem("neon_auth_email");
+    sessionStorage.removeItem("gatepass_post_login_intro_shown");
     addToast("info", "You have been signed out.");
   };
+
+  const handlePostLoginIntroComplete = useCallback(() => {
+    sessionStorage.setItem("gatepass_post_login_intro_shown", "true");
+    setShowPostLoginIntro(false);
+  }, []);
 
   const canAccessOrganizer = hasOrganizerAccess(user, authEmail);
   const hasScannerAccess = canAccessOrganizer || canAccessScanner;
@@ -300,6 +309,9 @@ export default function App() {
           setIsAuthenticated(true);
           setAuthEmail(u.email || null);
           if (u.email) sessionStorage.setItem("neon_auth_email", u.email);
+          if (sessionStorage.getItem("gatepass_post_login_intro_shown") !== "true") {
+            setShowPostLoginIntro(true);
+          }
         }
       } catch (err) {
         console.warn("Neon Auth session check warning:", err);
@@ -791,6 +803,15 @@ export default function App() {
     };
     persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
   };
+
+  if (showPostLoginIntro && isAuthenticated) {
+    return (
+      <PostLoginIntro
+        userEmail={authEmail}
+        onComplete={handlePostLoginIntroComplete}
+      />
+    );
+  }
 
   if (isLoaderMounted) {
     return (
