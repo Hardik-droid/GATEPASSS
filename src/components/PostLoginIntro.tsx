@@ -44,11 +44,11 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
         opacity: isExiting ? 0 : 1,
         pointerEvents: isExiting ? "none" : "auto",
       }}
-      className="fixed inset-0 z-[100] bg-[#050505] flex flex-col items-center justify-center p-6 select-none overflow-hidden"
+      className="fixed inset-0 z-[100] bg-[#F3EEEB] flex flex-col items-center justify-center p-6 select-none overflow-hidden"
     >
-      {/* Background Subtle Gradient Orbs */}
-      <div className="absolute top-[-15%] left-[-15%] w-[60%] aspect-square rounded-full bg-cyan-500/10 blur-[130px] pointer-events-none" />
-      <div className="absolute bottom-[-15%] right-[-15%] w-[60%] aspect-square rounded-full bg-[#ff2bd6]/10 blur-[130px] pointer-events-none" />
+      {/* Background Subtle Warm Gradient Orbs */}
+      <div className="absolute top-[-15%] left-[-15%] w-[60%] aspect-square rounded-full bg-[#2F756A]/10 blur-[130px] pointer-events-none" />
+      <div className="absolute bottom-[-15%] right-[-15%] w-[60%] aspect-square rounded-full bg-[#766052]/10 blur-[130px] pointer-events-none" />
 
       {/* Floating 3D Identity Access Credential Card */}
       <div
@@ -62,18 +62,18 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
           opacity: isExiting ? 0 : 1,
           animation: phase !== "exit" ? "cardFloat3D 1500ms cubic-bezier(0.22, 1, 0.36, 1) both" : undefined,
         }}
-        className="w-full max-w-sm bg-gradient-to-b from-white/12 to-white/[0.03] border border-white/15 rounded-[32px] p-7 shadow-2xl backdrop-blur-2xl relative overflow-hidden flex flex-col items-center text-center gap-5"
+        className="w-full max-w-sm bg-[#171719] border border-white/10 rounded-[32px] p-7 shadow-2xl backdrop-blur-2xl relative overflow-hidden flex flex-col items-center text-center gap-5"
       >
-        {/* Shimmer Light Sweep Effect across card */}
+        {/* Subtle Pearlescent Light Sweep Effect across card */}
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-shimmer-pass pointer-events-none" />
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-[#ff2bd6] to-cyan-400 opacity-70" />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#2F756A] via-[#766052] to-[#2F756A] opacity-70" />
 
         {/* Identity Verified Top Badge */}
         <div
           style={{
             animation: "postLoginBadgeEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) 500ms both",
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-[#2F756A]/15 text-[#438F82] border border-[#2F756A]/30"
         >
           <ShieldCheck className="w-3.5 h-3.5" />
           <span>IDENTITY VERIFIED</span>
@@ -84,10 +84,10 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
           style={{
             animation: "postLoginIconEnter 450ms cubic-bezier(0.22, 1, 0.36, 1) 200ms both",
           }}
-          className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-[#ff2bd6] p-0.5 shadow-xl flex items-center justify-center relative group"
+          className="w-20 h-20 rounded-3xl bg-[#242321] border border-white/10 p-0.5 shadow-xl flex items-center justify-center relative group"
         >
-          <div className="w-full h-full bg-[#0a0a0c] rounded-[22px] flex items-center justify-center text-white">
-            <Fingerprint className="w-10 h-10 text-cyan-400 animate-pulse" />
+          <div className="w-full h-full bg-[#171719] rounded-[22px] flex items-center justify-center text-white">
+            <Fingerprint className="w-10 h-10 text-[#2F756A] animate-pulse" />
           </div>
         </div>
 
@@ -99,7 +99,7 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
             size="md"
             align="center"
           />
-          <p className="text-xs text-neutral-400 font-medium tracking-wide mt-1">
+          <p className="text-xs text-[#938C87] font-medium tracking-wide mt-1">
             {userEmail ? userEmail : "Access System Ready"}
           </p>
         </div>
@@ -109,9 +109,9 @@ export default function PostLoginIntro({ userEmail, onComplete }: PostLoginIntro
           style={{
             animation: "postLoginStatusEnter 400ms cubic-bezier(0.22, 1, 0.36, 1) 950ms both",
           }}
-          className="flex items-center gap-2 pt-2 border-t border-white/10 w-full justify-center text-[10px] uppercase font-black tracking-widest text-cyan-400"
+          className="flex items-center gap-2 pt-2 border-t border-white/10 w-full justify-center text-[10px] uppercase font-black tracking-widest text-[#2F756A]"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+          <span className="w-1.5 h-1.5 rounded-full bg-[#2F756A] animate-ping" />
           <span>SESSION AUTHENTICATED</span>
         </div>
       </div>

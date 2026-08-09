@@ -46,18 +46,18 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white flex flex-col justify-between font-sans selection:bg-cyan-500 selection:text-white relative overflow-hidden">
-      {/* Background Gradient Orbs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50%] aspect-square rounded-full bg-cyan-500/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] aspect-square rounded-full bg-[#ff2bd6]/5 blur-[120px] pointer-events-none" />
+    <div className="min-h-screen bg-[#F3EEEB] text-[#171719] flex flex-col justify-between font-sans selection:bg-[#2F756A]/20 selection:text-[#171719] relative overflow-hidden">
+      {/* Background Warm Gradient Orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] aspect-square rounded-full bg-[#2F756A]/8 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] aspect-square rounded-full bg-[#766052]/8 blur-[120px] pointer-events-none" />
 
       {/* Header Navigation */}
-      <header className="px-6 py-6 md:px-16 flex items-center justify-between border-b border-white/5 relative z-10">
+      <header className="px-6 py-6 md:px-16 flex items-center justify-between border-b border-black/10 relative z-10">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-400 to-[#ff2bd6] flex items-center justify-center font-black text-sm text-black animate-pulse">
+          <div className="w-8 h-8 rounded-xl bg-[#171719] flex items-center justify-center font-black text-sm text-[#F8F5F2] shadow-sm">
             GP
           </div>
-          <span className="text-sm font-black tracking-widest uppercase bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
+          <span className="text-sm font-black tracking-widest uppercase text-[#171719]">
             GatePass
           </span>
         </div>
@@ -68,7 +68,7 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
         
         {/* Main Copywriting */}
         <div className="flex flex-col items-center gap-5">
-          <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-cyan-400">
+          <div className="inline-flex items-center gap-2 bg-[#2F756A]/10 border border-[#2F756A]/20 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider text-[#2F756A]">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Smart Campus Access Portal</span>
           </div>
@@ -78,18 +78,19 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
             primary="Absolute Control."
             size="xl"
             align="center"
+            lightMode={true}
           />
 
-          <p className="text-sm md:text-base text-neutral-400 leading-relaxed font-medium">
+          <p className="text-sm md:text-base text-[#625B57] leading-relaxed font-medium">
             GatePass integrates single-token secure QR identity, instant validation checkpoints, and Razorpay-powered event registration into one unified system. Authenticate via Google OAuth to proceed.
           </p>
         </div>
 
         {/* OAuth Google Authentication Block */}
-        <div className="w-full bg-neutral-900/50 border border-white/15 rounded-3xl p-6 md:p-8 backdrop-blur-md shadow-2xl flex flex-col gap-4 text-left">
+        <div className="w-full bg-[#F8F5F2] border border-black/10 rounded-3xl p-6 md:p-8 shadow-xl flex flex-col gap-4 text-left">
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white">Sign In &amp; Join GatePass</h3>
-            <p className="text-[11px] text-neutral-400 font-medium mt-1">Use your Google account via Neon Auth to gain instant entry.</p>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-[#171719]">Sign In &amp; Join GatePass</h3>
+            <p className="text-[11px] text-[#625B57] font-medium mt-1">Use your Google account via Neon Auth to gain instant entry.</p>
           </div>
           
           <div className="flex flex-col gap-3 pt-1">
@@ -97,7 +98,7 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
             <button
               onClick={handleNeonGoogleSignIn}
               disabled={loadingProfile}
-              className="w-full py-3.5 px-6 rounded-2xl bg-white text-black font-extrabold text-sm uppercase tracking-wider hover:bg-neutral-200 transition-all cursor-pointer flex items-center justify-center gap-3 shadow-lg active:scale-[0.99]"
+              className="w-full py-3.5 px-6 rounded-2xl bg-[#171719] text-[#F8F5F2] font-extrabold text-sm uppercase tracking-wider hover:bg-[#292725] transition-all cursor-pointer flex items-center justify-center gap-3 shadow-md active:scale-[0.99]"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -124,7 +125,7 @@ export default function LandingPage({ onLoginSuccess, onLoginError }: LandingPag
       </main>
 
       {/* Footer */}
-      <footer className="px-6 py-4 md:px-16 border-t border-white/5 text-center text-xs text-neutral-500 font-medium relative z-10">
+      <footer className="px-6 py-4 md:px-16 border-t border-black/10 text-center text-xs text-[#938C87] font-medium relative z-10">
         GatePass Access System • Secured by Neon Auth &amp; FastAPI
       </footer>
     </div>

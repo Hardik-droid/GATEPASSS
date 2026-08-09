@@ -39,14 +39,14 @@ export default function LoadingScreen({ isHydrated, onExitComplete }: LoadingScr
         transform: isExiting ? "translateY(-4px) scale(0.985)" : "translateY(0) scale(1)",
         pointerEvents: isExiting ? "none" : "auto",
       }}
-      className="fixed inset-0 z-[90] bg-background flex flex-col items-center justify-center gap-5 select-none"
+      className="fixed inset-0 z-[90] bg-[#F3EEEB] flex flex-col items-center justify-center gap-5 select-none"
     >
       {/* 1. Fingerprint Icon Box (0ms - 420ms) */}
       <div
         style={{
           animation: "loaderLogoEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) both",
         }}
-        className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg"
+        className="w-16 h-16 rounded-2xl bg-[#171719] flex items-center justify-center text-[#F8F5F2] shadow-md"
       >
         <Fingerprint className="w-9 h-9" />
       </div>
@@ -56,7 +56,7 @@ export default function LoadingScreen({ isHydrated, onExitComplete }: LoadingScr
         style={{
           animation: "loaderTitleEnter 420ms cubic-bezier(0.22, 1, 0.36, 1) 100ms both",
         }}
-        className="text-2xl font-black text-charcoal-dark uppercase tracking-tight"
+        className="text-2xl font-black text-[#171719] uppercase tracking-tight"
       >
         GATEPASS
       </h1>
@@ -66,11 +66,11 @@ export default function LoadingScreen({ isHydrated, onExitComplete }: LoadingScr
         style={{
           animation: "loaderStatusEnter 340ms cubic-bezier(0.22, 1, 0.36, 1) 220ms both",
         }}
-        className="flex items-center gap-2.5 text-sm font-semibold text-on-surface-variant"
+        className="flex items-center gap-2.5 text-sm font-semibold text-[#625B57]"
       >
         <Loader2
           style={{ willChange: "transform" }}
-          className="w-4 h-4 text-primary animate-spin-smooth"
+          className="w-4 h-4 text-[#2F756A] animate-spin-smooth"
         />
         <span>Connecting to server…</span>
       </div>

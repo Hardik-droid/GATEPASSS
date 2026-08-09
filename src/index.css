@@ -1,60 +1,94 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
 @import "tailwindcss";
 
+:root {
+  /* GatePass Premium Warm Neutral Design System Tokens */
+  --gp-bg-primary: #F3EEEB;
+  --gp-bg-secondary: #E8E1DD;
+  --gp-surface: #F8F5F2;
+  --gp-surface-muted: #DED5D0;
+
+  --gp-stone-100: #E4DCD8;
+  --gp-stone-200: #D0C4BD;
+  --gp-stone-300: #B6A292;
+
+  --gp-taupe: #978070;
+  --gp-bronze: #766052;
+  --gp-bronze-deep: #5A473D;
+
+  --gp-text-primary: #171719;
+  --gp-text-secondary: #625B57;
+  --gp-text-muted: #938C87;
+
+  --gp-accent: #2F756A;
+  --gp-accent-active: #438F82;
+  --gp-accent-soft: rgba(47, 117, 106, 0.10);
+
+  --gp-danger: #A34F4C;
+  --gp-danger-soft: rgba(163, 79, 76, 0.10);
+
+  --gp-warning: #9A734A;
+  --gp-warning-soft: rgba(154, 115, 74, 0.12);
+
+  --gp-border: rgba(63, 54, 50, 0.12);
+  --gp-border-strong: rgba(63, 54, 50, 0.22);
+  --gp-shadow: 0 12px 30px rgba(43, 35, 31, 0.08);
+}
+
 @theme {
-  --color-surface-container-high: #e4e4e7;
-  --color-on-secondary-fixed-variant: #52525b;
-  --color-surface-container-highest: #d4d4d8;
-  --color-surface-variant: #e4e4e7;
-  --color-error-container: #fee2e2;
-  --color-surface-bright: #ffffff;
-  --color-on-surface: #18181b;
-  --color-surface: #fafaf9;
-  --color-surface-container: #f4f4f5;
-  --color-tertiary-fixed: #f4f4f5;
-  --color-on-secondary-container: #52525b;
-  --color-status-warning: #f59e0b;
-  --color-error: #ef4444;
-  --color-on-secondary: #ffffff;
-  --color-on-primary-fixed-variant: #18181b;
-  --color-primary-fixed-dim: #a1a1aa;
-  --color-tertiary-container: #18181b;
-  --color-secondary-container: #e4e4e7;
-  --color-on-primary-fixed: #ffffff;
-  --color-secondary-fixed-dim: #a1a1aa;
-  --color-on-background: #18181b;
-  --color-on-tertiary-container: #ffffff;
-  --color-charcoal-dark: #18181b;
-  --color-inverse-on-surface: #f4f4f5;
-  --color-tertiary-fixed-dim: #e4e4e7;
-  --color-secondary-fixed: #f4f4f5;
-  --color-on-tertiary-fixed-variant: #18181b;
-  --color-on-error-container: #7f1d1d;
-  --color-surface-container-low: #ffffff;
-  --color-on-error: #ffffff;
-  --color-status-inactive: #a1a1aa;
-  --color-status-danger: #ef4444;
-  --color-on-surface-variant: #52525b;
-  --color-on-tertiary: #ffffff;
-  --color-outline-variant: #cbd5e1;
-  --color-on-primary: #ffffff;
-  --color-inverse-surface: #18181b;
-  --color-on-tertiary-fixed: #18181b;
-  --color-status-success: #10b981;
-  --color-pass-temporary: #f4f4f5;
-  --color-primary-fixed: #e4e4e7;
-  --color-on-primary-container: #ffffff;
-  --color-surface-dim: #d4d4d8;
-  --color-tertiary: #18181b;
-  --color-primary: #18181b;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-tint: #18181b;
-  --color-background: #fafaf9;
-  --color-outline: #64748b;
-  --color-secondary: #52525b;
-  --color-on-secondary-fixed: #18181b;
-  --color-primary-container: #18181b;
-  --color-inverse-primary: #d4d4d8;
+  --color-surface-container-high: #E8E1DD;
+  --color-on-secondary-fixed-variant: #625B57;
+  --color-surface-container-highest: #D0C4BD;
+  --color-surface-variant: #E8E1DD;
+  --color-error-container: rgba(163, 79, 76, 0.12);
+  --color-surface-bright: #F8F5F2;
+  --color-on-surface: #171719;
+  --color-surface: #F8F5F2;
+  --color-surface-container: #F8F5F2;
+  --color-tertiary-fixed: #E8E1DD;
+  --color-on-secondary-container: #625B57;
+  --color-status-warning: #9A734A;
+  --color-error: #A34F4C;
+  --color-on-secondary: #F8F5F2;
+  --color-on-primary-fixed-variant: #171719;
+  --color-primary-fixed-dim: #D0C4BD;
+  --color-tertiary-container: #171719;
+  --color-secondary-container: #E8E1DD;
+  --color-on-primary-fixed: #F8F5F2;
+  --color-secondary-fixed-dim: #D0C4BD;
+  --color-on-background: #171719;
+  --color-on-tertiary-container: #F8F5F2;
+  --color-charcoal-dark: #171719;
+  --color-inverse-on-surface: #F8F5F2;
+  --color-tertiary-fixed-dim: #E8E1DD;
+  --color-secondary-fixed: #E8E1DD;
+  --color-on-tertiary-fixed-variant: #171719;
+  --color-on-error-container: #A34F4C;
+  --color-surface-container-low: #F8F5F2;
+  --color-on-error: #F8F5F2;
+  --color-status-inactive: #938C87;
+  --color-status-danger: #A34F4C;
+  --color-on-surface-variant: #625B57;
+  --color-on-tertiary: #F8F5F2;
+  --color-outline-variant: #D0C4BD;
+  --color-on-primary: #F8F5F2;
+  --color-inverse-surface: #171719;
+  --color-on-tertiary-fixed: #171719;
+  --color-status-success: #2F756A;
+  --color-pass-temporary: #E8E1DD;
+  --color-primary-fixed: #E8E1DD;
+  --color-on-primary-container: #F8F5F2;
+  --color-surface-dim: #D0C4BD;
+  --color-tertiary: #171719;
+  --color-primary: #171719;
+  --color-surface-container-lowest: #F8F5F2;
+  --color-surface-tint: #171719;
+  --color-background: #F3EEEB;
+  --color-outline: #978070;
+  --color-secondary: #625B57;
+  --color-on-secondary-fixed: #171719;
+  --color-primary-container: #171719;
+  --color-inverse-primary: #D0C4BD;
 
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
@@ -71,20 +105,20 @@
 body {
   min-height: 100vh;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(244, 247, 251, 0.92)),
-    linear-gradient(90deg, rgba(24, 24, 27, 0.035) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(24, 24, 27, 0.035) 1px, transparent 1px);
-  background-color: var(--color-background);
+    linear-gradient(135deg, rgba(243, 238, 235, 0.98), rgba(232, 225, 221, 0.92)),
+    linear-gradient(90deg, rgba(63, 54, 50, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(63, 54, 50, 0.035) 1px, transparent 1px);
+  background-color: var(--gp-bg-primary);
   background-size: auto, 34px 34px, 34px 34px;
   font-family: var(--font-sans);
-  color: var(--color-on-background);
+  color: var(--gp-text-primary);
   text-rendering: geometricPrecision;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgba(16, 185, 129, 0.24);
-  color: #111827;
+  background: rgba(47, 117, 106, 0.20);
+  color: #171719;
 }
 
 /* Smooth global interaction system for existing cards */
