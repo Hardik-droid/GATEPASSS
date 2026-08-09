@@ -992,11 +992,11 @@ export default function App() {
             )}
           </div>
 
-          {/* GROUP 2: CENTER AREA — COMPACT ULTRA-SUBTLE GLASS NAVIGATION CAPSULE */}
-          <nav className={`w-fit mx-auto h-[42px] px-1.5 rounded-[19px] border backdrop-blur-[14px] shadow-[0_4px_18px_rgba(32,27,24,0.04)] flex items-center gap-1 transition-all duration-300 ${
+          {/* GROUP 2: CENTER AREA — COMPACT REAL FROSTED GLASS NAVIGATION CAPSULE */}
+          <nav className={`w-fit mx-auto h-[42px] p-[4px] rounded-[19px] border border-white/26 backdrop-blur-[18px] backdrop-saturate-[125%] shadow-[0_6px_24px_rgba(32,27,24,0.05),inset_0_1px_0_rgba(255,255,255,0.30),inset_0_-1px_0_rgba(255,255,255,0.08)] flex items-center gap-1 transition-all duration-300 ${
             isScrolled 
-              ? "bg-white/25 border-white/30 shadow-sm" 
-              : "bg-white/14 border-white/20"
+              ? "bg-gradient-to-br from-white/26 to-white/14 backdrop-blur-[20px] backdrop-saturate-[130%] shadow-[0_8px_28px_rgba(32,27,24,0.08),inset_0_1px_0_rgba(255,255,255,0.36)]" 
+              : "bg-gradient-to-br from-white/22 to-white/10"
           }`}>
             {perspective === "attendee" ? (
               /* ATTENDEE ROUTES */
@@ -1006,10 +1006,10 @@ export default function App() {
                   end
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
@@ -1020,10 +1020,10 @@ export default function App() {
                   to="/request"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
@@ -1034,10 +1034,10 @@ export default function App() {
                   to="/approvals"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer relative ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer relative ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
@@ -1053,10 +1053,10 @@ export default function App() {
                   to="/events"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
@@ -1070,10 +1070,10 @@ export default function App() {
                   to="/organizer"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
@@ -1084,10 +1084,10 @@ export default function App() {
                   to="/scanner"
                   onClick={() => setMobileMenuOpen(false)}
                   className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
                       isActive 
-                        ? "bg-white/40 text-[#171719] border border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] font-extrabold" 
-                        : "text-[#625B57] hover:text-[#171719] hover:bg-white/20"
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
                     }`
                   }
                 >
