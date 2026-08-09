@@ -1031,22 +1031,6 @@ export default function App() {
                   <TicketIcon className="w-4 h-4 xl:hidden" />
                   <span>Events &amp; Concerts</span>
                 </NavLink>
-                {hasScannerAccess && (
-                  <NavLink
-                    to="/scanner"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3.5 xl:gap-2 px-4 xl:px-0 py-3 xl:py-0 rounded-xl xl:rounded-none transition-all cursor-pointer text-sm xl:text-xs font-bold xl:uppercase xl:tracking-widest ${
-                        isActive
-                          ? "bg-primary-container/10 xl:bg-transparent text-primary xl:text-charcoal-dark xl:underline xl:decoration-2 xl:underline-offset-4 border-l-4 xl:border-l-0 border-l-primary"
-                          : "text-on-surface-variant hover:bg-surface-container xl:hover:bg-transparent xl:hover:text-charcoal-dark xl:opacity-60 xl:hover:opacity-100"
-                      }`
-                    }
-                  >
-                    <Smartphone className="w-4 h-4" />
-                    <span>Scanner</span>
-                  </NavLink>
-                )}
               </>
             ) : (
               /* ORGANIZER ROUTES */
