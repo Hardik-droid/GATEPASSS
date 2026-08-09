@@ -499,22 +499,27 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
         )}
 
         {/* All Events & Search Filters Section */}
-        <section className="flex flex-col gap-6" id="explore-all-section">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <section className="flex flex-col gap-0" id="explore-all-section">
+          {/* Header & Search Bar Row */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div>
-              <h3 className="text-base font-extrabold text-[#171719]">Upcoming Events &amp; Lineups</h3>
-              <p className="text-xs text-[#625B57] mt-0.5">Filter by category or search by venue and artist name.</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-[#171719] tracking-[-0.035em] leading-tight uppercase">
+                UPCOMING EVENTS &amp; LINEUPS
+              </h3>
+              <p className="text-sm font-normal text-[#746D68] mt-1.5">
+                Discover events by category, venue or artist.
+              </p>
             </div>
 
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-md">
+            {/* Compact Search Input */}
+            <div className="relative w-full sm:w-[380px] flex-shrink-0">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#938C87]" />
               <input 
                 type="text" 
-                placeholder="Search events, venues, topics..." 
+                placeholder="Search events..." 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-10 py-2.5 text-xs text-[#171719] font-semibold bg-[#F8F5F2] border border-black/10 rounded-xl outline-none focus:border-[#42566E] transition-all shadow-sm"
+                className="w-full h-11 pl-9 pr-10 text-xs font-medium text-[#171719] placeholder-[#938C87] bg-[#F8F5F2] border border-black/10 rounded-xl outline-none focus:border-[#42566E] focus:ring-2 focus:ring-[#42566E]/10 transition-all"
               />
               {searchTerm && (
                 <button 
@@ -527,22 +532,25 @@ export default function AttendeeEventsList({ events, user, onBookTicket }: Atten
             </div>
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          {/* Compact Category Filter Chips */}
+          <div className="flex items-center gap-2 flex-wrap mt-6 overflow-x-auto scrollbar-none">
             {filterCategories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                className={`h-[38px] px-4 rounded-xl text-xs font-bold transition-colors cursor-pointer whitespace-nowrap ${
                   selectedCategory === cat 
                     ? "bg-[#171719] text-[#F8F5F2] shadow-sm" 
-                    : "bg-[#F8F5F2] hover:bg-[#E8E1DD] text-[#625B57] border border-black/10 font-medium"
+                    : "bg-[#F8F5F2] hover:bg-[#EEE8E4] text-[#625B57] border border-black/10"
                 }`}
               >
-                {cat === "All" ? "All Lineups" : `${cat}s`}
+                {cat === "All" ? "ALL" : cat === "Concert" ? "CONCERTS" : cat === "College Fest" ? "COLLEGE FESTS" : cat === "Marathon" ? "MARATHONS" : "WORKSHOPS"}
               </button>
             ))}
           </div>
+
+          {/* Subtle Divider Line */}
+          <div className="w-full border-b border-black/10 mt-6 mb-7" />
 
           {/* Events Grid */}
           {filteredEvents.length === 0 ? (
