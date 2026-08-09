@@ -246,8 +246,17 @@ export class PostgresAppStateStore implements AppStateStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const organizationId = "org_001";
+      const organizationId = stableUuid("organizations", "gatepass");
       const eventDbId = stableUuid("events", eventData.id || randomUUID());
+
+      await client.query(
+        `INSERT INTO organizations (id, name, org_type, contact_email, contact_phone)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           updated_at = now()`,
+        [organizationId, "GatePass", "Event Operations", "admin@gatepass.app", "+91 98765 43210"],
+      );
 
       const res = await client.query<{
         id: string;
