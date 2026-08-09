@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus } from "../types";
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
@@ -22,7 +22,10 @@ import {
   AlertOctagon,
   Sparkles,
   Award,
-  ArrowLeft
+  ArrowLeft,
+  ArrowRight,
+  ShieldAlert,
+  Smartphone
 } from "lucide-react";
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
@@ -67,7 +70,22 @@ export default function OrganizerWorkspace({
   onIssueManualTicket,
   onProcessRefund
 }: OrganizerWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "manual" | "settlement" | "audit" | "org">("dashboard");
+  const location = useLocation();
+  const getTabFromUrl = () => {
+    const tab = new URLSearchParams(location.search).get("tab");
+    if (tab === "security" || tab === "audit" || tab === "settlement" || tab === "builder" || tab === "manual" || tab === "org") {
+      return tab;
+    }
+    return "dashboard";
+  };
+
+  const [activeTab, setActiveTab] = useState<"dashboard" | "builder" | "manual" | "settlement" | "audit" | "org" | "security">(getTabFromUrl);
+
+  useEffect(() => {
+    const currentTab = getTabFromUrl();
+    setActiveTab(currentTab);
+  }, [location.search]);
+
   const [controlRoomSubView, setControlRoomSubView] = useState<"stream" | "analytics">("stream");
   const [exploreEventId, setExploreEventId] = useState<string>("all");
 
@@ -433,105 +451,175 @@ export default function OrganizerWorkspace({
 
           {controlRoomSubView === "stream" ? (
             /* Live gate-wise scans stream */
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fadeIn">
-              {/* Scans Stream */}
-              <div className="lg:col-span-7 bg-white rounded-2xl p-5 shadow-sm border border-outline-variant/30">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-black text-charcoal-dark">Live Gate Scanning Stream</h3>
-                  <span className="px-2.5 py-1 bg-status-success/10 rounded-full text-[10px] font-bold text-status-success animate-pulse uppercase tracking-wider">
-                    ● Systems Online
-                  </span>
-                </div>
+            <div className="flex flex-col gap-6 animate-fadeIn">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Scans Stream */}
+                <div className="lg:col-span-7 bg-white rounded-2xl p-5 shadow-sm border border-outline-variant/30">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-black text-charcoal-dark">Live Gate Scanning Stream</h3>
+                    <span className="px-2.5 py-1 bg-status-success/10 rounded-full text-[10px] font-bold text-status-success animate-pulse uppercase tracking-wider">
+                      ● Systems Online
+                    </span>
+                  </div>
 
-                <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
-                  {scanLogs.length === 0 ? (
-                    <div className="py-12 text-center text-outline text-xs flex flex-col items-center gap-2">
-                      <Clock className="w-8 h-8 text-outline/60" />
-                      <span>Awaiting first scanner synchronization packet...</span>
-                    </div>
-                  ) : (
-                    scanLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 text-xs ${log.scanResult === "VALID"
-                            ? "bg-status-success/5 border-status-success/20"
-                            : "bg-status-danger/5 border-status-danger/20"
-                          }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-charcoal-dark">{log.attendeeName}</span>
-                            <span className="text-outline">•</span>
-                            <span className="text-[10px] font-mono text-outline font-semibold">{log.categoryName}</span>
-                          </div>
-                          <p className="text-[10px] text-on-surface-variant mt-1">
-                            Event: {log.eventName} • Gate: {log.gateName} • Scanner: {log.scannedBy}
-                          </p>
-                        </div>
-
-                        <div className="text-right">
-                          <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded ${log.scanResult === "VALID" ? "bg-status-success text-white" : "bg-status-danger text-white"
-                            }`}>
-                            {log.scanResult}
-                          </span>
-                          <p className="font-mono text-[9px] text-outline mt-1.5">{log.scanTime}</p>
-                        </div>
+                  <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
+                    {scanLogs.length === 0 ? (
+                      <div className="py-12 text-center text-outline text-xs flex flex-col items-center gap-2">
+                        <Clock className="w-8 h-8 text-outline/60" />
+                        <span>Awaiting first scanner synchronization packet...</span>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      scanLogs.map((log) => (
+                        <div
+                          key={log.id}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 text-xs ${log.scanResult === "VALID"
+                              ? "bg-status-success/5 border-status-success/20"
+                              : "bg-status-danger/5 border-status-danger/20"
+                            }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-charcoal-dark">{log.attendeeName}</span>
+                              <span className="text-outline">•</span>
+                              <span className="text-[10px] font-mono text-outline font-semibold">{log.categoryName}</span>
+                            </div>
+                            <p className="text-[10px] text-on-surface-variant mt-1">
+                              Event: {log.eventName} • Gate: {log.gateName} • Scanner: {log.scannedBy}
+                            </p>
+                          </div>
+
+                          <div className="text-right">
+                            <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded ${log.scanResult === "VALID" ? "bg-status-success text-white" : "bg-status-danger text-white"
+                              }`}>
+                              {log.scanResult}
+                            </span>
+                            <p className="font-mono text-[9px] text-outline mt-1.5">{log.scanTime}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Reports and Payout controls */}
-              <div className="lg:col-span-5 bg-white rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-                <h3 className="text-base font-black text-charcoal-dark">Reconciliation &amp; Exports</h3>
-                <p className="text-xs text-on-surface-variant leading-relaxed">
-                  As required by the blueprint guidelines, GatePass provides immediate flat reconciliation exports to avoid excel-sheet manual errors.
-                </p>
-
-                <div className="flex flex-col gap-3 mt-2">
-                  <button
-                    onClick={() => exportCSV("Aura_Fest_2026")}
-                    className="w-full py-3 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 rounded-xl text-xs font-bold text-charcoal-dark uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-primary" />
-                    <span>Download Attendance Reconciliation (.CSV)</span>
-                  </button>
-
-                  <button
-                    onClick={() => exportCSV("Marathon_Run")}
-                    className="w-full py-3 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 rounded-xl text-xs font-bold text-charcoal-dark uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
-                  >
-                    <Download className="w-4 h-4 text-primary" />
-                    <span>Download Sales &amp; Platform Ledger (.CSV)</span>
-                  </button>
-                </div>
-
-                {/* Hardening & Refund Test */}
-                <div className="mt-4 pt-4 border-t border-surface-container flex flex-col gap-2">
-                  <h4 className="text-xs font-bold text-charcoal-dark uppercase tracking-wider">Gate Security Simulator</h4>
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Test the refund invalidate protection! Voiding a ticket immediately flags it at the mobile scanner gate.
+                {/* Reports and Payout controls */}
+                <div className="lg:col-span-5 bg-white rounded-2xl p-5 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
+                  <h3 className="text-base font-black text-charcoal-dark">Reconciliation &amp; Exports</h3>
+                  <p className="text-xs text-on-surface-variant leading-relaxed">
+                    As required by the blueprint guidelines, GatePass provides immediate flat reconciliation exports to avoid excel-sheet manual errors.
                   </p>
 
-                  <div className="flex flex-col gap-2 mt-1">
-                    {tickets.filter(t => t.status === TicketStatus.ISSUED).slice(0, 1).map(ticket => (
-                      <button
-                        key={ticket.id}
-                        onClick={() => {
-                          onProcessRefund(ticket.id);
-                          showToast(`Refund processed! ${ticket.attendeeName}'s QR token has been blacklisted.`);
-                        }}
-                        className="w-full py-2 bg-status-danger/10 text-status-danger border border-status-danger/20 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-status-danger/20 transition-all cursor-pointer text-center"
-                      >
-                        Process Refund / Void QR for {ticket.attendeeName}
-                      </button>
-                    ))}
+                  <div className="flex flex-col gap-3 mt-2">
+                    <button
+                      onClick={() => exportCSV("Aura_Fest_2026")}
+                      className="w-full py-3 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 rounded-xl text-xs font-bold text-charcoal-dark uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-primary" />
+                      <span>Download Attendance Reconciliation (.CSV)</span>
+                    </button>
+
+                    <button
+                      onClick={() => exportCSV("Marathon_Run")}
+                      className="w-full py-3 bg-surface-container hover:bg-surface-container-high border border-outline-variant/20 rounded-xl text-xs font-bold text-charcoal-dark uppercase flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-primary" />
+                      <span>Download Sales &amp; Platform Ledger (.CSV)</span>
+                    </button>
                   </div>
                 </div>
               </div>
+
+              {/* Operations & Tools Section */}
+            <div className="flex flex-col gap-4 mt-4 pt-6 border-t border-outline-variant/30">
+              <div>
+                <h3 className="text-base font-black text-charcoal-dark">Operations &amp; Tools</h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Jump directly to GatePass operational tools and management workflows.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Card 1: Gate Security Simulator */}
+                <Link
+                  to="/organizer?tab=security"
+                  onClick={() => setActiveTab("security")}
+                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="p-2.5 rounded-xl bg-status-danger/10 text-status-danger border border-status-danger/20">
+                      <ShieldAlert className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="mt-4">
+                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Gate Security Simulator</h4>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                      Test refund and void invalidation against live gate access.
+                    </p>
+                  </div>
+                </Link>
+
+                {/* Card 2: Scanner & Gates */}
+                <Link
+                  to="/scanner"
+                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="p-2.5 rounded-xl bg-[#42566E]/10 text-[#42566E] border border-[#42566E]/20">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="mt-4">
+                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Scanner &amp; Gates</h4>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                      Manage live entry operations and camera checkpoints.
+                    </p>
+                  </div>
+                </Link>
+
+                {/* Card 3: Audit Logs */}
+                <Link
+                  to="/organizer?tab=audit"
+                  onClick={() => setActiveTab("audit")}
+                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="p-2.5 rounded-xl bg-[#766052]/10 text-[#766052] border border-[#766052]/20">
+                      <History className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="mt-4">
+                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Audit Logs</h4>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                      Review access, security, and administrative activity logs.
+                    </p>
+                  </div>
+                </Link>
+
+                {/* Card 4: Event Ledger */}
+                <Link
+                  to="/organizer?tab=settlement"
+                  onClick={() => setActiveTab("settlement")}
+                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="p-2.5 rounded-xl bg-status-success/10 text-status-success border border-status-success/20">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="mt-4">
+                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Event Ledger</h4>
+                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+                      Reconciliation, settlements, and financial history.
+                    </p>
+                  </div>
+                </Link>
+              </div>
             </div>
-          ) : (
+          </div>
+        ) : (
             /* Shotgun Community Analytics Overview View */
             <div className="flex flex-col gap-6 animate-fadeIn" id="shotgun-community-analytics">
 
@@ -1168,6 +1256,49 @@ export default function OrganizerWorkspace({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Pane Gate Security Simulator */}
+      {activeTab === "security" && (
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-5" id="security-simulator-tab-content">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-status-danger/10 text-status-danger border border-status-danger/20 mb-2">
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Live Gate Invalidation Test</span>
+            </div>
+            <h3 className="text-lg font-black text-charcoal-dark">Gate Security Simulator</h3>
+            <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
+              Test refund and void invalidation protection! Voiding a ticket immediately blacklists its QR code across all mobile scanner gates.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-outline-variant/30 pt-4">
+            <h4 className="text-xs font-black uppercase tracking-wider text-charcoal-dark">Active Issued Tickets Available for Testing</h4>
+            {tickets.filter(t => t.status === TicketStatus.ISSUED).length === 0 ? (
+              <p className="text-xs text-outline italic">No active issued tickets available to refund.</p>
+            ) : (
+              tickets.filter(t => t.status === TicketStatus.ISSUED).map(ticket => (
+                <div key={ticket.id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-primary">{ticket.categoryName}</span>
+                    <h5 className="font-extrabold text-charcoal-dark text-sm mt-0.5">{ticket.attendeeName}</h5>
+                    <p className="text-[11px] text-on-surface-variant font-mono mt-0.5">Token: {ticket.qrToken}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      onProcessRefund(ticket.id);
+                      showToast(`Refund processed! ${ticket.attendeeName}'s QR token has been blacklisted.`);
+                    }}
+                    className="py-2.5 px-4 bg-status-danger/10 hover:bg-status-danger/20 text-status-danger border border-status-danger/30 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Process Refund / Void QR for {ticket.attendeeName}</span>
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

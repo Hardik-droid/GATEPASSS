@@ -1217,6 +1217,10 @@ export default function App() {
             path="/scanner" 
             element={<QRScannerSimulation onToast={addToast} />}
           />
+          <Route 
+            path="/security-simulator" 
+            element={<Navigate to="/organizer?tab=security" replace />}
+          />
           {/* Catch-all redirect to / */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
