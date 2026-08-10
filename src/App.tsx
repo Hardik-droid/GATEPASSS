@@ -28,6 +28,7 @@ import WalletSync from "./pages/Wallet";
 import QRScannerSimulation from "./pages/Scanner";
 import OrganizerWorkspace from "./pages/Organizer";
 import AttendeeEventsList from "./pages/Events";
+import CoverUploadPage from "./pages/CoverUploadPage";
 import HomeUpdates from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
 import LoadingScreen from "./components/LoadingScreen";
@@ -602,6 +603,61 @@ export default function App() {
         addToast("error", `Failed to save "${newEvent.title}" to database. Your event will be lost on refresh. Please check your connection and try again.`);
       }
     });
+  };
+
+  const handleUpdateEventCover = (
+    eventId: string,
+    newCoverUrl: string,
+    configUpdates?: Partial<import("./types").CoverUploadLinkConfig>
+  ) => {
+    const updatedEvents = events.map((ev) => {
+      if (ev.id === eventId) {
+        const existingConfig = ev.coverUploadConfig || {
+          token: "default",
+          createdAt: new Date().toISOString()
+        };
+        return {
+          ...ev,
+          bannerUrl: newCoverUrl,
+          coverUploadConfig: {
+            ...existingConfig,
+            ...configUpdates,
+            hasCustomCover: true,
+            lastUpdated: new Date().toISOString()
+          }
+        };
+      }
+      return ev;
+    });
+    persistState("gps_events", updatedEvents, setEvents);
+
+    const targetTitle = events.find(e => e.id === eventId)?.title || "Event";
+    addToast("success", `Cover photo updated for "${targetTitle}"!`);
+
+    const addedAudit: AuditLog = {
+      id: "aud_" + Date.now(),
+      timestamp: new Date().toISOString(),
+      actor: "Cover Upload Portal",
+      action: "Cover Photo Updated",
+      details: `Updated cover photo for event '${targetTitle}' via secure upload link.`
+    };
+    persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+  };
+
+  const handleUpdateEventCoverConfig = (
+    eventId: string,
+    config: import("./types").CoverUploadLinkConfig
+  ) => {
+    const updatedEvents = events.map((ev) => {
+      if (ev.id === eventId) {
+        return {
+          ...ev,
+          coverUploadConfig: config
+        };
+      }
+      return ev;
+    });
+    persistState("gps_events", updatedEvents, setEvents);
   };
 
   // Callback: Book Event Ticket (From AttendeeEventsList)
@@ -1230,8 +1286,27 @@ export default function App() {
                 onAddNewEvent={handleAddNewEvent}
                 onIssueManualTicket={handleIssueManualTicket}
                 onProcessRefund={handleProcessRefund}
+                onUpdateEventCoverConfig={handleUpdateEventCoverConfig}
               /> : <Navigate to="/" replace />
             } 
+          />
+          <Route
+            path="/event/:eventId/cover-upload"
+            element={
+              <CoverUploadPage
+                events={events}
+                onUpdateEventCover={handleUpdateEventCover}
+              />
+            }
+          />
+          <Route
+            path="/cover-upload/:eventId"
+            element={
+              <CoverUploadPage
+                events={events}
+                onUpdateEventCover={handleUpdateEventCover}
+              />
+            }
           />
           <Route 
             path="/scanner" 

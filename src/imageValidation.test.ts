@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateImageFile, detectImageFormat, MAX_IMAGE_BYTES } from "./imageValidation";
+import {
+  validateImageFile,
+  detectImageFormat,
+  MAX_STORED_IMAGE_BYTES,
+  prepareWebReadyImage
+} from "./imageValidation";
 
 function createFakeFile(bytes: Uint8Array, name: string, type: string): File {
   return new File([bytes], name, { type });
@@ -108,4 +113,46 @@ test("validateImageFile rejects empty files", async () => {
   const result = await validateImageFile(emptyFile);
   assert.equal(result.ok, false);
   assert.equal(result.code, "EMPTY_FILE");
+});
+
+test("prepareWebReadyImage keeps the encoded upload within the 4 MiB storage boundary", async () => {
+  const globals = globalThis as any;
+  const originalWindow = globals.window;
+  const originalDocument = globals.document;
+  const originalCreateImageBitmap = globals.createImageBitmap;
+  let encodeCount = 0;
+
+  globals.window = {};
+  globals.createImageBitmap = async () => ({
+    width: 4000,
+    height: 2000,
+    close() {}
+  });
+  globals.document = {
+    createElement: () => ({
+      width: 0,
+      height: 0,
+      getContext: () => ({ drawImage() {} }),
+      toBlob: (callback: (blob: Blob) => void, type: string) => {
+        encodeCount += 1;
+        const size = encodeCount === 1 ? MAX_STORED_IMAGE_BYTES + 1 : MAX_STORED_IMAGE_BYTES - 1;
+        callback(new Blob([new Uint8Array(size)], { type }));
+      }
+    })
+  };
+
+  try {
+    const file = createFakeFile(createPngBytes(6 * 1024 * 1024), "reported-case.png", "image/png");
+    const prepared = await prepareWebReadyImage(file);
+    assert.ok(prepared.blob.size <= MAX_STORED_IMAGE_BYTES);
+    assert.equal(prepared.mimeType, "image/webp");
+    assert.equal(encodeCount, 2);
+  } finally {
+    if (originalWindow === undefined) delete globals.window;
+    else globals.window = originalWindow;
+    if (originalDocument === undefined) delete globals.document;
+    else globals.document = originalDocument;
+    if (originalCreateImageBitmap === undefined) delete globals.createImageBitmap;
+    else globals.createImageBitmap = originalCreateImageBitmap;
+  }
 });

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus } from "../types";
+import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus, CoverUploadLinkConfig } from "../types";
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
 import KineticHeading from "../components/ui/KineticHeading";
-import { uploadEventCoverApi } from "../api";
-import { coverErrorMessage } from "../coverError";
-import { validateImageFile } from "../imageValidation";
+import { createCoverConfig, getShareableCoverUploadUrl, formatExpiryLabel } from "../coverLinkUtils";
 import {
   Plus,
   TrendingUp,
@@ -30,7 +28,16 @@ import {
   ShieldAlert,
   Smartphone,
   CheckCircle2,
-  Upload,
+  Link as LinkIcon,
+  Copy,
+  Lock,
+  Share2,
+  ExternalLink,
+  Eye,
+  RefreshCw,
+  XCircle,
+  X,
+  Check,
   Image as ImageIcon
 } from "lucide-react";
 
@@ -63,6 +70,7 @@ interface OrganizerWorkspaceProps {
   onAddNewEvent: (newEvent: EventItem) => void;
   onIssueManualTicket: (ticket: Omit<Ticket, "id" | "status" | "issuedAt">) => void;
   onProcessRefund: (ticketId: string) => void;
+  onUpdateEventCoverConfig?: (eventId: string, config: CoverUploadLinkConfig) => void;
 }
 
 export default function OrganizerWorkspace({
@@ -74,7 +82,8 @@ export default function OrganizerWorkspace({
   auditLogs,
   onAddNewEvent,
   onIssueManualTicket,
-  onProcessRefund
+  onProcessRefund,
+  onUpdateEventCoverConfig
 }: OrganizerWorkspaceProps) {
   const location = useLocation();
   const getTabFromUrl = () => {
@@ -163,51 +172,13 @@ export default function OrganizerWorkspace({
     { name: "VIP Pass", price: 499, capacity: 100 }
   ]);
 
-  // Form states for Event Cover Image
-  const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
-  const [coverError, setCoverError] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-
-  // Clean up object URL when preview URL changes or component unmounts
-  useEffect(() => {
-    return () => {
-      if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(coverPreviewUrl);
-      }
-    };
-  }, [coverPreviewUrl]);
-
-  const handleImageFileChange = async (file: File | null) => {
-    setCoverError(null);
-    if (!file) return;
-
-    const validation = await validateImageFile(file);
-    if (!validation.ok) {
-      setCoverError(validation.message);
-      return;
-    }
-
-    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(coverPreviewUrl);
-    }
-
-    setCoverFile(file);
-    setCoverPreviewUrl(URL.createObjectURL(file));
-  };
-
-  const handleRemoveCoverImage = () => {
-    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(coverPreviewUrl);
-    }
-    setCoverFile(null);
-    setCoverPreviewUrl(null);
-    setCoverError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
+  // Cover Link System Modal States
+  const [showCoverModal, setShowCoverModal] = useState(false);
+  const [modalEventId, setModalEventId] = useState<string | null>(null);
+  const [modalExpiryHours, setModalExpiryHours] = useState<number | null>(null); // null = Never, 24, 72, 168
+  const [modalPassword, setModalPassword] = useState<string>("");
+  const [modalAllowReplace, setModalAllowReplace] = useState<boolean>(true);
+  const [modalGeneratedUrl, setModalGeneratedUrl] = useState<string>("");
 
   // Form states for Manual/Cash ticketing
   const [manualEventId, setManualEventId] = useState("");
@@ -255,23 +226,12 @@ export default function OrganizerWorkspace({
       return;
     }
 
-    let finalBannerUrl = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
-
-    if (coverFile) {
-      setUploadingImage(true);
-      try {
-        finalBannerUrl = await uploadEventCoverApi(coverFile);
-        setCoverError(null);
-      } catch (err) {
-        console.error("Cover image upload error:", err);
-        setCoverError(coverErrorMessage(err));
-        setUploadingImage(false);
-        return;
-      }
-      setUploadingImage(false);
-    }
-
+    const defaultBannerUrl = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
     const newEventId = "ev_" + Date.now();
+
+    // Create initial cover upload config link for the new event
+    const coverConfig = createCoverConfig();
+
     const categoriesSource = categories.length > 0 ? categories : [
       { name: "General Pass", price: 150, capacity: 400 },
       { name: "VIP Pass", price: 499, capacity: 100 }
@@ -295,23 +255,90 @@ export default function OrganizerWorkspace({
       venue: eventVenue,
       startTime: new Date(eventStartTime).toISOString(),
       endTime: new Date(eventEndTime).toISOString(),
-      bannerUrl: finalBannerUrl,
+      bannerUrl: defaultBannerUrl,
       capacity: eventCapacity,
-      ticketCategories: formattedCategories
+      ticketCategories: formattedCategories,
+      coverUploadConfig: coverConfig
     };
 
     onAddNewEvent(newEvent);
-    showToast(`Successfully launched "${eventTitle}" event!`);
+    showToast(`Successfully launched "${eventTitle}"! Cover Upload Link created.`);
 
     // Reset Form & Switch Tab
     setEventTitle("");
     setEventVenue("");
     setEventDesc("");
-    handleRemoveCoverImage();
     const nextStart = defaultEventStart();
     setEventStartTime(toDatetimeLocalInput(nextStart));
     setEventEndTime(toDatetimeLocalInput(defaultEventEnd(nextStart)));
     setActiveTab("dashboard");
+  };
+
+  // Open modal to generate/customize link for an event
+  const openCoverModalForEvent = (event: EventItem) => {
+    setModalEventId(event.id);
+    const existingConfig = event.coverUploadConfig;
+    if (existingConfig) {
+      setModalPassword(existingConfig.password || "");
+      setModalAllowReplace(existingConfig.allowReplace ?? true);
+      const url = getShareableCoverUploadUrl(event.id, existingConfig.token);
+      setModalGeneratedUrl(url);
+    } else {
+      const newConfig = createCoverConfig();
+      setModalPassword("");
+      setModalAllowReplace(true);
+      const url = getShareableCoverUploadUrl(event.id, newConfig.token);
+      setModalGeneratedUrl(url);
+    }
+    setShowCoverModal(true);
+  };
+
+  // Generate or save link settings in modal
+  const handleSaveCoverModalSettings = () => {
+    if (!modalEventId) return;
+    const targetEv = events.find(e => e.id === modalEventId);
+    if (!targetEv) return;
+
+    const newConfig = createCoverConfig({
+      expiryHours: modalExpiryHours,
+      password: modalPassword.trim() || null,
+      allowReplace: modalAllowReplace
+    });
+
+    if (targetEv.coverUploadConfig?.hasCustomCover) {
+      newConfig.hasCustomCover = true;
+    }
+
+    if (onUpdateEventCoverConfig) {
+      onUpdateEventCoverConfig(modalEventId, newConfig);
+    } else {
+      targetEv.coverUploadConfig = newConfig;
+    }
+
+    const shareUrl = getShareableCoverUploadUrl(modalEventId, newConfig.token);
+    setModalGeneratedUrl(shareUrl);
+    showToast("Cover Photo Upload Link generated & updated!");
+  };
+
+  const copyToClipboard = (text: string, label: string = "Link") => {
+    navigator.clipboard.writeText(text);
+    showToast(`${label} copied to clipboard!`);
+  };
+
+  const toggleCoverLinkDisabled = (event: EventItem) => {
+    const currentConfig = event.coverUploadConfig || createCoverConfig();
+    const updatedConfig: CoverUploadLinkConfig = {
+      ...currentConfig,
+      isDisabled: !currentConfig.isDisabled
+    };
+
+    if (onUpdateEventCoverConfig) {
+      onUpdateEventCoverConfig(event.id, updatedConfig);
+    } else {
+      event.coverUploadConfig = updatedConfig;
+    }
+
+    showToast(updatedConfig.isDisabled ? "Upload Link Disabled" : "Upload Link Enabled");
   };
 
   const handleManualTicketSubmit = (e: React.FormEvent) => {
@@ -354,7 +381,7 @@ export default function OrganizerWorkspace({
     <div className="flex flex-col gap-6 font-sans animate-fadeIn" id="organizer-workspace-section">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 bg-charcoal-dark text-white px-4 py-3 rounded-xl shadow-lg border border-primary/20 flex items-center gap-2 animate-bounce">
+        <div className="fixed top-20 right-4 z-50 bg-[#171719] text-white px-4 py-3 rounded-xl shadow-lg border border-primary/20 flex items-center gap-2 animate-bounce">
           <Sparkles className="w-5 h-5 text-status-warning" />
           <span className="text-xs font-semibold">{toastMessage}</span>
         </div>
@@ -374,7 +401,7 @@ export default function OrganizerWorkspace({
               lightMode={true}
             />
             <p className="text-sm text-on-surface-variant mt-1">
-              Immersion suite to create events, reconcile manual sales, view live scan audits, and track settlements.
+              Immersion suite to create events, reconcile manual sales, view live scan audits, and manage cover branding.
             </p>
           </div>
         </div>
@@ -457,10 +484,10 @@ export default function OrganizerWorkspace({
 
       {/* Pane dashboard */}
       {activeTab === "dashboard" && (
-        <div className="flex flex-col gap-6" id="dashboard-tab-content">
+        <div className="flex flex-col gap-8" id="dashboard-tab-content">
           {/* Bento live statistics cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {/* 1. Gross Sales Volume (No Dollar Icon) */}
+            {/* 1. Gross Sales Volume */}
             <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
               <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Gross Sales Volume</span>
               <h3 className="text-3xl font-extrabold text-[#171719] my-2 tabular-nums flex items-center">
@@ -471,7 +498,7 @@ export default function OrganizerWorkspace({
               </span>
             </div>
 
-            {/* 2. Total Checked In / Used (Subtle Sage Green Check Icon) */}
+            {/* 2. Total Checked In / Used */}
             <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Checked In / Used</span>
@@ -481,7 +508,6 @@ export default function OrganizerWorkspace({
                 <AnimatedNumber value={totalCheckedIn} className="text-3xl font-extrabold tabular-nums" />
                 <span className="text-sm font-bold text-[#938C87]">/ {tickets.length}</span>
               </h3>
-              {/* Clean thin progress bar */}
               <div className="w-full bg-[#171719]/10 h-1.5 rounded-full overflow-hidden">
                 <div
                   className="bg-[#55765F] h-full rounded-full transition-all"
@@ -490,7 +516,7 @@ export default function OrganizerWorkspace({
               </div>
             </div>
 
-            {/* 3. Blocked Fraud Scans (Subtle Muted Red Warning Icon) */}
+            {/* 3. Blocked Fraud Scans */}
             <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Blocked Fraud Scans</span>
@@ -504,7 +530,7 @@ export default function OrganizerWorkspace({
               </span>
             </div>
 
-            {/* 4. Cancellations / Refunds (No Icon) */}
+            {/* 4. Cancellations / Refunds */}
             <div className="bg-[#F8F5F2] rounded-2xl p-6 border border-black/10 shadow-[0_8px_24px_rgba(49,40,36,0.05)] flex flex-col justify-between min-h-[135px]">
               <span className="text-[10px] font-black text-[#938C87] uppercase tracking-wider">Cancellations / Refunds</span>
               <h3 className="text-3xl font-extrabold text-[#171719] my-2 tabular-nums">
@@ -513,6 +539,138 @@ export default function OrganizerWorkspace({
               <span className="text-[11px] text-[#625B57] font-medium">
                 Voided reservations
               </span>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* FEATURE: EVENT COVER PHOTO & UPLOAD LINK MANAGEMENT DASHBOARD VIEW */}
+          {/* ========================================================================= */}
+          <div className="bg-white rounded-3xl p-6 border border-outline-variant/30 shadow-sm flex flex-col gap-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-outline-variant/20 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-black text-charcoal-dark uppercase tracking-tight">Event Cover Photo System</h3>
+                  <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Link Sharing Flow
+                  </span>
+                </div>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Send a link → Client uploads cover → Event automatically gets branded. No direct file uploading from dashboard.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (events.length > 0) openCoverModalForEvent(events[0]);
+                }}
+                className="px-4 py-2.5 bg-[#171719] hover:bg-[#292725] text-white rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Upload Link</span>
+              </button>
+            </div>
+
+            {/* Event Cover Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {events.map((evt) => {
+                const config = evt.coverUploadConfig || createCoverConfig();
+                const shareableUrl = getShareableCoverUploadUrl(evt.id, config.token);
+                const hasCover = config.hasCustomCover || evt.bannerUrl.includes("http");
+                const isDisabled = config.isDisabled;
+
+                return (
+                  <div key={evt.id} className="bg-[#F8F5F2] rounded-2xl p-4 border border-black/10 shadow-sm flex flex-col justify-between gap-4">
+                    {/* Cover Preview Box */}
+                    <div className="relative aspect-video rounded-xl overflow-hidden bg-black/10 border border-black/10">
+                      <img src={evt.bannerUrl} alt={evt.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-3">
+                        <div className="text-white">
+                          <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 bg-white/20 backdrop-blur-md rounded text-white mb-1 inline-block">
+                            {evt.eventType}
+                          </span>
+                          <h4 className="text-xs font-bold truncate max-w-[220px]">{evt.title}</h4>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Indicator */}
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-black/5">
+                      <span className="text-[10px] font-extrabold uppercase text-[#746D68]">Event Cover Status</span>
+                      {isDisabled ? (
+                        <span className="text-[10px] font-black uppercase text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <XCircle className="w-3 h-3" />
+                          Link Disabled
+                        </span>
+                      ) : config.hasCustomCover ? (
+                        <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          ✓ Cover Added
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-black uppercase text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Link Active
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Expiry & Protection Badge */}
+                    <div className="flex items-center gap-2 text-[10px] text-on-surface-variant font-semibold">
+                      <span className="px-2 py-0.5 rounded bg-white border border-black/10">
+                        Expiry: {formatExpiryLabel(config.expiresAt)}
+                      </span>
+                      {config.password && (
+                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5" /> Password
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => openCoverModalForEvent(evt)}
+                        className="py-2 px-3 bg-[#171719] hover:bg-[#292725] text-white rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <LinkIcon className="w-3 h-3" />
+                        <span>Generate Link</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(shareableUrl, "Upload Link")}
+                        className="py-2 px-3 bg-white hover:bg-neutral-100 text-[#171719] border border-black/15 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy Link</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleCoverLinkDisabled(evt)}
+                        className={`py-2 px-3 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer border ${
+                          isDisabled
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                            : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                        }`}
+                      >
+                        {isDisabled ? "Enable Link" : "Disable Link"}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => window.open(shareableUrl, "_blank")}
+                        className="py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>Replace Cover</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -613,380 +771,12 @@ export default function OrganizerWorkspace({
                   </div>
                 </div>
               </div>
-
-              {/* Operations & Tools Section */}
-            <div className="flex flex-col gap-4 mt-4 pt-6 border-t border-outline-variant/30">
-              <div>
-                <h3 className="text-base font-black text-charcoal-dark">Operations &amp; Tools</h3>
-                <p className="text-xs text-on-surface-variant mt-0.5">
-                  Jump directly to GatePass operational tools and management workflows.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Card 1: Gate Security Simulator */}
-                <Link
-                  to="/organizer?tab=security"
-                  onClick={() => setActiveTab("security")}
-                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="p-2.5 rounded-xl bg-status-danger/10 text-status-danger border border-status-danger/20">
-                      <ShieldAlert className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Gate Security Simulator</h4>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      Test refund and void invalidation against live gate access.
-                    </p>
-                  </div>
-                </Link>
-
-                {/* Card 2: Scanner & Gates */}
-                <Link
-                  to="/scanner"
-                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#42566E]/10 text-[#42566E] border border-[#42566E]/20">
-                      <Smartphone className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Scanner &amp; Gates</h4>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      Manage live entry operations and camera checkpoints.
-                    </p>
-                  </div>
-                </Link>
-
-                {/* Card 3: Audit Logs */}
-                <Link
-                  to="/organizer?tab=audit"
-                  onClick={() => setActiveTab("audit")}
-                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#766052]/10 text-[#766052] border border-[#766052]/20">
-                      <History className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Audit Logs</h4>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      Review access, security, and administrative activity logs.
-                    </p>
-                  </div>
-                </Link>
-
-                {/* Card 4: Event Ledger */}
-                <Link
-                  to="/organizer?tab=settlement"
-                  onClick={() => setActiveTab("settlement")}
-                  className="group bg-white hover:bg-surface-container-low border border-outline-variant/30 hover:border-[#42566E]/40 rounded-2xl p-5 shadow-sm transition-all duration-200 flex flex-col justify-between cursor-pointer hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="p-2.5 rounded-xl bg-status-success/10 text-status-success border border-status-success/20">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-[#42566E] group-hover:translate-x-1 transition-transform" />
-                  </div>
-                  <div className="mt-4">
-                    <h4 className="text-sm font-black text-charcoal-dark uppercase tracking-wide">Event Ledger</h4>
-                    <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                      Reconciliation, settlements, and financial history.
-                    </p>
-                  </div>
-                </Link>
-              </div>
             </div>
-          </div>
-        ) : (
-            /* Shotgun Community Analytics Overview View */
-            <div className="flex flex-col gap-6 animate-fadeIn" id="shotgun-community-analytics">
-
-              {/* Header Info Area */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-5 rounded-2xl border border-outline-variant/30 gap-4">
-                <div>
-                  <h3 className="text-base font-black text-charcoal-dark uppercase tracking-tight flex items-center gap-1.5">
-                    <span>Overview</span>
-                  </h3>
-                  <p className="text-xs text-on-surface-variant mt-0.5">
-                    How does people who attended this event has evolved?
-                  </p>
-                </div>
-
-                {/* Explore Event dropdown */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase text-outline">Explore by event</span>
-                  <select
-                    value={exploreEventId}
-                    onChange={(e) => setExploreEventId(e.target.value)}
-                    className="bg-surface-container border border-outline-variant/30 rounded-xl px-3 py-2 text-xs font-bold text-charcoal-dark cursor-pointer outline-none"
-                  >
-                    <option value="all">All Active Events</option>
-                    <option value="ev4">Rock En Seine</option>
-                    <option value="ev5">We Love Green</option>
-                    <option value="ev6">Afterlife Roman Ruins</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Statistics indicators (4 Column Grid) */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                {/* Total Contacts */}
-                <div className="bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-on-surface-variant tracking-wider">
-                    <span>Total contacts</span>
-                    <Info className="w-3.5 h-3.5 text-outline/60" />
-                  </div>
-                  <h4 className="text-3xl font-black text-charcoal-dark mt-3">
-                    {exploreEventId === "all" ? "1,099" : exploreEventId === "ev4" ? "480" : exploreEventId === "ev5" ? "398" : "221"}
-                  </h4>
-                  <span className="text-[9px] text-status-success font-semibold mt-1">● Active list size</span>
-                </div>
-
-                {/* Followers */}
-                <div className="bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-on-surface-variant tracking-wider">
-                    <span>Followers on Shotgun</span>
-                    <Info className="w-3.5 h-3.5 text-outline/60" />
-                  </div>
-                  <h4 className="text-3xl font-black text-charcoal-dark mt-3">
-                    {exploreEventId === "all" ? "321" : exploreEventId === "ev4" ? "150" : exploreEventId === "ev5" ? "111" : "60"}
-                  </h4>
-                  <span className="text-[9px] text-primary font-semibold mt-1">● Direct app followers</span>
-                </div>
-
-                {/* Email Subscribers */}
-                <div className="bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-on-surface-variant tracking-wider">
-                    <span>Email subscribers</span>
-                    <Info className="w-3.5 h-3.5 text-outline/60" />
-                  </div>
-                  <h4 className="text-3xl font-black text-charcoal-dark mt-3">
-                    {exploreEventId === "all" ? "198" : exploreEventId === "ev4" ? "90" : exploreEventId === "ev5" ? "73" : "35"}
-                  </h4>
-                  <span className="text-[9px] text-outline font-semibold mt-1">● Campaign subscribers</span>
-                </div>
-
-                {/* Push Subscribers */}
-                <div className="bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-on-surface-variant tracking-wider">
-                    <span>Push subscribers</span>
-                    <Info className="w-3.5 h-3.5 text-outline/60" />
-                  </div>
-                  <h4 className="text-3xl font-black text-charcoal-dark mt-3">
-                    {exploreEventId === "all" ? "92" : exploreEventId === "ev4" ? "40" : exploreEventId === "ev5" ? "34" : "18"}
-                  </h4>
-                  <span className="text-[9px] text-status-warning font-semibold mt-1">● Push alerts active</span>
-                </div>
-              </div>
-
-              {/* Advanced Graphs/Tables Grid (2 columns) */}
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-
-                {/* Left Card: Event attendance with beautiful Donut concentric SVG loops */}
-                <div className="md:col-span-5 bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-charcoal-dark">Event attendance</h4>
-                      <Info className="w-3.5 h-3.5 text-outline/60" />
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant mt-1">
-                      Contacts who attended this event attend <strong className="text-charcoal-dark">1,5 events</strong> on average.
-                    </p>
-                  </div>
-
-                  {/* Concentric rings SVG Donut Chart */}
-                  <div className="relative w-44 h-44 mx-auto my-6 flex items-center justify-center">
-                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
-                      {/* Ring 1: 1 event (Green) */}
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="45"
-                        fill="transparent"
-                        stroke="#e2e8f0"
-                        strokeWidth="12"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="45"
-                        fill="transparent"
-                        stroke="#10b981"
-                        strokeWidth="12"
-                        strokeDasharray="282.7"
-                        strokeDashoffset={282.7 - (282.7 * 62) / 100}
-                        strokeLinecap="round"
-                      />
-
-                      {/* Ring 2: 2 events (Blue) */}
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="32"
-                        fill="transparent"
-                        stroke="#e2e8f0"
-                        strokeWidth="10"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="32"
-                        fill="transparent"
-                        stroke="#3b82f6"
-                        strokeWidth="10"
-                        strokeDasharray="201"
-                        strokeDashoffset={201 - (201 * 22) / 100}
-                        strokeLinecap="round"
-                      />
-
-                      {/* Ring 3: 3 events (Pink) */}
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="20"
-                        fill="transparent"
-                        stroke="#e2e8f0"
-                        strokeWidth="8"
-                      />
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="20"
-                        fill="transparent"
-                        stroke="#f43f5e"
-                        strokeWidth="8"
-                        strokeDasharray="125.6"
-                        strokeDashoffset={125.6 - (125.6 * 8) / 100}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-
-                    {/* Centered value overlay */}
-                    <div className="absolute flex flex-col items-center">
-                      <span className="text-2xl font-black text-charcoal-dark leading-none">1,5</span>
-                      <span className="text-[9px] font-bold text-outline uppercase tracking-wider">Avg events</span>
-                    </div>
-                  </div>
-
-                  {/* Colored legends */}
-                  <div className="grid grid-cols-2 gap-2 text-[10px] text-on-surface-variant font-bold pt-3 border-t border-surface-container">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]"></span>
-                      <span>1 event: <strong>62%</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]"></span>
-                      <span>2 events: <strong>22%</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#f43f5e]"></span>
-                      <span>3 events: <strong>8%</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#fbbf24]"></span>
-                      <span>4 events: <strong>4%</strong></span>
-                    </div>
-                    <div className="flex items-center gap-1.5 col-span-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#6366f1]"></span>
-                      <span>5+ events: <strong>2%</strong></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Card: Time since last purchase */}
-                <div className="md:col-span-7 bg-white rounded-2xl p-5 border border-outline-variant/30 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-charcoal-dark">Time since last purchase</h4>
-                      <Info className="w-3.5 h-3.5 text-outline/60" />
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant mt-1">
-                      Historical retention matrix mapping repeat purchasers on the platform.
-                    </p>
-                  </div>
-
-                  {/* Beautiful structured table */}
-                  <div className="flex flex-col gap-3.5 my-4">
-
-                    {/* Row 1: < 3 months */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
-                        <span>&lt; 3 months</span>
-                        <span>3,741 contacts (37%)</span>
-                      </div>
-                      <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: "37%" }} />
-                      </div>
-                    </div>
-
-                    {/* Row 2: 3 to 6 months */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
-                        <span>3 to 6 months</span>
-                        <span>5,201 contacts (50%)</span>
-                      </div>
-                      <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: "50%" }} />
-                      </div>
-                    </div>
-
-                    {/* Row 3: 6 to 12 months */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
-                        <span>6 to 12 months</span>
-                        <span>1,954 contacts (19%)</span>
-                      </div>
-                      <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: "19%" }} />
-                      </div>
-                    </div>
-
-                    {/* Row 4: 12 to 24 months */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
-                        <span>12 to 24 months</span>
-                        <span>1,227 contacts (12%)</span>
-                      </div>
-                      <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: "12%" }} />
-                      </div>
-                    </div>
-
-                    {/* Row 5: > 24 months */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex justify-between text-[11px] font-bold text-charcoal-dark">
-                        <span>&gt; 24 months</span>
-                        <span>1,227 contacts (12%)</span>
-                      </div>
-                      <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                        <div className="bg-primary h-full rounded-full" style={{ width: "12%" }} />
-                      </div>
-                    </div>
-
-                  </div>
-
-                  <div className="text-[10px] text-outline text-right font-medium">
-                    * Data computed live from connected Shotgun tracking hooks
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-          )}
+          ) : null}
         </div>
       )}
 
-      {/* Pane Event Builder (Module 2) */}
+      {/* Pane Event Builder */}
       {activeTab === "builder" && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30" id="builder-tab-content">
           <h3 className="text-base font-black text-charcoal-dark mb-1">Launch New Event Pass Tier</h3>
@@ -1085,195 +875,89 @@ export default function OrganizerWorkspace({
               />
             </div>
 
-            {/* EVENT COVER IMAGE MODULE */}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
-                <label className="text-xs font-bold text-outline uppercase tracking-wider">Event Cover Image</label>
-                <span className="text-[11px] text-[#746D68] font-medium">Recommended 16:9 · JPG, PNG or WebP · Max 50 MB</span>
+            {/* NEW: COVER PHOTO LINK SYSTEM NOTICE (NO DIRECT UPLOAD BOX) */}
+            <div className="p-5 rounded-2xl bg-[#F8F5F2] border border-black/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-[#171719] text-[#F8F5F2] flex-shrink-0">
+                  <LinkIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-[#171719] tracking-wider">
+                    Cover Photo Upload Link System Active
+                  </h4>
+                  <p className="text-[11px] text-[#746D68] mt-0.5 leading-relaxed">
+                    Direct image uploader has been removed from the dashboard. Once published, you can generate a shareable Cover Photo Upload Link for your client, designer, or marketing team.
+                  </p>
+                </div>
               </div>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  handleImageFileChange(file);
-                }}
-                className="hidden"
-              />
-
-              {coverError?.trim() && (
-                <div className="p-2.5 rounded-xl bg-status-danger/10 text-status-danger border border-status-danger/20 text-xs font-bold flex items-center gap-2">
-                  <AlertOctagon className="w-4 h-4 flex-shrink-0" />
-                  <span>{coverError}</span>
-                </div>
-              )}
-
-              {!coverPreviewUrl ? (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const file = e.dataTransfer.files?.[0] || null;
-                    handleImageFileChange(file);
-                  }}
-                  className="bg-[#F8F5F2] border border-dashed border-[#3F3632]/20 hover:border-[#171719]/40 rounded-[14px] p-5 h-[160px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors group"
-                >
-                  <div className="w-9 h-9 rounded-full bg-[#171719]/5 group-hover:bg-[#171719]/10 flex items-center justify-center text-[#171719] mb-2 transition-colors">
-                    <Upload className="w-4 h-4" />
-                  </div>
-                  <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">
-                    Upload Event Cover
-                  </p>
-                  <p className="text-[11px] text-[#746D68] mt-0.5 mb-2.5">
-                    Drag &amp; drop or choose an image file
-                  </p>
-                  <span className="px-3.5 py-1.5 bg-[#171719] hover:bg-[#292725] text-[#F8F5F2] rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors shadow-sm">
-                    Choose Image
-                  </span>
-                </div>
-              ) : (
-                // self-start: the parent is a stretch flex column, which would
-                // otherwise widen this shell to the full Event Builder width.
-                <div className="flex flex-col gap-3 w-full max-w-[620px] self-start">
-                  <div className="relative rounded-[12px] overflow-hidden border border-[#3F3632]/10 bg-[#171719] aspect-[16/9] w-full">
-                    <img
-                      src={coverPreviewUrl}
-                      alt="Cover preview"
-                      className="w-full h-full object-cover object-center"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1.5 bg-[#F8F5F2] hover:bg-[#E8E1DD] border border-[#3F3632]/10 rounded-xl text-xs font-extrabold text-[#171719] uppercase tracking-wider transition-colors cursor-pointer"
-                    >
-                      Replace Image
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCoverImage}
-                      className="px-3 py-1.5 bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 rounded-xl text-xs font-extrabold text-status-danger uppercase tracking-wider transition-colors cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              )}
+              <span className="px-3 py-1.5 bg-[#171719]/10 text-[#171719] rounded-xl text-[10px] font-black uppercase tracking-wider flex-shrink-0">
+                Link Sharing Ready
+              </span>
             </div>
 
-            {/* Custom Ticket Tiers — Fully Responsive */}
+            {/* Custom Ticket Tiers */}
             <div className="border-t border-[#3F3632]/10 pt-4 flex flex-col gap-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <h4 className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">
-                  TICKET CATEGORY RANGES
+                  Ticket Tiers &amp; Pricing Rules
                 </h4>
                 <button
                   type="button"
                   onClick={handleAddCategory}
-                  className="w-full sm:w-auto h-[42px] sm:h-[34px] px-3.5 bg-[#171719] hover:bg-[#292725] text-[#F8F5F2] sm:bg-primary/10 sm:text-primary sm:hover:bg-primary/20 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-1.5 bg-[#171719] hover:bg-[#292725] text-[#F8F5F2] rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 transition-colors cursor-pointer self-start sm:self-auto"
                 >
-                  <Plus className="w-4 h-4 sm:w-3 sm:h-3" />
-                  <span>+ ADD TIER</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Tier</span>
                 </button>
               </div>
 
-              <div className="flex flex-col gap-3 w-full max-w-full box-border">
-                {categories.map((cat, index) => (
-                  <div
-                    key={index}
-                    className="bg-[#F8F5F2] border border-[#3F3632]/8 rounded-[12px] p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center gap-3 w-full max-w-full box-border shadow-none"
-                  >
-                    {/* Top Row on Mobile / Left Area on Desktop */}
-                    <div className="flex items-center justify-between gap-2 w-full md:flex-1">
-                      <div className="flex-1">
-                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
-                          TIER NAME
-                        </label>
-                        <input
-                          type="text"
-                          value={cat.name}
-                          onChange={(e) => {
-                            const newCats = [...categories];
-                            newCats[index].name = e.target.value;
-                            setCategories(newCats);
-                          }}
-                          placeholder="Category Name"
-                          className="w-full bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs text-[#171719] font-bold outline-none focus:border-[#171719]"
-                        />
-                      </div>
-
-                      {/* Mobile Delete Button (top right of card) */}
-                      {categories.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCategory(index)}
-                          aria-label={`Delete ${cat.name || "tier"} tier`}
-                          className="w-[44px] h-[44px] sm:w-9 sm:h-9 rounded-lg text-status-danger hover:bg-status-danger/10 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 md:hidden"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
+              <div className="flex flex-col gap-2.5">
+                {categories.map((cat, idx) => (
+                  <div key={idx} className="p-3 bg-[#F8F5F2] rounded-xl border border-black/10 flex flex-wrap items-center gap-3">
+                    <input
+                      type="text"
+                      placeholder="Tier Name"
+                      value={cat.name}
+                      onChange={(e) => {
+                        const updated = [...categories];
+                        updated[idx].name = e.target.value;
+                        setCategories(updated);
+                      }}
+                      className="flex-1 min-w-[120px] bg-white border border-black/10 rounded-lg p-2 text-xs font-bold text-[#171719]"
+                    />
+                    <div className="flex items-center gap-1 w-28">
+                      <span className="text-xs font-bold text-[#746D68]">₹</span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={cat.price}
+                        onChange={(e) => {
+                          const updated = [...categories];
+                          updated[idx].price = Number(e.target.value);
+                          setCategories(updated);
+                        }}
+                        className="w-full bg-white border border-black/10 rounded-lg p-2 text-xs font-bold text-[#171719]"
+                      />
                     </div>
-
-                    {/* Price & Capacity 2-Column Grid on Mobile / Inline Inputs on Desktop */}
-                    <div className="grid grid-cols-2 gap-2.5 w-full md:flex md:w-auto md:items-center md:gap-3">
-                      {/* Price Field */}
-                      <div className="flex-1 md:w-36">
-                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
-                          PRICE
-                        </label>
-                        <div className="flex items-center bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs font-bold text-[#171719]">
-                          <span className="text-[#938C87] mr-1 flex-shrink-0">₹</span>
-                          <input
-                            type="number"
-                            min={0}
-                            value={cat.price}
-                            onChange={(e) => {
-                              const newCats = [...categories];
-                              newCats[index].price = Number(e.target.value);
-                              setCategories(newCats);
-                            }}
-                            className="w-full bg-transparent border-none p-0 outline-none font-bold text-[#171719] text-right text-base md:text-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Capacity Field */}
-                      <div className="flex-1 md:w-28">
-                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
-                          CAPACITY
-                        </label>
-                        <div className="flex items-center bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs font-bold text-[#171719]">
-                          <input
-                            type="number"
-                            min={1}
-                            value={cat.capacity}
-                            onChange={(e) => {
-                              const newCats = [...categories];
-                              newCats[index].capacity = Number(e.target.value);
-                              setCategories(newCats);
-                            }}
-                            className="w-full bg-transparent border-none p-0 outline-none font-bold text-[#171719] text-right text-base md:text-xs"
-                          />
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-1 w-28">
+                      <span className="text-[10px] font-bold text-[#746D68]">CAP</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={cat.capacity}
+                        onChange={(e) => {
+                          const updated = [...categories];
+                          updated[idx].capacity = Number(e.target.value);
+                          setCategories(updated);
+                        }}
+                        className="w-full bg-white border border-black/10 rounded-lg p-2 text-xs font-bold text-[#171719]"
+                      />
                     </div>
-
-                    {/* Desktop Delete Button */}
                     {categories.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => handleRemoveCategory(index)}
-                        aria-label={`Delete ${cat.name || "tier"} tier`}
-                        className="hidden md:flex w-9 h-9 rounded-lg text-status-danger hover:bg-status-danger/10 items-center justify-center transition-colors cursor-pointer flex-shrink-0"
+                        onClick={() => handleRemoveCategory(idx)}
+                        className="p-2 text-status-danger hover:bg-status-danger/10 rounded-lg cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1283,159 +967,145 @@ export default function OrganizerWorkspace({
               </div>
             </div>
 
-            <button
+            <AnimatedButton
               type="submit"
-              className="w-full py-3.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-widest uppercase rounded-xl shadow-lg mt-3 cursor-pointer"
+              className="!w-full !bg-[#171719] !text-white !py-3.5 !rounded-xl !text-xs !font-bold !uppercase !tracking-wider mt-2 cursor-pointer"
             >
-              Launch Event Pass Block
-            </button>
+              <span>Publish Event &amp; Generate Cover Link</span>
+            </AnimatedButton>
           </form>
         </div>
       )}
 
-      {/* Pane Manual Tickets (Module 4 Flow E) */}
+      {/* Pane Manual Sales */}
       {activeTab === "manual" && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-5" id="manual-tab-content">
-          <div>
-            <h3 className="text-base font-black text-charcoal-dark mb-1">Log Cash / Offline Sales</h3>
-            <p className="text-xs text-on-surface-variant">
-              Mandatory module to log manual ticket cash collections directly into immutable database tracking. Prevents leakage.
-            </p>
-          </div>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30">
+          <h3 className="text-base font-black text-charcoal-dark mb-1">Issue Offline / Cash Entry Pass</h3>
+          <p className="text-xs text-on-surface-variant mb-6">
+            Log cash desk ticket purchases manually. Automatically deducts inventory and registers token on security terminals.
+          </p>
 
-          <form onSubmit={handleManualTicketSubmit} className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-outline uppercase">Select Target Event</label>
-                <select
-                  required
-                  value={manualEventId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setManualEventId(id);
-                    const selectedEv = events.find(ev => ev.id === id);
-                    if (selectedEv && selectedEv.ticketCategories.length > 0) {
-                      setManualCategory(selectedEv.ticketCategories[0].name);
-                      setManualPrice(selectedEv.ticketCategories[0].price);
-                    }
-                  }}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none cursor-pointer"
-                >
-                  <option value="">-- Choose Event --</option>
-                  {events.map(ev => (
-                    <option key={ev.id} value={ev.id}>{ev.title}</option>
-                  ))}
-                </select>
-              </div>
-
-              {manualEventId && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-outline uppercase">Choose Category Tier</label>
-                  <select
-                    required
-                    value={manualCategory}
-                    onChange={(e) => {
-                      const name = e.target.value;
-                      setManualCategory(name);
-                      const ev = events.find(ev => ev.id === manualEventId);
-                      const cat = ev?.ticketCategories.find(c => c.name === name);
-                      if (cat) setManualPrice(cat.price);
-                    }}
-                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none cursor-pointer"
-                  >
-                    {events.find(ev => ev.id === manualEventId)?.ticketCategories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name} (₹{cat.price})</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          <form onSubmit={handleManualTicketSubmit} className="flex flex-col gap-4 max-w-xl">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-outline uppercase">Select Target Event</label>
+              <select
+                required
+                value={manualEventId}
+                onChange={(e) => setManualEventId(e.target.value)}
+                className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold cursor-pointer outline-none"
+              >
+                <option value="">-- Choose Published Event --</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.title} ({ev.venue})
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-outline uppercase">Attendee Full Name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Ramesh Singh"
+                  placeholder="e.g. Priyanshu Sharma"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-outline uppercase">Contact Mobile Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. +91 99999 12345"
-                  value={manualPhone}
-                  onChange={(e) => setManualPhone(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
-                />
+                <label className="text-xs font-bold text-outline uppercase">Ticket Tier Category</label>
+                <select
+                  required
+                  value={manualCategory}
+                  onChange={(e) => {
+                    setManualCategory(e.target.value);
+                    const targetEv = events.find(ev => ev.id === manualEventId);
+                    const cat = targetEv?.ticketCategories.find(c => c.name === e.target.value);
+                    if (cat) setManualPrice(cat.price);
+                  }}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold cursor-pointer outline-none"
+                >
+                  <option value="">-- Choose Category Tier --</option>
+                  {manualEventId &&
+                    events.find(e => e.id === manualEventId)?.ticketCategories.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name} — ₹{c.price}
+                      </option>
+                    ))}
+                </select>
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-outline uppercase">Contact Email Address</label>
+                <label className="text-xs font-bold text-outline uppercase">Attendee Email (Optional)</label>
                 <input
                   type="email"
-                  placeholder="e.g. ramesh@gmail.com"
+                  placeholder="priyanshu@gmail.com"
                   value={manualEmail}
                   onChange={(e) => setManualEmail(e.target.value)}
-                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-xs text-charcoal-dark font-semibold outline-none"
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-outline uppercase">Phone Number (SMS Alert)</label>
+                <input
+                  type="text"
+                  placeholder="+91 98765 43210"
+                  value={manualPhone}
+                  onChange={(e) => setManualPhone(e.target.value)}
+                  className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none"
                 />
               </div>
             </div>
 
-            <button
+            <AnimatedButton
               type="submit"
-              className="w-full py-3 bg-charcoal-dark hover:bg-opacity-95 text-white text-xs font-bold uppercase tracking-widest rounded-xl shadow cursor-pointer mt-2"
+              className="!w-full !bg-primary !text-white !py-3 !rounded-xl !text-xs !font-bold !uppercase !tracking-wider mt-2 cursor-pointer"
             >
-              Generate &amp; Register Cash Ticket (Issues QR Code)
-            </button>
+              <span>Confirm Cash Collection &amp; Issue QR Pass</span>
+            </AnimatedButton>
           </form>
         </div>
       )}
 
-      {/* Pane Settlement Clarity (Module 4) */}
+      {/* Pane Settlements */}
       {activeTab === "settlement" && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4" id="settlement-tab-content">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-6">
           <div>
-            <h3 className="text-base font-black text-charcoal-dark mb-1">Settlement &amp; Fees Ledger</h3>
-            <p className="text-xs text-on-surface-variant">
-              Full breakdown of gross sales, gateway processing charges, flat GatePass platform fee (₹5/paid ticket), and final payout parameters.
+            <h3 className="text-base font-black text-charcoal-dark">Financial Ledger &amp; Payout Settlements</h3>
+            <p className="text-xs text-on-surface-variant mt-0.5">
+              Net settlement breakdown computed after platform charges, payment gateway fees, and manual offline collections.
             </p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-surface-container border-b border-outline-variant/30 text-on-surface-variant font-bold text-[10px] tracking-wider uppercase">
-                  <th className="p-3">Event Title</th>
-                  <th className="p-3 text-right">Gross Sales</th>
-                  <th className="p-3 text-right">Gateway (2.5%)</th>
-                  <th className="p-3 text-right">GP Platform (₹5)</th>
-                  <th className="p-3 text-right">Manual / Cash</th>
-                  <th className="p-3 text-right">Net Payable</th>
-                  <th className="p-3 text-center">Status</th>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-surface-container border-b border-outline-variant/30 text-[10px] font-black text-outline uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">Event Name</th>
+                  <th className="py-3 px-4">Gross Sales</th>
+                  <th className="py-3 px-4">Platform Fee (₹5/tkt)</th>
+                  <th className="py-3 px-4">Cash Hand-Collected</th>
+                  <th className="py-3 px-4">Net Payout Due</th>
+                  <th className="py-3 px-4">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container">
+              <tbody className="divide-y divide-outline-variant/20 font-semibold text-charcoal-dark">
                 {settlements.map((set) => (
                   <tr key={set.id} className="hover:bg-surface-container-low transition-colors">
-                    <td className="p-3 font-extrabold text-charcoal-dark">{set.eventName}</td>
-                    <td className="p-3 text-right font-semibold">₹{set.grossSales.toLocaleString()}</td>
-                    <td className="p-3 text-right text-on-surface-variant">₹{set.gatewayFees.toLocaleString()}</td>
-                    <td className="p-3 text-right text-on-surface-variant">₹{set.platformFees.toLocaleString()}</td>
-                    <td className="p-3 text-right text-on-surface-variant">₹{set.manualCollections.toLocaleString()}</td>
-                    <td className="p-3 text-right font-black text-primary">₹{set.netSettlement.toLocaleString()}</td>
-                    <td className="p-3 text-center">
-                      <span className={`text-[9px] font-black tracking-wider uppercase px-2 py-1 rounded-full ${set.status === "settled"
-                          ? "bg-status-success text-white"
-                          : set.status === "processing"
-                            ? "bg-status-warning text-white"
-                            : "bg-status-inactive text-white"
-                        }`}>
+                    <td className="py-3.5 px-4 font-bold">{set.eventName}</td>
+                    <td className="py-3.5 px-4 font-mono">₹{set.grossSales}</td>
+                    <td className="py-3.5 px-4 font-mono text-status-danger">-₹{set.platformFees}</td>
+                    <td className="py-3.5 px-4 font-mono text-outline">₹{set.manualCollections}</td>
+                    <td className="py-3.5 px-4 font-mono font-black text-primary text-sm">₹{set.netSettlement}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-1 bg-status-warning/10 text-status-warning rounded-full text-[10px] font-bold uppercase">
                         {set.status}
                       </span>
                     </td>
@@ -1447,377 +1117,117 @@ export default function OrganizerWorkspace({
         </div>
       )}
 
-      {/* Pane Audit Ledger (Module 8 Audit Logs) */}
-      {activeTab === "audit" && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4" id="audit-tab-content">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-black text-charcoal-dark mb-1">Immutable Workspace Audit Ledger</h3>
-              <p className="text-xs text-on-surface-variant">
-                Immutable security logs tracking administrative role actions, ticket issues, voids, and validation pings.
-              </p>
-            </div>
-            <Award className="w-8 h-8 text-primary" />
-          </div>
-
-          <div className="flex flex-col gap-3 max-h-96 overflow-y-auto pr-1">
-            {auditLogs.map((log) => (
-              <div key={log.id} className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/15 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+      {/* COVER PHOTO LINK GENERATION MODAL */}
+      {showCoverModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-[#121218] border border-white/15 text-white max-w-lg w-full rounded-3xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                  <LinkIcon className="w-5 h-5" />
+                </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-charcoal-dark">{log.action}</span>
-                    <span className="text-outline">•</span>
-                    <span className="text-[10px] font-bold text-primary">{log.actor}</span>
-                  </div>
-                  <p className="text-on-surface-variant mt-1 leading-relaxed text-[11px]">{log.details}</p>
-                </div>
-                <div className="text-[10px] font-mono text-outline whitespace-nowrap self-end sm:self-center">
-                  {log.timestamp}
+                  <h3 className="text-base font-black tracking-tight">Generate Cover Upload Link</h3>
+                  <p className="text-[11px] text-gray-400 font-semibold">Shareable link for client, manager, or designer</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Pane Gate Security Simulator */}
-      {activeTab === "security" && (
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-5" id="security-simulator-tab-content">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-status-danger/10 text-status-danger border border-status-danger/20 mb-2">
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Live Gate Invalidation Test</span>
-            </div>
-            <h3 className="text-lg font-black text-charcoal-dark">Gate Security Simulator</h3>
-            <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-              Test refund and void invalidation protection! Voiding a ticket immediately blacklists its QR code across all mobile scanner gates.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-outline-variant/30 pt-4">
-            <h4 className="text-xs font-black uppercase tracking-wider text-charcoal-dark">Active Issued Tickets Available for Testing</h4>
-            {tickets.filter(t => t.status === TicketStatus.ISSUED).length === 0 ? (
-              <p className="text-xs text-outline italic">No active issued tickets available to refund.</p>
-            ) : (
-              tickets.filter(t => t.status === TicketStatus.ISSUED).map(ticket => (
-                <div key={ticket.id} className="p-4 bg-surface-container-low rounded-xl border border-outline-variant/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-primary">{ticket.categoryName}</span>
-                    <h5 className="font-extrabold text-charcoal-dark text-sm mt-0.5">{ticket.attendeeName}</h5>
-                    <p className="text-[11px] text-on-surface-variant font-mono mt-0.5">Token: {ticket.qrToken}</p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      onProcessRefund(ticket.id);
-                      showToast(`Refund processed! ${ticket.attendeeName}'s QR token has been blacklisted.`);
-                    }}
-                    className="py-2.5 px-4 bg-status-danger/10 hover:bg-status-danger/20 text-status-danger border border-status-danger/30 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <ShieldAlert className="w-4 h-4" />
-                    <span>Process Refund / Void QR for {ticket.attendeeName}</span>
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Pane Org Settings (Module 1 Organizer Workspace) */}
-      {activeTab === "org" && (
-        <div className="flex flex-col gap-6 animate-fadeIn" id="org-tab-content">
-          {/* Org Profile & Payout Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Org Profile card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-              <div>
-                <h3 className="text-base font-black text-charcoal-dark mb-1">Organization Profile</h3>
-                <p className="text-xs text-on-surface-variant">Configure standard workspace parameters for institutional verification.</p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Organization Name</label>
-                  <input
-                    type="text"
-                    value={orgName}
-                    onChange={(e) => setOrgName(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Workspace Type</label>
-                  <input
-                    type="text"
-                    value={orgType}
-                    onChange={(e) => setOrgType(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">Contact Email</label>
-                    <input
-                      type="email"
-                      value={orgEmail}
-                      onChange={(e) => setOrgEmail(e.target.value)}
-                      className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">Support Phone</label>
-                    <input
-                      type="text"
-                      value={orgPhone}
-                      onChange={(e) => setOrgPhone(e.target.value)}
-                      className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => showToast("Organization Profile settings updated!")}
-                  className="mt-2 w-full py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer"
-                >
-                  Save Profile Settings
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowCoverModal(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Payout Configurations card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-              <div>
-                <h3 className="text-base font-black text-charcoal-dark mb-1">Payout &amp; Settlement Settings</h3>
-                <p className="text-xs text-on-surface-variant">Add bank or UPI targets for ticket revenues. 100% transparent fee structure.</p>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Settlement Bank Name</label>
-                  <input
-                    type="text"
-                    value={payoutBank}
-                    onChange={(e) => setPayoutBank(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">IFSC Code</label>
-                    <input
-                      type="text"
-                      value={payoutIFSC}
-                      onChange={(e) => setPayoutIFSC(e.target.value)}
-                      className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">Account Number</label>
-                    <input
-                      type="text"
-                      value={payoutAcc}
-                      onChange={(e) => setPayoutAcc(e.target.value)}
-                      className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">UPI ID / Address</label>
-                    <input
-                      type="text"
-                      value={payoutUPI}
-                      onChange={(e) => setPayoutUPI(e.target.value)}
-                      className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-[10px] font-bold text-outline uppercase">Payout Cycle</label>
-                    <select
-                      value={payoutSchedule}
-                      onChange={(e) => setPayoutSchedule(e.target.value)}
-                      className="p-2 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded cursor-pointer outline-none"
-                    >
-                      <option value="Daily after gate-reconciliation">Daily gate-reconciliation</option>
-                      <option value="Weekly (Every Friday)">Weekly (Every Friday)</option>
-                      <option value="Monthly Cycle">Monthly Cycle</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => showToast("Financial Settlement Accounts updated!")}
-                  className="mt-2 w-full py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer"
-                >
-                  Save Payout Credentials
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Team Roles and Permissions Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-            {/* List members */}
-            <div className="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-              <div>
-                <h3 className="text-base font-black text-charcoal-dark mb-1">Team Members &amp; Permission Roles</h3>
-                <p className="text-xs text-on-surface-variant">
-                  General team roles stay separate from secure scanner access.
-                </p>
-                <Link to="/scanner" className="mt-2 inline-flex text-xs font-black text-primary underline underline-offset-4">
-                  Manage scanner access by verified email
-                </Link>
-              </div>
-
-              <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
-                {teamMembers.map(member => (
-                  <div key={member.id} className="p-3 bg-surface-container-low border border-outline-variant/15 flex justify-between items-center text-xs rounded-lg">
-                    <div>
-                      <p className="font-extrabold text-charcoal-dark">{member.name}</p>
-                      <p className="text-[10px] text-outline mt-0.5">{member.email}</p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <select
-                        value={member.role}
-                        onChange={(e) => {
-                          const updated = teamMembers.map(m => m.id === member.id ? { ...m, role: e.target.value } : m);
-                          setTeamMembers(updated);
-                          showToast(`Updated ${member.name} role to ${e.target.value}!`);
-                        }}
-                        className="p-1 text-[10px] font-bold bg-white text-charcoal-dark border border-outline-variant rounded cursor-pointer outline-none"
-                      >
-                        <option value="Event Manager">Event Manager</option>
-                        <option value="Finance Manager">Finance Manager</option>
-                        <option value="Gate Staff">Gate Staff</option>
-                        <option value="Volunteer">Volunteer</option>
-                        <option value="Viewer">Viewer</option>
-                      </select>
-
-                      <button
-                        onClick={() => handleRemoveMember(member.id)}
-                        className="text-status-danger p-1 hover:bg-status-danger/10 rounded transition-all cursor-pointer"
-                        title="Remove member"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Invite new member form */}
-            <div className="lg:col-span-5 bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
-              <div>
-                <h3 className="text-base font-black text-charcoal-dark mb-1">Invite New Admin Member</h3>
-                <p className="text-xs text-on-surface-variant">Add volunteers or staff for non-scanner operations.</p>
-              </div>
-
-              <form onSubmit={handleAddTeamMember} className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Member Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Ramesh Kumar"
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Member Email</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="ramesh@dtu.ac.in"
-                    value={newMemberEmail}
-                    onChange={(e) => setNewMemberEmail(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-bold text-outline uppercase">Default Permission Role</label>
-                  <select
-                    value={newMemberRole}
-                    onChange={(e) => setNewMemberRole(e.target.value)}
-                    className="p-2 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded cursor-pointer outline-none"
-                  >
-                    <option value="Event Manager">Event Manager</option>
-                    <option value="Finance Manager">Finance Manager</option>
-                    <option value="Gate Staff">Gate Staff</option>
-                    <option value="Volunteer">Volunteer</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  className="mt-2 w-full py-2.5 bg-charcoal-dark hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 rounded cursor-pointer"
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Invite &amp; Grant Access</span>
-                </button>
-              </form>
-            </div>
-
-          </div>
-
-          {/* Branding Settings Customizer Row */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-outline-variant/30 flex flex-col gap-4">
+            {/* Generated Link Field */}
             <div>
-              <h3 className="text-base font-black text-charcoal-dark mb-1">Branding &amp; Ticket Personalization</h3>
-              <p className="text-xs text-on-surface-variant">Format client-side parameters on issued ticket categories, banners, and digital email frames.</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-outline uppercase">Corporate Brand Color (Primary HEX)</label>
-                <div className="flex gap-2">
-                  <input
-                    type="color"
-                    value={brandingColor}
-                    onChange={(e) => setBrandingColor(e.target.value)}
-                    className="w-10 h-10 border border-outline-variant rounded cursor-pointer outline-none"
-                  />
-                  <input
-                    type="text"
-                    value={brandingColor}
-                    onChange={(e) => setBrandingColor(e.target.value)}
-                    className="p-2.5 text-xs text-charcoal-dark font-mono font-bold bg-surface-container-low flex-1 border border-outline-variant rounded outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-outline uppercase">Issued Ticket Header Warning Text</label>
+              <label className="block text-[10px] font-black uppercase text-gray-400 tracking-wider mb-2">
+                Shareable Secure Link
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="text"
-                  value={ticketHeader}
-                  onChange={(e) => setTicketHeader(e.target.value)}
-                  className="p-2.5 text-xs text-charcoal-dark font-bold bg-surface-container-low border border-outline-variant rounded outline-none"
+                  readOnly
+                  value={modalGeneratedUrl}
+                  className="flex-1 bg-black/40 border border-white/15 rounded-xl px-3 py-2.5 text-xs font-mono text-indigo-300 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(modalGeneratedUrl, "Cover Upload Link")}
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copy</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Security Options */}
+            <div className="space-y-4 pt-2 border-t border-white/10">
+              <h4 className="text-xs font-black uppercase text-gray-300 tracking-wider">Link Security Options</h4>
+
+              {/* Expiry Selector */}
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Expiration Duration</label>
+                <select
+                  value={modalExpiryHours ?? 0}
+                  onChange={(e) => setModalExpiryHours(Number(e.target.value) === 0 ? null : Number(e.target.value))}
+                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3 py-2 text-xs font-semibold text-white cursor-pointer outline-none"
+                >
+                  <option value={0}>Never Expire</option>
+                  <option value={24}>24 Hours</option>
+                  <option value={72}>3 Days (72 Hours)</option>
+                  <option value={168}>7 Days</option>
+                </select>
+              </div>
+
+              {/* Password Protection */}
+              <div>
+                <label className="block text-[10px] text-gray-400 font-bold uppercase mb-1">Password Protection (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Set optional password"
+                  value={modalPassword}
+                  onChange={(e) => setModalPassword(e.target.value)}
+                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none"
+                />
+              </div>
+
+              {/* Allow replace toggle */}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-xs text-gray-300 font-semibold">Allow replacing existing cover image</span>
+                <input
+                  type="checkbox"
+                  checked={modalAllowReplace}
+                  onChange={(e) => setModalAllowReplace(e.target.checked)}
+                  className="w-4 h-4 accent-indigo-500 cursor-pointer"
                 />
               </div>
             </div>
 
-            <button
-              onClick={() => showToast("Branding settings saved successfully!")}
-              className="mt-2 w-max px-6 py-2.5 bg-primary hover:bg-opacity-95 text-white text-xs font-bold tracking-wider uppercase transition-all rounded cursor-pointer self-end"
-            >
-              Update Brand Parameters
-            </button>
-          </div>
+            {/* Target Share Guidance */}
+            <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-[11px] text-gray-300 space-y-1">
+              <p className="font-bold text-white uppercase text-[10px]">Recipient Sharing Flow:</p>
+              <p className="text-gray-400">Share this link directly with:</p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[9px] font-bold">Event Client</span>
+                <span className="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[9px] font-bold">Event Manager</span>
+                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-bold">Designer</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[9px] font-bold">Marketing Team</span>
+              </div>
+            </div>
 
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleSaveCoverModalSettings}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-indigo-600/30 cursor-pointer"
+              >
+                Save Security Settings
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,4 +1,7 @@
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024; // 50 MB
+// Vercel Functions cap request and response payloads at 4.5 MB, while the
+// event_images table intentionally caps stored images at 4 MiB.
+export const MAX_STORED_IMAGE_BYTES = 4 * 1024 * 1024;
 
 export const ALLOWED_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 export const ALLOWED_MIME_TYPES = new Set([
@@ -161,9 +164,10 @@ export async function validateImageFile(file: unknown): Promise<ImageValidationR
 
 /**
  * Prepares a web-ready Blob for image upload.
- * If the image is valid and can be decoded, resizes high-resolution images
- * to a maximum dimension of 1920px (preserving aspect ratio) to guarantee
- * fast upload speed and ensure payload size is well below serverless limits (< 2 MB).
+ * Files may be selected up to 50 MB, but the body sent through the Vercel
+ * Function must fit the database and hosting limits. Images already within
+ * that boundary are preserved; larger images are re-encoded and downscaled
+ * until the encoded payload is at most 4 MiB.
  */
 export async function prepareWebReadyImage(file: File): Promise<{ blob: Blob; mimeType: string; fileName: string }> {
   const validation = await validateImageFile(file);
@@ -173,12 +177,21 @@ export async function prepareWebReadyImage(file: File): Promise<{ blob: Blob; mi
 
   const mimeType = validation.mimeType || "image/png";
 
-  if (typeof window === "undefined" || typeof createImageBitmap === "undefined") {
+  if (file.size <= MAX_STORED_IMAGE_BYTES) {
     return { blob: file, mimeType, fileName: file.name };
   }
 
+  if (
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    typeof createImageBitmap !== "function"
+  ) {
+    throw new Error("This image must be reduced below 4 MB before it can be uploaded.");
+  }
+
+  let bitmap: ImageBitmap | null = null;
   try {
-    const bitmap = await createImageBitmap(file);
+    bitmap = await createImageBitmap(file);
     const maxDimension = 1920;
     let width = bitmap.width;
     let height = bitmap.height;
@@ -194,33 +207,38 @@ export async function prepareWebReadyImage(file: File): Promise<{ blob: Blob; mi
     }
 
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
 
-    if (!ctx) {
-      bitmap.close();
-      return { blob: file, mimeType, fileName: file.name };
-    }
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) break;
 
-    ctx.drawImage(bitmap, 0, 0, width, height);
-    bitmap.close();
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      const optimizedBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/webp", Math.max(0.6, 0.9 - attempt * 0.06));
+      });
 
-    const outputType = mimeType === "image/png" ? "image/png" : "image/jpeg";
-    const optimizedBlob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), outputType, 0.92);
-    });
+      if (optimizedBlob && optimizedBlob.size <= MAX_STORED_IMAGE_BYTES) {
+        const outputType = optimizedBlob.type === "image/webp" ? "image/webp" : "image/png";
+        return {
+          blob: optimizedBlob,
+          mimeType: outputType,
+          fileName: file.name.replace(/\.[^/.]+$/, "") + (outputType === "image/webp" ? ".webp" : ".png")
+        };
+      }
 
-    if (optimizedBlob && optimizedBlob.size < file.size) {
-      return {
-        blob: optimizedBlob,
-        mimeType: outputType,
-        fileName: file.name.replace(/\.[^/.]+$/, "") + (outputType === "image/png" ? ".png" : ".jpg")
-      };
+      const shrink = optimizedBlob?.size
+        ? Math.min(0.85, Math.sqrt(MAX_STORED_IMAGE_BYTES / optimizedBlob.size) * 0.92)
+        : 0.8;
+      width = Math.max(1, Math.round(width * shrink));
+      height = Math.max(1, Math.round(height * shrink));
     }
   } catch (err) {
-    console.warn("Client-side image optimization skipped, using original file:", err);
+    console.warn("Client-side image optimization failed:", err);
+  } finally {
+    bitmap?.close();
   }
 
-  return { blob: file, mimeType, fileName: file.name };
+  throw new Error("This image could not be reduced below 4 MB. Please resize it and try again.");
 }

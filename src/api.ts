@@ -1,5 +1,5 @@
 import type { AppStateSnapshot } from "./appState";
-import { optionalAuthFetch } from "./authFetch";
+import { authFetch, optionalAuthFetch } from "./authFetch";
 import { API_BASE_URL } from "./apiBase";
 import { coverErrorMessage, COVER_UPLOAD_FALLBACK } from "./coverError";
 
@@ -44,13 +44,13 @@ export async function fetchEventsApi(): Promise<any[]> {
   return data.events || [];
 }
 
-import { prepareWebReadyImage, validateImageFile } from "./imageValidation";
+import { prepareWebReadyImage } from "./imageValidation";
 
 export async function uploadEventCoverApi(file: File): Promise<string> {
   const prepared = await prepareWebReadyImage(file);
 
   try {
-    const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
+    const response = await authFetch(`${API_BASE_URL}/api/event-images`, {
       method: "POST",
       headers: {
         "Content-Type": prepared.mimeType,

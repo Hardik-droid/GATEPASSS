@@ -50,6 +50,17 @@ export interface TicketCategory {
   soldCount: number;
 }
 
+export interface CoverUploadLinkConfig {
+  token: string;
+  createdAt: string;
+  expiresAt?: string | null;
+  password?: string | null;
+  isDisabled?: boolean;
+  allowReplace?: boolean;
+  hasCustomCover?: boolean;
+  lastUpdated?: string;
+}
+
 export interface EventItem {
   id: string;
   title: string;
@@ -61,6 +72,7 @@ export interface EventItem {
   bannerUrl: string;
   capacity: number;
   ticketCategories: TicketCategory[];
+  coverUploadConfig?: CoverUploadLinkConfig;
 }
 
 export interface Order {

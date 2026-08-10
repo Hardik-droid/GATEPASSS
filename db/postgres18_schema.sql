@@ -357,6 +357,15 @@ CREATE TABLE IF NOT EXISTS app_state (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS event_images (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  uploaded_by text NOT NULL,
+  content_type text NOT NULL CHECK (content_type IN ('image/jpeg', 'image/png', 'image/webp')),
+  image_data bytea NOT NULL,
+  byte_size integer NOT NULL CHECK (byte_size > 0 AND byte_size <= 4194304),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_ticket_categories_event_id ON ticket_categories(event_id);
 CREATE INDEX IF NOT EXISTS idx_orders_event_id ON orders(event_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_event_id ON tickets(event_id);
