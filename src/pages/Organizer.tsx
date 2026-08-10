@@ -184,12 +184,12 @@ export default function OrganizerWorkspace({
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
     if (!allowedTypes.includes(file.type.toLowerCase())) {
-      setCoverError("Please upload a JPG, PNG or WebP image under 5 MB.");
+      setCoverError("Please upload a JPG, PNG or WebP image under 50 MB.");
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setCoverError("Please upload a JPG, PNG or WebP image under 5 MB.");
+    if (file.size > 50 * 1024 * 1024) {
+      setCoverError("Please upload a JPG, PNG or WebP image under 50 MB.");
       return;
     }
 
@@ -1093,7 +1093,7 @@ export default function OrganizerWorkspace({
             <div className="flex flex-col gap-2">
               <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
                 <label className="text-xs font-bold text-outline uppercase tracking-wider">Event Cover Image</label>
-                <span className="text-[11px] text-[#746D68] font-medium">Recommended 16:9 · JPG, PNG or WebP · Max 5 MB</span>
+                <span className="text-[11px] text-[#746D68] font-medium">Recommended 16:9 · JPG, PNG or WebP · Max 50 MB</span>
               </div>
 
               <input

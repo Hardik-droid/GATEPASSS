@@ -6,7 +6,7 @@
 // "[object Object]". Error state for this feature is `string | null`, and this
 // is the only thing allowed to produce that string.
 
-export const COVER_UPLOAD_FALLBACK = "Please upload a JPG, PNG or WebP image under 5 MB.";
+export const COVER_UPLOAD_FALLBACK = "Please upload a JPG, PNG or WebP image under 50 MB.";
 
 // "[object Object]" is never a message worth showing, even if some older path
 // already baked it into an Error.

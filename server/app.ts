@@ -139,18 +139,18 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.post(
     "/api/event-images",
     optionalAuthenticateNeon,
-    express.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "5mb" }),
+    express.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "50mb" }),
     async (req, res, next) => {
       try {
         const contentType = req.headers["content-type"] || "image/png";
         const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
         if (!allowedTypes.includes(contentType.toLowerCase())) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 5 MB." });
+          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
           return;
         }
         const data = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || []);
         if (!data || data.length === 0) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 5 MB." });
+          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
           return;
         }
         // Basic MIME magic byte check for PNG/JPEG/WebP
@@ -159,7 +159,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
           (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) ||
           (data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP");
         if (!isValidImage) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 5 MB." });
+          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
           return;
         }
         const uploadedBy = (req as AuthenticatedRequest).authEmail || "organizer";
