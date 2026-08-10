@@ -1169,61 +1169,111 @@ export default function OrganizerWorkspace({
               )}
             </div>
 
-            {/* Custom Ticket Tiers */}
-            <div className="border-t border-surface-container pt-4 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <h4 className="text-xs font-extrabold text-charcoal-dark uppercase tracking-wide">Ticket Category Ranges</h4>
+            {/* Custom Ticket Tiers — Fully Responsive */}
+            <div className="border-t border-[#3F3632]/10 pt-4 flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <h4 className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">
+                  TICKET CATEGORY RANGES
+                </h4>
                 <button
                   type="button"
                   onClick={handleAddCategory}
-                  className="px-2.5 py-1 bg-primary/10 text-primary rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 hover:bg-primary/20 transition-all cursor-pointer"
+                  className="w-full sm:w-auto h-[42px] sm:h-[34px] px-3.5 bg-[#171719] hover:bg-[#292725] text-[#F8F5F2] sm:bg-primary/10 sm:text-primary sm:hover:bg-primary/20 rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Plus className="w-3 h-3" /> Add Tier
+                  <Plus className="w-4 h-4 sm:w-3 sm:h-3" />
+                  <span>+ ADD TIER</span>
                 </button>
               </div>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 w-full max-w-full box-border">
                 {categories.map((cat, index) => (
-                  <div key={index} className="flex gap-3 items-center bg-surface-container-low p-3 rounded-lg border border-outline-variant/15">
-                    <input
-                      type="text"
-                      value={cat.name}
-                      onChange={(e) => {
-                        const newCats = [...categories];
-                        newCats[index].name = e.target.value;
-                        setCategories(newCats);
-                      }}
-                      placeholder="Category Name"
-                      className="flex-3 bg-white border border-outline-variant rounded p-1.5 text-xs text-charcoal-dark font-semibold outline-none"
-                    />
-                    <div className="flex-1 flex items-center gap-1 bg-white border border-outline-variant rounded p-1.5 text-xs">
-                      <span className="text-outline">₹</span>
-                      <input
-                        type="number"
-                        value={cat.price}
-                        onChange={(e) => {
-                          const newCats = [...categories];
-                          newCats[index].price = Number(e.target.value);
-                          setCategories(newCats);
-                        }}
-                        className="w-full bg-transparent border-none p-0 outline-none font-semibold text-charcoal-dark text-right"
-                      />
+                  <div
+                    key={index}
+                    className="bg-[#F8F5F2] border border-[#3F3632]/8 rounded-[12px] p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center gap-3 w-full max-w-full box-border shadow-none"
+                  >
+                    {/* Top Row on Mobile / Left Area on Desktop */}
+                    <div className="flex items-center justify-between gap-2 w-full md:flex-1">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
+                          TIER NAME
+                        </label>
+                        <input
+                          type="text"
+                          value={cat.name}
+                          onChange={(e) => {
+                            const newCats = [...categories];
+                            newCats[index].name = e.target.value;
+                            setCategories(newCats);
+                          }}
+                          placeholder="Category Name"
+                          className="w-full bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs text-[#171719] font-bold outline-none focus:border-[#171719]"
+                        />
+                      </div>
+
+                      {/* Mobile Delete Button (top right of card) */}
+                      {categories.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCategory(index)}
+                          aria-label={`Delete ${cat.name || "tier"} tier`}
+                          className="w-[44px] h-[44px] sm:w-9 sm:h-9 rounded-lg text-status-danger hover:bg-status-danger/10 flex items-center justify-center transition-colors cursor-pointer flex-shrink-0 md:hidden"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                    <input
-                      type="number"
-                      value={cat.capacity}
-                      onChange={(e) => {
-                        const newCats = [...categories];
-                        newCats[index].capacity = Number(e.target.value);
-                        setCategories(newCats);
-                      }}
-                      className="flex-1 bg-white border border-outline-variant rounded p-1.5 text-xs text-charcoal-dark font-semibold outline-none text-center"
-                    />
+
+                    {/* Price & Capacity 2-Column Grid on Mobile / Inline Inputs on Desktop */}
+                    <div className="grid grid-cols-2 gap-2.5 w-full md:flex md:w-auto md:items-center md:gap-3">
+                      {/* Price Field */}
+                      <div className="flex-1 md:w-36">
+                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
+                          PRICE
+                        </label>
+                        <div className="flex items-center bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs font-bold text-[#171719]">
+                          <span className="text-[#938C87] mr-1 flex-shrink-0">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={cat.price}
+                            onChange={(e) => {
+                              const newCats = [...categories];
+                              newCats[index].price = Number(e.target.value);
+                              setCategories(newCats);
+                            }}
+                            className="w-full bg-transparent border-none p-0 outline-none font-bold text-[#171719] text-right text-base md:text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Capacity Field */}
+                      <div className="flex-1 md:w-28">
+                        <label className="text-[10px] font-extrabold text-[#938C87] uppercase tracking-wider block mb-1 md:hidden">
+                          CAPACITY
+                        </label>
+                        <div className="flex items-center bg-white border border-[#3F3632]/15 rounded-lg px-3 py-2 md:py-1.5 min-h-[44px] md:min-h-[36px] text-base md:text-xs font-bold text-[#171719]">
+                          <input
+                            type="number"
+                            min={1}
+                            value={cat.capacity}
+                            onChange={(e) => {
+                              const newCats = [...categories];
+                              newCats[index].capacity = Number(e.target.value);
+                              setCategories(newCats);
+                            }}
+                            className="w-full bg-transparent border-none p-0 outline-none font-bold text-[#171719] text-right text-base md:text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Desktop Delete Button */}
                     {categories.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveCategory(index)}
-                        className="text-status-danger p-1 hover:bg-status-danger/10 rounded transition-all cursor-pointer"
+                        aria-label={`Delete ${cat.name || "tier"} tier`}
+                        className="hidden md:flex w-9 h-9 rounded-lg text-status-danger hover:bg-status-danger/10 items-center justify-center transition-colors cursor-pointer flex-shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
