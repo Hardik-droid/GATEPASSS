@@ -133,18 +133,18 @@ export default function IdentityCard({
     >
       <div className="max-w-[1200px] mx-auto flex flex-col gap-6">
         
-        {/* Simple Unboxed Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
+        {/* Simple Unboxed Page Header with Top Right Account Utility */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#3F3632]/10">
           <div className="flex items-center gap-3">
             <Link 
               to="/" 
-              className="p-2 rounded-xl bg-[#F8F5F2] hover:bg-[#E8E1DD] text-[#171719] border border-[#3F3632]/10 transition-colors flex items-center justify-center active:scale-95"
+              className="p-2 rounded-xl bg-[#F8F5F2] hover:bg-[#E8E1DD] text-[#171719] border border-[#3F3632]/10 transition-colors flex items-center justify-center active:scale-95 flex-shrink-0"
               title="Return Home"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight uppercase text-[#171719]">
                   DIGITAL IDENTITY
                 </h1>
@@ -158,32 +158,68 @@ export default function IdentityCard({
             </div>
           </div>
 
-          {/* Compact 36px Segmented Control Switch */}
-          <div className="inline-flex items-center p-0.5 bg-white/40 border border-[#3F3632]/10 rounded-[12px] gap-1 self-start sm:self-auto h-[36px]">
-            <button
-              id="toggle-badge-view"
-              onClick={() => setViewMode("badge")}
-              className={`px-3 h-[30px] rounded-[9px] text-[11px] font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
-                viewMode === "badge"
-                  ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
-                  : "bg-transparent text-[#625B57] hover:text-[#171719]"
-              }`}
-            >
-              <IdCard className="w-3.5 h-3.5" />
-              <span>Identity Badge</span>
-            </button>
-            <button
-              id="toggle-access-view"
-              onClick={() => setViewMode("access")}
-              className={`px-3 h-[30px] rounded-[9px] text-[11px] font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
-                viewMode === "access"
-                  ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
-                  : "bg-transparent text-[#625B57] hover:text-[#171719]"
-              }`}
-            >
-              <Fingerprint className="w-3.5 h-3.5" />
-              <span>Access Overview</span>
-            </button>
+          {/* Right Header Area: Account Utility & Segmented View Switcher */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 self-start md:self-auto">
+            
+            {/* Account Utility (Email + Discoverable Sign Out) */}
+            {isAuthenticated && authEmail ? (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="font-medium text-[#746D68] truncate max-w-[180px] sm:max-w-[220px]" title={authEmail}>
+                  {authEmail}
+                </span>
+                <span className="text-[#3F3632]/20">•</span>
+                {onLogout && (
+                  <button
+                    onClick={onLogout}
+                    className="font-bold text-[#625B57] hover:text-[#A34F4C] transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign out</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}/identity` })}
+                className="py-1.5 px-3 rounded-lg bg-[#171719] text-[#F8F5F2] font-bold text-xs uppercase hover:bg-[#292725] transition-colors cursor-pointer flex items-center gap-2"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Sign in</span>
+              </button>
+            )}
+
+            {/* Compact 36px Segmented Control Switch */}
+            <div className="inline-flex items-center p-0.5 bg-white/40 border border-[#3F3632]/10 rounded-[12px] gap-1 h-[36px] flex-shrink-0">
+              <button
+                id="toggle-badge-view"
+                onClick={() => setViewMode("badge")}
+                className={`px-3 h-[30px] rounded-[9px] text-[11px] font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === "badge"
+                    ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+                    : "bg-transparent text-[#625B57] hover:text-[#171719]"
+                }`}
+              >
+                <IdCard className="w-3.5 h-3.5" />
+                <span>Identity Badge</span>
+              </button>
+              <button
+                id="toggle-access-view"
+                onClick={() => setViewMode("access")}
+                className={`px-3 h-[30px] rounded-[9px] text-[11px] font-extrabold uppercase tracking-wider transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === "access"
+                    ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+                    : "bg-transparent text-[#625B57] hover:text-[#171719]"
+                }`}
+              >
+                <Fingerprint className="w-3.5 h-3.5" />
+                <span>Access Overview</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -194,7 +230,7 @@ export default function IdentityCard({
             {/* Left Column: Identity Card & Wallet Utility */}
             <div className="w-full flex flex-col gap-5">
               
-              {/* THE ONLY MAJOR DARK SURFACE ON THE ENTIRE PAGE */}
+              {/* CLEAN FOCUSED SECURE IDENTITY CARD (NO BURIED EMAIL / SIGN OUT) */}
               <div className="bg-[#171719] text-white rounded-[18px] p-5 shadow-[0_14px_34px_rgba(20,18,17,0.10)] border border-white/10 flex flex-col items-center text-center relative overflow-hidden w-full max-w-[340px] mx-auto lg:mx-0">
                 
                 {/* Minimal Top Strip */}
@@ -220,39 +256,9 @@ export default function IdentityCard({
                 <h2 className="text-[22px] font-extrabold uppercase tracking-tight text-white mt-1 mb-0.5">
                   {user.name}
                 </h2>
-                <p className="text-[11px] font-medium text-[#42566E] uppercase tracking-wider mb-3">
+                <p className="text-[11px] font-medium text-[#42566E] uppercase tracking-wider mb-4">
                   Student • ID: {user.studentId}
                 </p>
-
-                {/* Auth Row */}
-                {isAuthenticated && authEmail ? (
-                  <div className="w-full flex items-center justify-between text-xs text-[#938C87] mb-3 px-1">
-                    <span className="truncate max-w-[200px]" title={authEmail}>{authEmail}</span>
-                    {onLogout && (
-                      <button
-                        onClick={onLogout}
-                        className="text-[10px] font-bold text-[#938C87] hover:text-white uppercase underline cursor-pointer ml-2 flex-shrink-0"
-                      >
-                        Sign out
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="w-full mb-3">
-                    <button
-                      onClick={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}/identity` })}
-                      className="w-full py-1.5 px-3 rounded-lg bg-white text-[#171719] font-bold text-xs uppercase hover:bg-[#F8F5F2] transition-colors cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                      </svg>
-                      <span>Sign in with Google</span>
-                    </button>
-                  </div>
-                )}
 
                 {/* 155px Compact QR Surface */}
                 <div className="bg-white p-2.5 rounded-[10px] mb-2.5 flex flex-col items-center gap-2 border border-white/20 w-full max-w-[190px]">
