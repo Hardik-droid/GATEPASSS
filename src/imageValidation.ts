@@ -158,3 +158,69 @@ export async function validateImageFile(file: unknown): Promise<ImageValidationR
     mimeType
   };
 }
+
+/**
+ * Prepares a web-ready Blob for image upload.
+ * If the image is valid and can be decoded, resizes high-resolution images
+ * to a maximum dimension of 1920px (preserving aspect ratio) to guarantee
+ * fast upload speed and ensure payload size is well below serverless limits (< 2 MB).
+ */
+export async function prepareWebReadyImage(file: File): Promise<{ blob: Blob; mimeType: string; fileName: string }> {
+  const validation = await validateImageFile(file);
+  if (!validation.ok) {
+    throw new Error(validation.message);
+  }
+
+  const mimeType = validation.mimeType || "image/png";
+
+  if (typeof window === "undefined" || typeof createImageBitmap === "undefined") {
+    return { blob: file, mimeType, fileName: file.name };
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxDimension = 1920;
+    let width = bitmap.width;
+    let height = bitmap.height;
+
+    if (width > maxDimension || height > maxDimension) {
+      if (width > height) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      } else {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) {
+      bitmap.close();
+      return { blob: file, mimeType, fileName: file.name };
+    }
+
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const outputType = mimeType === "image/png" ? "image/png" : "image/jpeg";
+    const optimizedBlob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((b) => resolve(b), outputType, 0.92);
+    });
+
+    if (optimizedBlob && optimizedBlob.size < file.size) {
+      return {
+        blob: optimizedBlob,
+        mimeType: outputType,
+        fileName: file.name.replace(/\.[^/.]+$/, "") + (outputType === "image/png" ? ".png" : ".jpg")
+      };
+    }
+  } catch (err) {
+    console.warn("Client-side image optimization skipped, using original file:", err);
+  }
+
+  return { blob: file, mimeType, fileName: file.name };
+}

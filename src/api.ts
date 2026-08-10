@@ -44,28 +44,26 @@ export async function fetchEventsApi(): Promise<any[]> {
   return data.events || [];
 }
 
-import { validateImageFile } from "./imageValidation";
+import { prepareWebReadyImage, validateImageFile } from "./imageValidation";
 
 export async function uploadEventCoverApi(file: File): Promise<string> {
-  const validation = await validateImageFile(file);
-  if (!validation.ok) {
-    throw new Error(validation.message);
-  }
-
-  const mimeType = validation.mimeType || file.type || "image/png";
+  const prepared = await prepareWebReadyImage(file);
 
   try {
     const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
       method: "POST",
       headers: {
-        "Content-Type": mimeType,
+        "Content-Type": prepared.mimeType,
       },
-      body: file,
+      body: prepared.blob,
     });
 
     if (!response.ok) {
       if (response.status === 413) {
-        throw new Error("Image size exceeds the 50 MB server upload limit.");
+        throw new Error("Image size exceeds the server upload limit.");
+      }
+      if (response.status === 404) {
+        throw new Error("Event image service endpoint unreachable (404 Not Found).");
       }
       const body = await response.json().catch(() => null);
       if (body) {
