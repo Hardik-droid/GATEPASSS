@@ -24,7 +24,6 @@ import {
   Smartphone,
   Copy,
   Check,
-  Sparkles,
   RotateCw
 } from "lucide-react";
 
@@ -128,122 +127,122 @@ export default function IdentityCard({
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-fadeIn max-w-7xl mx-auto" id="identity-card-section">
-      {/* Page Header */}
-      <div className="flex items-center justify-between bg-white/80 dark:bg-neutral-900/80 backdrop-blur-xl p-4 md:p-5 rounded-3xl border border-neutral-200/60 dark:border-white/10 shadow-xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex items-center gap-4 relative z-10">
-          <Link 
-            to="/" 
-            className="p-2.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-white border border-neutral-200/50 dark:border-white/10 transition-all flex items-center justify-center shadow-sm active:scale-95"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight text-neutral-900 dark:text-white">
-                Digital Identity
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                PRO VERIFIED
-              </span>
+    <div className="min-h-full bg-[#F3EEEB] -mx-6 -my-6 sm:-mx-6 sm:-my-6 xl:-mx-10 xl:-my-10 p-4 sm:p-6 lg:p-8 font-sans text-[#171719] animate-fadeIn" id="identity-card-section">
+      <div className="max-w-[1280px] mx-auto flex flex-col gap-6 md:gap-8">
+        
+        {/* Page Header Area */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#3F3632]/10">
+          <div className="flex items-center gap-3.5">
+            <Link 
+              to="/" 
+              className="p-2 rounded-xl bg-[#F8F5F2] hover:bg-[#E8E1DD] text-[#171719] border border-[#3F3632]/10 transition-colors flex items-center justify-center shadow-none active:scale-95"
+              title="Return to Home"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight uppercase text-[#171719]">
+                  Digital Identity
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-[#55765F]/15 text-[#55765F] border border-[#55765F]/20">
+                  PRO VERIFIED
+                </span>
+              </div>
+              <p className="text-xs text-[#746D68] font-medium mt-0.5">
+                Verified Member Pass &amp; Campus Gate Credentials
+              </p>
             </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium mt-0.5">
-              Verified Member Pass &amp; Campus Gate Credentials
-            </p>
+          </div>
+
+          {/* View Switcher Compact Segmented Control */}
+          <div className="inline-flex p-1 bg-white/40 border border-[#3F3632]/10 rounded-[14px] backdrop-blur-md gap-1 self-start sm:self-auto shadow-none">
+            <button
+              id="toggle-badge-view"
+              onClick={() => setViewMode("badge")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-xs font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                viewMode === "badge"
+                  ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+                  : "bg-transparent text-[#625B57] hover:text-[#171719]"
+              }`}
+            >
+              <IdCard className="w-4 h-4" />
+              <span>Identity Badge</span>
+            </button>
+            <button
+              id="toggle-access-view"
+              onClick={() => setViewMode("access")}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-[10px] text-xs font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                viewMode === "access"
+                  ? "bg-[#171719] text-[#F8F5F2] shadow-sm"
+                  : "bg-transparent text-[#625B57] hover:text-[#171719]"
+              }`}
+            >
+              <Fingerprint className="w-4 h-4" />
+              <span>Access Overview</span>
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* View Switcher Segmented Control */}
-      <div className="bg-neutral-200/70 dark:bg-neutral-900/80 p-1.5 rounded-2xl border border-neutral-300/50 dark:border-white/10 backdrop-blur-lg flex gap-2 shadow-inner">
-        <button
-          id="toggle-badge-view"
-          onClick={() => setViewMode("badge")}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-            viewMode === "badge"
-              ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 scale-[1.01]"
-              : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <IdCard className="w-4 h-4" />
-          <span>Identity Badge</span>
-        </button>
-        <button
-          id="toggle-access-view"
-          onClick={() => setViewMode("access")}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs md:text-sm font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-            viewMode === "access"
-              ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 scale-[1.01]"
-              : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Fingerprint className="w-4 h-4" />
-          <span>Access Overview</span>
-        </button>
-      </div>
-
-      {viewMode === "badge" ? (
-        /* SCREEN 2: DIGITAL ID HERO VIEW */
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6" id="badge-view-container">
-          {/* Left Column: Digital Identity Hero Pass */}
-          <div className="md:col-span-5 flex flex-col gap-5">
-            <div className="bg-gradient-to-b from-neutral-900 via-neutral-950 to-black text-white rounded-3xl overflow-hidden shadow-2xl border border-white/15 flex flex-col relative group">
-              {/* Decorative Holographic Glow Orbs */}
-              <div className="absolute top-[-20%] left-[-20%] w-60 h-60 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none group-hover:bg-cyan-500/30 transition-all duration-700" />
-              <div className="absolute bottom-[-20%] right-[-20%] w-60 h-60 bg-[#ff2bd6]/15 rounded-full blur-3xl pointer-events-none group-hover:bg-[#ff2bd6]/25 transition-all duration-700" />
-
-              {/* Holographic Top Banner */}
-              <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-5 py-2.5 flex justify-between items-center text-black font-black text-xs uppercase tracking-widest shadow-md">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-black animate-ping" />
-                  <span>Verified Member Pass</span>
+        {viewMode === "badge" ? (
+          /* SCREEN 2: DIGITAL ID HERO VIEW */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start" id="badge-view-container">
+            {/* Left Column: Secure Identity Card & Wallet */}
+            <div className="lg:col-span-5 flex flex-col gap-5">
+              
+              {/* Refined Dark Anchor Identity Card */}
+              <div className="bg-[#1B1B1D] text-white rounded-[18px] p-6 shadow-[0_14px_34px_rgba(20,18,17,0.10)] border border-white/10 flex flex-col items-center text-center relative overflow-hidden">
+                
+                {/* Header Tag */}
+                <div className="w-full flex items-center justify-between pb-4 mb-4 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#55765F]" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#938C87]">
+                      VERIFIED MEMBER
+                    </span>
+                  </div>
+                  <ShieldCheck className="w-4 h-4 text-[#55765F]" />
                 </div>
-                <ShieldCheck className="w-4 h-4 text-black" />
-              </div>
 
-              {/* Card Main Body */}
-              <div className="p-6 md:p-8 flex flex-col items-center text-center relative z-10">
-                {/* Profile Avatar with Neon Ring */}
-                <div className="relative mb-4 group/avatar">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-cyan-400 via-purple-500 to-[#ff2bd6] blur-md opacity-70 group-hover/avatar:opacity-100 transition-opacity" />
+                {/* Avatar with Mineral Blue Ring */}
+                <div className="relative mb-3">
                   <img
                     src={user.avatarUrl}
                     alt={user.name}
-                    className="w-24 h-24 md:w-28 md:h-28 rounded-full object-cover border-4 border-black relative z-10 shadow-2xl"
+                    className="w-20 h-20 md:w-22 md:h-22 rounded-full object-cover border-2 border-[#42566E] p-0.5 bg-[#1B1B1D] shadow-md"
                   />
-                  <span className="absolute bottom-1 right-1 z-20 w-4 h-4 bg-emerald-400 border-2 border-black rounded-full shadow" title="Active Clearance" />
+                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#55765F] border-2 border-[#1B1B1D] rounded-full" title="Active Clearance" />
                 </div>
 
-                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-white mb-1">
+                <h2 className="text-xl md:text-2xl font-extrabold uppercase tracking-tight text-white mb-0.5">
                   {user.name}
                 </h2>
-                <p className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-4 bg-cyan-500/10 px-3 py-1 rounded-full border border-cyan-500/20">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[#938C87] mb-4">
                   Student • ID: {user.studentId}
                 </p>
 
-                {/* Google Sign In status info */}
+                {/* Authentication Status Info */}
                 {isAuthenticated && authEmail ? (
-                  <div className="mb-5 flex flex-col items-center gap-2 bg-white/5 px-4 py-2.5 rounded-2xl border border-white/10 backdrop-blur-md w-full max-w-[240px]">
-                    <div className="flex items-center gap-2 text-xs text-white/90 w-full justify-center">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
-                      <span className="font-semibold truncate max-w-[170px]" title={authEmail}>{authEmail}</span>
+                  <div className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 mb-4 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs text-white/90 font-medium truncate">
+                      <span className="w-2 h-2 rounded-full bg-[#55765F] flex-shrink-0" />
+                      <span className="truncate" title={authEmail}>{authEmail}</span>
                     </div>
                     {onLogout && (
                       <button
                         onClick={onLogout}
-                        className="flex items-center justify-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1 rounded-xl transition-all w-full cursor-pointer border border-white/10"
+                        className="flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-[#938C87] hover:text-white bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg transition-colors border border-white/10 cursor-pointer"
                       >
-                        <LogOut className="w-3.5 h-3.5" />
+                        <LogOut className="w-3 h-3" />
                         <span>Sign Out</span>
                       </button>
                     )}
                   </div>
                 ) : (
-                  <div className="mb-5 flex justify-center scale-95 w-full">
+                  <div className="w-full mb-4">
                     <button
                       onClick={() => authClient.signIn.social({ provider: "google", callbackURL: `${window.location.origin}/identity` })}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white text-black font-extrabold text-xs uppercase tracking-wider hover:bg-neutral-200 transition-all cursor-pointer flex items-center justify-center gap-2 shadow-md"
+                      className="w-full py-2 px-3 rounded-xl bg-white text-[#171719] font-bold text-xs uppercase tracking-wider hover:bg-[#F8F5F2] transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -257,417 +256,418 @@ export default function IdentityCard({
                 )}
 
                 {/* Permanent QR Code Container */}
-                <div className="bg-white p-4 rounded-3xl shadow-2xl mb-4 relative group/qr flex flex-col items-center gap-3 border-4 border-white/20 transition-transform duration-300 hover:scale-[1.02]">
-                  <div className="w-44 h-44 bg-white flex items-center justify-center border border-neutral-200 rounded-2xl overflow-hidden p-2 relative shadow-inner">
+                <div className="bg-white p-3.5 rounded-[12px] shadow-sm mb-3 flex flex-col items-center gap-2.5 border border-white/20 w-full max-w-[210px]">
+                  <div className="w-40 h-40 bg-white flex items-center justify-center rounded-lg overflow-hidden p-1">
                     {permanentQr ? (
                       <QRCodeSVG
                         value={permanentQr}
-                        size={160}
+                        size={148}
                         level="H"
                         includeMargin={false}
                       />
                     ) : qrError ? (
-                      <div className="text-xs text-rose-500 font-bold uppercase tracking-wider flex flex-col items-center gap-2 px-2 text-center">
-                        <AlertTriangle className="w-8 h-8 text-rose-400" />
+                      <div className="text-xs text-[#A34F4C] font-bold uppercase tracking-wider flex flex-col items-center gap-1.5 px-2 text-center">
+                        <AlertTriangle className="w-6 h-6 text-[#A34F4C]" />
                         <span>{qrError}</span>
                         <button
                           onClick={loadQr}
-                          className="flex items-center gap-1.5 text-[10px] text-cyan-600 hover:text-cyan-500 normal-case font-black cursor-pointer mt-1"
+                          className="flex items-center gap-1 text-[10px] text-[#42566E] hover:underline normal-case font-bold cursor-pointer mt-1"
                         >
                           <RotateCw className="w-3 h-3" />
                           <span>Retry</span>
                         </button>
                       </div>
                     ) : (
-                      <div className="text-xs text-neutral-400 font-bold uppercase tracking-wider flex flex-col items-center gap-2">
-                        <QrCode className="w-8 h-8 text-neutral-300 animate-pulse" />
+                      <div className="text-xs text-[#938C87] font-bold uppercase tracking-wider flex flex-col items-center gap-2">
+                        <QrCode className="w-7 h-7 text-[#938C87] animate-pulse" />
                         <span>{qrLoading ? "Loading QR..." : ""}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-neutral-800">
-                      Permanent Clearance QR
-                    </span>
+                  <div className="flex items-center gap-1.5 text-[10.5px] font-extrabold uppercase tracking-widest text-[#171719]">
+                    <span className="w-2 h-2 rounded-full bg-[#55765F]" />
+                    <span>PERMANENT CLEARANCE QR</span>
                   </div>
                 </div>
 
-                {/* Copy QR payload button */}
+                {/* Copy QR Payload Action */}
                 <button
                   onClick={() => handleCopyCode(permanentQr || "")}
                   disabled={!permanentQr}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 font-mono text-xs font-black uppercase tracking-widest text-cyan-400 hover:text-white transition-all cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full h-10 rounded-xl bg-white/[0.06] hover:bg-white/[0.10] border border-white/10 text-xs font-bold text-[#F8F5F2] transition-all flex items-center justify-center gap-2 cursor-pointer mb-4"
                   title="Click to copy QR payload"
                 >
                   {copiedText ? (
                     <>
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span className="text-emerald-400">PAYLOAD COPIED!</span>
+                      <Check className="w-4 h-4 text-[#55765F]" />
+                      <span className="text-[#55765F] uppercase tracking-wider font-extrabold">PAYLOAD COPIED!</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-4 h-4 text-cyan-400" />
-                      <span>{permanentQr ? "COPY QR PAYLOAD" : "SECURE PASS LOAD"}</span>
+                      <Copy className="w-4 h-4 text-[#938C87]" />
+                      <span className="uppercase tracking-wider font-extrabold">{permanentQr ? "COPY QR PAYLOAD" : "SECURE PASS LOAD"}</span>
                     </>
                   )}
                 </button>
+
+                {/* Split Footer Actions */}
+                <div className="w-full pt-3 border-t border-white/10 grid grid-cols-2 gap-2 text-xs font-bold">
+                  <button
+                    id="action-show-id"
+                    className="h-10 rounded-lg hover:bg-white/5 text-[#938C87] hover:text-white flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider text-[11px] cursor-pointer"
+                  >
+                    <IdCard className="w-4 h-4" />
+                    <span>Show Badge</span>
+                  </button>
+                  <button
+                    id="action-view-logs"
+                    className="h-10 rounded-lg hover:bg-white/5 text-[#938C87] hover:text-white flex items-center justify-center gap-1.5 transition-colors uppercase tracking-wider text-[11px] cursor-pointer"
+                  >
+                    <History className="w-4 h-4" />
+                    <span>Audit Logs</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Quick Action Footer */}
-              <div className="bg-neutral-900/80 grid grid-cols-2 divide-x divide-white/10 border-t border-white/10 text-white">
-                <button
-                  id="action-show-id"
-                  className="py-3.5 flex items-center justify-center gap-2 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-black tracking-widest uppercase cursor-pointer text-neutral-300 hover:text-white"
+              {/* Light Compact Phone Wallet Utility Card */}
+              <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 flex items-center justify-between shadow-[0_6px_18px_rgba(32,27,24,0.04)]">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#42566E]/10 border border-[#42566E]/20 text-[#42566E] flex items-center justify-center flex-shrink-0">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">
+                      SYNC TO APPLE / GOOGLE WALLET
+                    </h4>
+                    <p className="text-[11px] text-[#746D68] mt-0.5">
+                      Export pass directly to your phone wallet
+                    </p>
+                  </div>
+                </div>
+                <Link 
+                  to="/wallet" 
+                  className="w-8 h-8 rounded-lg bg-[#E8E1DD]/60 hover:bg-[#E8E1DD] text-[#171719] flex items-center justify-center transition-colors flex-shrink-0"
+                  title="Wallet Settings"
                 >
-                  <IdCard className="w-4 h-4 text-cyan-400" />
-                  <span>Show Badge</span>
-                </button>
-                <button
-                  id="action-view-logs"
-                  className="py-3.5 flex items-center justify-center gap-2 hover:bg-white/5 active:bg-white/10 transition-all text-xs font-black tracking-widest uppercase cursor-pointer text-neutral-300 hover:text-white"
-                >
-                  <History className="w-4 h-4 text-[#ff2bd6]" />
-                  <span>Audit Logs</span>
-                </button>
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
               </div>
             </div>
 
-            {/* Apple & Google Wallet Banner */}
-            <div className="bg-gradient-to-r from-neutral-900 via-neutral-900 to-neutral-950 rounded-2xl p-4 border border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-xl text-white shadow-md shadow-cyan-500/20">
-                  <Smartphone className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black text-white uppercase tracking-wider">Sync To Apple &amp; Google Wallet</h4>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">Export passes directly to your phone wallet</p>
+            {/* Right Column: Access Overview & Active Passes */}
+            <div className="lg:col-span-7 flex flex-col gap-6 md:gap-7">
+              
+              {/* Today's Access Metric Cards */}
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#171719] flex items-center gap-2">
+                  <span>TODAY'S ACCESS OVERVIEW</span>
+                </h3>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Metric 1: Current Location */}
+                  <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 sm:p-5 shadow-[0_6px_18px_rgba(32,27,24,0.04)] flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold text-[#938C87] uppercase tracking-wider">
+                        Current Location
+                      </span>
+                      <div className="p-1.5 rounded-lg bg-[#42566E]/10 text-[#42566E] border border-[#42566E]/20">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-extrabold text-[#171719] uppercase tracking-tight mt-2 mb-1">
+                      {user.currentZone}
+                    </span>
+                    <span className="text-xs text-[#55765F] font-semibold flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5" /> Logged Entry • 08:32 AM
+                    </span>
+                  </div>
+
+                  {/* Metric 2: Clearance Level */}
+                  <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 sm:p-5 shadow-[0_6px_18px_rgba(32,27,24,0.04)] flex flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-extrabold text-[#938C87] uppercase tracking-wider">
+                        Clearance Level
+                      </span>
+                      <div className="p-1.5 rounded-lg bg-[#42566E]/10 text-[#42566E] border border-[#42566E]/20">
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <span className="text-xl sm:text-2xl font-extrabold text-[#171719] uppercase tracking-tight mt-2 mb-1">
+                      {user.clearanceLevel || "Level 2"}
+                    </span>
+                    <span className="text-xs text-[#746D68] font-medium">
+                      Standard Academic &amp; Event Clearance
+                    </span>
+                  </div>
                 </div>
               </div>
-              <Link 
-                to="/wallet" 
-                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all flex items-center justify-center cursor-pointer hover:border-cyan-400"
-                title="Wallet Settings"
-              >
-                <ChevronRight className="w-4 h-4 text-cyan-400" />
-              </Link>
+
+              {/* Active Passes Section */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#171719] flex items-center gap-2">
+                    <span>ACTIVE PASSES ({activePasses.length})</span>
+                  </h3>
+                  <button
+                    onClick={() => setViewMode("access")}
+                    className="text-xs font-extrabold text-[#42566E] hover:underline uppercase tracking-wider cursor-pointer flex items-center gap-1"
+                  >
+                    <span>View all</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-2.5">
+                  {activePasses.length === 0 ? (
+                    <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-6 text-center flex flex-col items-center gap-2 shadow-none">
+                      <QrCode className="w-8 h-8 text-[#938C87]" />
+                      <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">No Active Passes Today</p>
+                      <p className="text-[11px] text-[#746D68]">Request temporary access below to obtain gate passes.</p>
+                    </div>
+                  ) : (
+                    activePasses.map((pass) => (
+                      <div
+                        key={pass.id}
+                        onClick={() => onNavigateToWallet(pass)}
+                        className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[12px] p-3.5 sm:p-4 min-h-[64px] sm:min-h-[72px] shadow-[0_4px_12px_rgba(32,27,24,0.02)] flex items-center justify-between gap-3 hover:border-[#42566E]/30 transition-all cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-[#55765F]/10 border border-[#55765F]/20 text-[#55765F] flex items-center justify-center flex-shrink-0">
+                            <CheckCircle className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="bg-[#55765F]/10 border border-[#55765F]/20 text-[#55765F] px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider">
+                                {pass.category}
+                              </span>
+                              <span className="text-xs font-medium text-[#746D68] truncate">{pass.subCategory}</span>
+                            </div>
+                            <h4 className="font-extrabold text-sm text-[#171719] uppercase tracking-tight truncate">{pass.title}</h4>
+                            <p className="text-xs text-[#938C87] font-medium mt-0.5 truncate">{pass.validityText}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="hidden sm:inline-block text-[10px] font-extrabold uppercase tracking-wider text-[#55765F] bg-[#55765F]/10 px-2.5 py-1 rounded-lg border border-[#55765F]/20">
+                            {pass.usageText}
+                          </span>
+                          <ChevronRight className="w-4 h-4 text-[#938C87] group-hover:text-[#171719] transition-colors" />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Primary Action Button: Request Temporary Access */}
+                <AnimatedButton
+                  id="btn-trigger-request-access"
+                  onClick={onNavigateToRequest}
+                  className="!mt-1 !w-full !bg-[#171719] hover:!bg-[#292725] !text-[#F8F5F2] !h-[44px] !rounded-[12px] !font-extrabold !text-xs !uppercase !tracking-wider !shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>REQUEST TEMPORARY ACCESS</span>
+                </AnimatedButton>
+              </div>
             </div>
           </div>
-
-          {/* Right Column: Access Metrics & Active Passes */}
-          <div className="md:col-span-7 flex flex-col gap-6">
-            {/* Today's Access Metrics Bento Grid */}
-            <div className="flex flex-col gap-3">
-              <h3 className="text-sm font-black uppercase tracking-wider text-neutral-400 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>Today's Access Overview</span>
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Metric 1: Current Zone */}
-                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-xl flex flex-col justify-between hover:border-cyan-500/30 transition-all group">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-black text-neutral-500 uppercase tracking-widest">Current Location</span>
-                    <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 group-hover:scale-110 transition-transform">
-                      <MapPin className="w-4 h-4" />
+        ) : (
+          /* SCREEN 1: ACCESS PASSES OVERVIEW VIEW */
+          <div className="flex flex-col gap-6 md:gap-8" id="access-view-container">
+            
+            {/* Default Access Cards Row */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-xs font-extrabold text-[#746D68] uppercase tracking-wider flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-[#42566E]" />
+                <span>DEFAULT CAMPUS ACCESS PERMISSIONS</span>
+              </h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Card 1: Main Gate */}
+                <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 shadow-[0_4px_12px_rgba(32,27,24,0.02)] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#42566E]/10 border border-[#42566E]/20 flex items-center justify-center text-[#42566E]">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-extrabold text-[#171719] text-sm uppercase tracking-tight">Main Gate</p>
+                      <p className="text-xs text-[#746D68] font-medium">24/7 Gate Entry Allowed</p>
                     </div>
                   </div>
-                  <span className="text-2xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">
-                    {user.currentZone}
-                  </span>
-                  <span className="text-xs text-emerald-500 font-bold mt-3 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> Logged Entry • 08:32 AM
-                  </span>
+                  <CheckCircle className="w-5 h-5 text-[#55765F]" />
                 </div>
 
-                {/* Metric 2: Clearance Level */}
-                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-xl flex flex-col justify-between hover:border-[#ff2bd6]/30 transition-all group">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-black text-neutral-500 uppercase tracking-widest">Clearance Level</span>
-                    <div className="p-2 rounded-xl bg-[#ff2bd6]/10 text-[#ff2bd6] border border-[#ff2bd6]/20 group-hover:scale-110 transition-transform">
-                      <ShieldCheck className="w-4 h-4" />
+                {/* Card 2: Library */}
+                <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 shadow-[0_4px_12px_rgba(32,27,24,0.02)] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#42566E]/10 border border-[#42566E]/20 flex items-center justify-center text-[#42566E]">
+                      <Clock className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-extrabold text-[#171719] text-sm uppercase tracking-tight">Library Complex</p>
+                      <p className="text-xs text-[#746D68] font-medium">Standard Operating Hours</p>
                     </div>
                   </div>
-                  <span className="text-2xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">
-                    {user.clearanceLevel || "Level 2"}
-                  </span>
-                  <span className="text-xs text-neutral-400 font-bold mt-3">
-                    Standard Academic &amp; Event Clearance
-                  </span>
+                  <CheckCircle className="w-5 h-5 text-[#55765F]" />
+                </div>
+
+                {/* Card 3: Academic Block */}
+                <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-4 shadow-[0_4px_12px_rgba(32,27,24,0.02)] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#42566E]/10 border border-[#42566E]/20 flex items-center justify-center text-[#42566E]">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-extrabold text-[#171719] text-sm uppercase tracking-tight">Academic Block A/B</p>
+                      <p className="text-xs text-[#746D68] font-medium">Authorized Student Zones</p>
+                    </div>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-[#55765F]" />
                 </div>
               </div>
-            </div>
+            </section>
 
-            {/* Active Passes Section */}
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black uppercase tracking-wider text-neutral-400 flex items-center gap-2">
-                  <QrCode className="w-4 h-4 text-emerald-400" />
-                  <span>Active Passes ({activePasses.length})</span>
-                </h3>
-                <button
-                  onClick={() => setViewMode("access")}
-                  className="text-xs font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest cursor-pointer flex items-center gap-1"
-                >
-                  <span>View All</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {/* Active Temporary Passes List */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-xs font-extrabold text-[#746D68] uppercase tracking-wider flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-[#55765F]" />
+                <span>ACTIVE TEMPORARY &amp; GUEST PASSES ({activePasses.length})</span>
+              </h2>
 
-              <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-3">
                 {activePasses.length === 0 ? (
-                  <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
-                    <QrCode className="w-10 h-10 text-neutral-400" />
-                    <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Active Passes Today</p>
-                    <p className="text-[11px] text-neutral-500">Request temporary access below to obtain gate passes.</p>
+                  <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-6 text-center flex flex-col items-center gap-2 shadow-none">
+                    <QrCode className="w-8 h-8 text-[#938C87]" />
+                    <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">No Active Passes</p>
                   </div>
                 ) : (
                   activePasses.map((pass) => (
                     <div
                       key={pass.id}
                       onClick={() => onNavigateToWallet(pass)}
-                      className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between group cursor-pointer hover:border-emerald-500/50 hover:shadow-emerald-500/5 transition-all duration-300 relative overflow-hidden"
+                      className="bg-[#F8F5F2] border border-[#3F3632]/10 border-l-4 border-l-[#55765F] rounded-[12px] p-4 shadow-[0_4px_12px_rgba(32,27,24,0.02)] transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
                     >
-                      <div className="absolute top-0 left-0 bottom-0 w-1.5 bg-emerald-500 rounded-l-2xl" />
-
-                      <div className="flex items-center gap-4 pl-2">
-                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0 group-hover:scale-105 transition-transform">
-                          <CheckCircle className="w-6 h-6" />
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#55765F]/10 text-[#55765F] border border-[#55765F]/20 uppercase tracking-wider">
+                            {pass.category}
+                          </span>
+                          <p className="text-xs text-[#746D68] font-medium">{pass.subCategory}</p>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">
-                              {pass.category}
-                            </span>
-                            <span className="text-xs font-bold text-neutral-500">{pass.subCategory}</span>
-                          </div>
-                          <h4 className="font-black text-base text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h4>
-                          <p className="font-mono text-xs text-neutral-400 mt-0.5">{pass.validityText}</p>
-                        </div>
+                        <h3 className="text-base font-extrabold text-[#171719] uppercase tracking-tight">{pass.title}</h3>
+                        <p className="text-xs font-mono text-[#42566E] font-semibold">ID: {pass.passIdCode}</p>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-xl border border-emerald-500/20">
+                      <div className="flex flex-col gap-1.5 sm:items-end">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs text-[#55765F]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{pass.validityText}</span>
+                        </div>
+
+                        <div className="bg-[#E8E1DD]/60 border border-[#3F3632]/10 px-2.5 py-0.5 rounded-lg text-[9.5px] font-extrabold text-[#171719] tracking-wider uppercase w-max">
                           {pass.usageText}
-                        </span>
-                        <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all" />
+                        </div>
                       </div>
                     </div>
                   ))
                 )}
               </div>
+            </section>
 
-              {/* Request Access Button */}
-              <AnimatedButton
-                id="btn-trigger-request-access"
-                onClick={onNavigateToRequest}
-                className="!mt-2 !w-full !bg-gradient-to-r !from-cyan-500 !to-blue-600 !text-white !py-4 !px-6 !rounded-2xl !font-black !text-xs !uppercase !tracking-widest !shadow-xl !shadow-cyan-500/20 hover:!opacity-95 active:!scale-[0.99] transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Request Temporary Access</span>
-              </AnimatedButton>
-            </div>
+            {/* Upcoming Temporary Passes List */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-xs font-extrabold text-[#746D68] uppercase tracking-wider flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#766052]" />
+                <span>UPCOMING PASSES ({upcomingPasses.length})</span>
+              </h2>
+
+              <div className="flex flex-col gap-3">
+                {upcomingPasses.length === 0 ? (
+                  <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-6 text-center flex flex-col items-center gap-2 shadow-none">
+                    <Clock className="w-8 h-8 text-[#938C87]" />
+                    <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">No Upcoming Passes</p>
+                  </div>
+                ) : (
+                  upcomingPasses.map((pass) => (
+                    <div
+                      key={pass.id}
+                      onClick={() => onNavigateToWallet(pass)}
+                      className="bg-[#F8F5F2] border border-[#3F3632]/10 border-l-4 border-l-[#766052] rounded-[12px] p-4 shadow-[0_4px_12px_rgba(32,27,24,0.02)] transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#766052]/10 text-[#766052] border border-[#766052]/20 uppercase tracking-wider">
+                            {pass.category}
+                          </span>
+                          <p className="text-xs text-[#746D68] font-medium">{pass.subCategory}</p>
+                        </div>
+                        <h3 className="text-base font-extrabold text-[#171719] uppercase tracking-tight">{pass.title}</h3>
+                        <p className="text-xs font-mono text-[#766052] font-semibold">ID: {pass.passIdCode}</p>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 sm:items-end">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs text-[#766052]">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{pass.validityText}</span>
+                        </div>
+
+                        <div className="bg-[#E8E1DD]/60 border border-[#3F3632]/10 px-2.5 py-0.5 rounded-lg text-[9.5px] font-extrabold text-[#171719] tracking-wider uppercase w-max">
+                          {pass.usageText}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* Expired / Revoked Passes List */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-xs font-extrabold text-[#746D68] uppercase tracking-wider flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#A34F4C]" />
+                <span>EXPIRED &amp; REVOKED PASSES ({expiredPasses.length})</span>
+              </h2>
+
+              <div className="flex flex-col gap-3">
+                {expiredPasses.length === 0 ? (
+                  <div className="bg-[#F8F5F2] border border-[#3F3632]/10 rounded-[14px] p-6 text-center flex flex-col items-center gap-2 shadow-none">
+                    <AlertTriangle className="w-8 h-8 text-[#938C87]" />
+                    <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">No Expired Passes</p>
+                  </div>
+                ) : (
+                  expiredPasses.map((pass) => (
+                    <div
+                      key={pass.id}
+                      className="bg-[#F8F5F2]/60 opacity-70 border border-[#3F3632]/10 border-l-4 border-l-[#A34F4C] rounded-[12px] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#A34F4C]/10 text-[#A34F4C] border border-[#A34F4C]/20 uppercase tracking-wider">
+                            {pass.category}
+                          </span>
+                          <p className="text-xs text-[#746D68] font-medium">{pass.subCategory}</p>
+                        </div>
+                        <h3 className="text-base font-extrabold text-[#171719] line-through uppercase tracking-tight">{pass.title}</h3>
+                        <p className="text-xs font-mono text-[#938C87] font-semibold">ID: {pass.passIdCode}</p>
+                      </div>
+
+                      <div className="flex flex-col gap-1.5 sm:items-end">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs text-[#A34F4C]">
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>{pass.validityText}</span>
+                        </div>
+
+                        <div className="bg-[#E8E1DD]/40 border border-[#3F3632]/10 px-2.5 py-0.5 rounded-lg text-[9.5px] font-extrabold text-[#746D68] tracking-wider uppercase w-max">
+                          {pass.usageText}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
-        </div>
-      ) : (
-        /* SCREEN 1: ACCESS PASSES OVERVIEW VIEW */
-        <div className="flex flex-col gap-8 animate-fadeIn" id="access-view-container">
-          {/* Default Access Cards Row */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-cyan-400" />
-              <span>Default Campus Access Permissions</span>
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Card 1: Main Gate */}
-              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Main Gate</p>
-                    <p className="text-xs text-neutral-400 font-medium">24/7 Gate Entry Allowed</p>
-                  </div>
-                </div>
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-              </div>
-
-              {/* Card 2: Library */}
-              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                    <Clock className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Library Complex</p>
-                    <p className="text-xs text-neutral-400 font-medium">Standard Operating Hours</p>
-                  </div>
-                </div>
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-              </div>
-
-              {/* Card 3: Academic Block */}
-              <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-5 border border-neutral-200/60 dark:border-white/10 shadow-lg flex items-center justify-between hover:border-cyan-500/30 transition-all">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-11 h-11 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <p className="font-black text-neutral-900 dark:text-white text-sm uppercase tracking-tight">Academic Block A/B</p>
-                    <p className="text-xs text-neutral-400 font-medium">Authorized Student Zones</p>
-                  </div>
-                </div>
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-              </div>
-            </div>
-          </section>
-
-          {/* Active Temporary Passes List */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-              <QrCode className="w-4 h-4 text-emerald-400" />
-              <span>Active Temporary &amp; Guest Passes ({activePasses.length})</span>
-            </h2>
-
-            <div className="flex flex-col gap-4">
-              {activePasses.length === 0 ? (
-                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
-                  <QrCode className="w-10 h-10 text-neutral-400" />
-                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Active Passes</p>
-                </div>
-              ) : (
-                activePasses.map((pass) => (
-                  <div
-                    key={pass.id}
-                    onClick={() => onNavigateToWallet(pass)}
-                    className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border-l-4 border-l-emerald-500 border border-neutral-200/60 dark:border-white/10 shadow-xl transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group"
-                  >
-                    <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-emerald-500/20 transition-all"></div>
-
-                    <div className="flex flex-col gap-1 z-10">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-wider">
-                          {pass.category}
-                        </span>
-                        <p className="text-xs text-neutral-400 font-bold">{pass.subCategory}</p>
-                      </div>
-                      <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h3>
-                      <p className="text-xs font-mono text-cyan-400 font-bold">ID: {pass.passIdCode}</p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-2 font-bold text-sm text-emerald-400">
-                        <Clock className="w-4 h-4" />
-                        <span>{pass.validityText}</span>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-300 tracking-widest uppercase w-max">
-                        {pass.usageText}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* Upcoming Temporary Passes List */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-              <Clock className="w-4 h-4 text-cyan-400" />
-              <span>Upcoming Passes ({upcomingPasses.length})</span>
-            </h2>
-
-            <div className="flex flex-col gap-4">
-              {upcomingPasses.length === 0 ? (
-                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
-                  <Clock className="w-10 h-10 text-neutral-400" />
-                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Upcoming Passes</p>
-                </div>
-              ) : (
-                upcomingPasses.map((pass) => (
-                  <div
-                    key={pass.id}
-                    onClick={() => onNavigateToWallet(pass)}
-                    className="bg-white/90 dark:bg-neutral-900/80 backdrop-blur-xl rounded-2xl p-5 border-l-4 border-l-cyan-500 border border-neutral-200/60 dark:border-white/10 shadow-xl transition-all hover:scale-[1.01] cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden group"
-                  >
-                    <div className="absolute right-0 top-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none group-hover:bg-cyan-500/20 transition-all"></div>
-
-                    <div className="flex flex-col gap-1 z-10">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 uppercase tracking-wider">
-                          {pass.category}
-                        </span>
-                        <p className="text-xs text-neutral-400 font-bold">{pass.subCategory}</p>
-                      </div>
-                      <h3 className="text-xl font-black text-neutral-900 dark:text-white uppercase tracking-tight">{pass.title}</h3>
-                      <p className="text-xs font-mono text-cyan-400 font-bold">ID: {pass.passIdCode}</p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-2 font-bold text-sm text-cyan-400">
-                        <Clock className="w-4 h-4" />
-                        <span>{pass.validityText}</span>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/10 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-300 tracking-widest uppercase w-max">
-                        {pass.usageText}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
-          {/* Expired / Revoked Passes List */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-500" />
-              <span>Expired &amp; Revoked Passes ({expiredPasses.length})</span>
-            </h2>
-
-            <div className="flex flex-col gap-4 font-sans">
-              {expiredPasses.length === 0 ? (
-                <div className="bg-white/80 dark:bg-neutral-900/60 backdrop-blur-xl rounded-2xl p-8 border border-neutral-200/60 dark:border-white/10 text-center flex flex-col items-center gap-3 shadow-lg">
-                  <AlertTriangle className="w-10 h-10 text-neutral-400" />
-                  <p className="text-xs font-black text-neutral-400 uppercase tracking-wider">No Expired Passes</p>
-                </div>
-              ) : (
-                expiredPasses.map((pass) => (
-                  <div
-                    key={pass.id}
-                    className="bg-white/50 dark:bg-neutral-900/40 opacity-70 rounded-2xl p-5 border-l-4 border-l-rose-500/60 border border-neutral-200/40 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden"
-                  >
-                    <div className="flex flex-col gap-1 z-10">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-wider">
-                          {pass.category}
-                        </span>
-                        <p className="text-xs text-neutral-500 font-bold">{pass.subCategory}</p>
-                      </div>
-                      <h3 className="text-xl font-black text-neutral-900 dark:text-white line-through uppercase tracking-tight">{pass.title}</h3>
-                      <p className="text-xs font-mono text-neutral-500 font-bold">ID: {pass.passIdCode}</p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:items-end z-10">
-                      <div className="flex items-center gap-2 font-bold text-sm text-rose-400">
-                        <XCircle className="w-4 h-4" />
-                        <span>{pass.validityText}</span>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/5 px-3 py-1 rounded-xl text-[10px] font-black text-neutral-500 tracking-widest uppercase w-max">
-                        {pass.usageText}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
