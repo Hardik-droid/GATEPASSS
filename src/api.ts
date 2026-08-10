@@ -42,3 +42,19 @@ export async function fetchEventsApi(): Promise<any[]> {
   const data = await response.json();
   return data.events || [];
 }
+
+export async function uploadEventCoverApi(file: File): Promise<string> {
+  const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "image/png",
+    },
+    body: file,
+  });
+  if (!response.ok) {
+    const errJson = await response.json().catch(() => ({}));
+    throw new Error(errJson.error || `Please upload a JPG, PNG or WebP image under 5 MB.`);
+  }
+  const data = await response.json();
+  return data.url || `${API_BASE_URL}/api/event-images?id=${data.id}`;
+}

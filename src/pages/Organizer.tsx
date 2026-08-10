@@ -4,6 +4,7 @@ import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
 import KineticHeading from "../components/ui/KineticHeading";
+import { uploadEventCoverApi } from "../api";
 import {
   Plus,
   TrendingUp,
@@ -26,7 +27,9 @@ import {
   ArrowRight,
   ShieldAlert,
   Smartphone,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  Image as ImageIcon
 } from "lucide-react";
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
@@ -158,6 +161,57 @@ export default function OrganizerWorkspace({
     { name: "VIP Pass", price: 499, capacity: 100 }
   ]);
 
+  // Form states for Event Cover Image
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Clean up object URL when preview URL changes or component unmounts
+  useEffect(() => {
+    return () => {
+      if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(coverPreviewUrl);
+      }
+    };
+  }, [coverPreviewUrl]);
+
+  const handleImageFileChange = (file: File | null) => {
+    setCoverError(null);
+    if (!file) return;
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setCoverError("Please upload a JPG, PNG or WebP image under 5 MB.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setCoverError("Please upload a JPG, PNG or WebP image under 5 MB.");
+      return;
+    }
+
+    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+
+    setCoverFile(file);
+    setCoverPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleRemoveCoverImage = () => {
+    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+    setCoverFile(null);
+    setCoverPreviewUrl(null);
+    setCoverError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   // Form states for Manual/Cash ticketing
   const [manualEventId, setManualEventId] = useState("");
   const [manualName, setManualName] = useState("");
@@ -189,7 +243,7 @@ export default function OrganizerWorkspace({
     setCategories(categories.filter((_, i) => i !== index));
   };
 
-  const handleCreateEventSubmit = (e: React.FormEvent) => {
+  const handleCreateEventSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!eventTitle.trim() || !eventVenue.trim()) {
       alert("Please provide complete title and venue details.");
@@ -202,6 +256,21 @@ export default function OrganizerWorkspace({
     if (new Date(eventEndTime) <= new Date(eventStartTime)) {
       alert("Event end time must be after the start time.");
       return;
+    }
+
+    let finalBannerUrl = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
+
+    if (coverFile) {
+      setUploadingImage(true);
+      try {
+        finalBannerUrl = await uploadEventCoverApi(coverFile);
+      } catch (err: any) {
+        console.error("Cover image upload error:", err);
+        setCoverError(err.message || "Please upload a JPG, PNG or WebP image under 5 MB.");
+        setUploadingImage(false);
+        return;
+      }
+      setUploadingImage(false);
     }
 
     const newEventId = "ev_" + Date.now();
@@ -228,7 +297,7 @@ export default function OrganizerWorkspace({
       venue: eventVenue,
       startTime: new Date(eventStartTime).toISOString(),
       endTime: new Date(eventEndTime).toISOString(),
-      bannerUrl: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80",
+      bannerUrl: finalBannerUrl,
       capacity: eventCapacity,
       ticketCategories: formattedCategories
     };
@@ -240,6 +309,7 @@ export default function OrganizerWorkspace({
     setEventTitle("");
     setEventVenue("");
     setEventDesc("");
+    handleRemoveCoverImage();
     const nextStart = defaultEventStart();
     setEventStartTime(toDatetimeLocalInput(nextStart));
     setEventEndTime(toDatetimeLocalInput(defaultEventEnd(nextStart)));
@@ -1015,6 +1085,88 @@ export default function OrganizerWorkspace({
                 onChange={(e) => setEventDesc(e.target.value)}
                 className="w-full bg-surface-container-low border border-outline-variant rounded-lg p-2.5 text-sm text-charcoal-dark font-semibold outline-none resize-none"
               />
+            </div>
+
+            {/* EVENT COVER IMAGE MODULE */}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                <label className="text-xs font-bold text-outline uppercase tracking-wider">Event Cover Image</label>
+                <span className="text-[11px] text-[#746D68] font-medium">Recommended 16:9 · JPG, PNG or WebP · Max 5 MB</span>
+              </div>
+
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  handleImageFileChange(file);
+                }}
+                className="hidden"
+              />
+
+              {coverError && (
+                <div className="p-2.5 rounded-xl bg-status-danger/10 text-status-danger border border-status-danger/20 text-xs font-bold flex items-center gap-2">
+                  <AlertOctagon className="w-4 h-4 flex-shrink-0" />
+                  <span>{coverError}</span>
+                </div>
+              )}
+
+              {!coverPreviewUrl ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0] || null;
+                    handleImageFileChange(file);
+                  }}
+                  className="bg-[#F8F5F2] border border-dashed border-[#3F3632]/20 hover:border-[#171719]/40 rounded-[14px] p-5 h-[160px] flex flex-col items-center justify-center text-center cursor-pointer transition-colors group"
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#171719]/5 group-hover:bg-[#171719]/10 flex items-center justify-center text-[#171719] mb-2 transition-colors">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs font-extrabold text-[#171719] uppercase tracking-wider">
+                    Upload Event Cover
+                  </p>
+                  <p className="text-[11px] text-[#746D68] mt-0.5 mb-2.5">
+                    Drag &amp; drop or choose an image file
+                  </p>
+                  <span className="px-3.5 py-1.5 bg-[#171719] hover:bg-[#292725] text-[#F8F5F2] rounded-xl text-[11px] font-bold uppercase tracking-wider transition-colors shadow-sm">
+                    Choose Image
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <div className="relative rounded-[12px] overflow-hidden border border-[#3F3632]/10 bg-[#171719] aspect-[16/9] max-h-[170px] w-full flex items-center justify-center">
+                    <img
+                      src={coverPreviewUrl}
+                      alt="Cover preview"
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-[#F8F5F2] hover:bg-[#E8E1DD] border border-[#3F3632]/10 rounded-xl text-xs font-extrabold text-[#171719] uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Replace Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoverImage}
+                      className="px-3 py-1.5 bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/20 rounded-xl text-xs font-extrabold text-status-danger uppercase tracking-wider transition-colors cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Custom Ticket Tiers */}
