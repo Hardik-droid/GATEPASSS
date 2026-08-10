@@ -27,3 +27,8 @@ __pycache__
 # profile (hundreds of MB of cache files) makes `vite build` exhaust memory.
 .event-image-edge-profile/
 .freebuff/
+
+# Local one-off scripts that hardcode the production DB URL for manual testing.
+# Never commit these — the credential inside must not enter git history.
+.vercel_python_packages/
+scratch/
