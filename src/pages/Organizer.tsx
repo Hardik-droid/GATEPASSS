@@ -6,6 +6,7 @@ import AnimatedButton from "../components/ui/animated-button";
 import KineticHeading from "../components/ui/KineticHeading";
 import { uploadEventCoverApi } from "../api";
 import { coverErrorMessage } from "../coverError";
+import { validateImageFile } from "../imageValidation";
 import {
   Plus,
   TrendingUp,
@@ -178,18 +179,13 @@ export default function OrganizerWorkspace({
     };
   }, [coverPreviewUrl]);
 
-  const handleImageFileChange = (file: File | null) => {
+  const handleImageFileChange = async (file: File | null) => {
     setCoverError(null);
     if (!file) return;
 
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type.toLowerCase())) {
-      setCoverError("Please upload a JPG, PNG or WebP image under 50 MB.");
-      return;
-    }
-
-    if (file.size > 50 * 1024 * 1024) {
-      setCoverError("Please upload a JPG, PNG or WebP image under 50 MB.");
+    const validation = await validateImageFile(file);
+    if (!validation.ok) {
+      setCoverError(validation.message);
       return;
     }
 

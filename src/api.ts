@@ -44,27 +44,45 @@ export async function fetchEventsApi(): Promise<any[]> {
   return data.events || [];
 }
 
+import { validateImageFile } from "./imageValidation";
+
 export async function uploadEventCoverApi(file: File): Promise<string> {
-  // The endpoint takes the raw image bytes with the image's own Content-Type
-  // (server/app.ts uses express.raw), not multipart/form-data.
-  const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
-    method: "POST",
-    headers: {
-      "Content-Type": file.type || "image/png",
-    },
-    body: file,
-  });
-  if (!response.ok) {
-    // Never pass the parsed body straight to Error(): a non-string field would
-    // be coerced to "[object Object]" and shown to the organizer as-is.
-    const body = await response.json().catch(() => null);
-    throw new Error(coverErrorMessage(body));
+  const validation = await validateImageFile(file);
+  if (!validation.ok) {
+    throw new Error(validation.message);
   }
-  const data = await response.json().catch(() => null);
-  const url = (data as { url?: unknown } | null)?.url;
-  if (typeof url === "string" && url.trim()) return url;
-  const id = (data as { id?: unknown } | null)?.id;
-  if (typeof id === "string" && id.trim()) return `${API_BASE_URL}/api/event-images?id=${id}`;
-  // Refuse to persist a bogus banner URL built from a missing/!string id.
-  throw new Error(COVER_UPLOAD_FALLBACK);
+
+  const mimeType = validation.mimeType || file.type || "image/png";
+
+  try {
+    const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
+      method: "POST",
+      headers: {
+        "Content-Type": mimeType,
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error("Image size exceeds the 50 MB server upload limit.");
+      }
+      const body = await response.json().catch(() => null);
+      if (body) {
+        const message = coverErrorMessage(body);
+        throw new Error(message);
+      }
+      throw new Error(`Upload failed with server status ${response.status}. Please try again.`);
+    }
+
+    const data = await response.json().catch(() => null);
+    const url = (data as { url?: unknown } | null)?.url;
+    if (typeof url === "string" && url.trim()) return url;
+    const id = (data as { id?: unknown } | null)?.id;
+    if (typeof id === "string" && id.trim()) return `${API_BASE_URL}/api/event-images?id=${id}`;
+    throw new Error("Upload succeeded, but no valid image URL was returned by server.");
+  } catch (err: unknown) {
+    if (err instanceof Error) throw err;
+    throw new Error("Failed to upload image. Please check your network connection and try again.");
+  }
 }

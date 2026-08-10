@@ -6,6 +6,7 @@ import helmet from "helmet";
 import pinoHttp from "pino-http";
 import { createInitialAppState, type AppStateSnapshot } from "../src/appState.js";
 import { isEventExpired } from "../src/eventUtils.js";
+import { detectImageFormat } from "../src/imageValidation.js";
 import { roleForAuthenticatedEmail } from "../src/permissions.js";
 import { config } from "./config.js";
 import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
@@ -139,29 +140,32 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.post(
     "/api/event-images",
     optionalAuthenticateNeon,
-    express.raw({ type: ["image/jpeg", "image/png", "image/webp"], limit: "50mb" }),
+    express.raw({ type: "*/*", limit: "50mb" }),
     async (req, res, next) => {
       try {
-        const contentType = req.headers["content-type"] || "image/png";
-        const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-        if (!allowedTypes.includes(contentType.toLowerCase())) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
-          return;
-        }
         const data = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || []);
         if (!data || data.length === 0) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
+          res.status(400).json({ error: "The uploaded image file is empty." });
           return;
         }
-        // Basic MIME magic byte check for PNG/JPEG/WebP
-        const isValidImage =
-          (data.length >= 8 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47) ||
-          (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) ||
-          (data.length >= 12 && data.toString("ascii", 0, 4) === "RIFF" && data.toString("ascii", 8, 12) === "WEBP");
-        if (!isValidImage) {
-          res.status(400).json({ error: "Please upload a JPG, PNG or WebP image under 50 MB." });
+        if (data.length > 50 * 1024 * 1024) {
+          res.status(413).json({ error: "Image exceeds the 50 MB upload limit." });
           return;
         }
+
+        const detectedFormat = await detectImageFormat(data);
+        if (!detectedFormat) {
+          res.status(400).json({ error: "The uploaded file is not a valid JPG, PNG or WebP image." });
+          return;
+        }
+
+        const contentType =
+          detectedFormat === "png"
+            ? "image/png"
+            : detectedFormat === "jpeg"
+            ? "image/jpeg"
+            : "image/webp";
+
         const uploadedBy = (req as AuthenticatedRequest).authEmail || "organizer";
         const imageId = await store.saveEventImage(uploadedBy, contentType, data);
         const imageUrl = `${req.protocol}://${req.get("host")}/api/event-images?id=${imageId}`;
