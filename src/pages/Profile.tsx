@@ -80,6 +80,14 @@ function getPassStatus(pass: InvitePass): "ACTIVE" | "EXPIRED" | "UPCOMING" {
   return "ACTIVE";
 }
 
+const GATEPASS_QR_LOGO_MARK = `data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <rect width="40" height="40" rx="9" fill="#171719"/>
+  <path d="M20 8L11 12v7.5c0 5.6 3.8 10.8 9 12.2 5.2-1.4 9-6.6 9-12.2V12L20 8z" fill="none" stroke="#F8F5F2" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 19.5l2.5 2.5 4.5-4.5" fill="none" stroke="#55765F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+`)}`;
+
 export default function IdentityCard({
   user,
   invitePasses,
@@ -269,6 +277,14 @@ export default function IdentityCard({
                         size={155}
                         level="H"
                         includeMargin={false}
+                        fgColor="#000000"
+                        bgColor="#FFFFFF"
+                        imageSettings={{
+                          src: GATEPASS_QR_LOGO_MARK,
+                          height: 25,
+                          width: 25,
+                          excavate: true,
+                        }}
                       />
                     ) : qrError ? (
                       <div className="text-[11px] text-[#A34F4C] font-bold uppercase tracking-wider flex flex-col items-center gap-1 px-2 text-center">
