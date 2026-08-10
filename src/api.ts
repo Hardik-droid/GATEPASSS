@@ -1,6 +1,7 @@
 import type { AppStateSnapshot } from "./appState";
 import { optionalAuthFetch } from "./authFetch";
 import { API_BASE_URL } from "./apiBase";
+import { coverErrorMessage, COVER_UPLOAD_FALLBACK } from "./coverError";
 
 export async function loadAppState(): Promise<AppStateSnapshot | null> {
   const response = await optionalAuthFetch(`${API_BASE_URL}/api/state`);
@@ -44,6 +45,8 @@ export async function fetchEventsApi(): Promise<any[]> {
 }
 
 export async function uploadEventCoverApi(file: File): Promise<string> {
+  // The endpoint takes the raw image bytes with the image's own Content-Type
+  // (server/app.ts uses express.raw), not multipart/form-data.
   const response = await optionalAuthFetch(`${API_BASE_URL}/api/event-images`, {
     method: "POST",
     headers: {
@@ -52,9 +55,16 @@ export async function uploadEventCoverApi(file: File): Promise<string> {
     body: file,
   });
   if (!response.ok) {
-    const errJson = await response.json().catch(() => ({}));
-    throw new Error(errJson.error || `Please upload a JPG, PNG or WebP image under 5 MB.`);
+    // Never pass the parsed body straight to Error(): a non-string field would
+    // be coerced to "[object Object]" and shown to the organizer as-is.
+    const body = await response.json().catch(() => null);
+    throw new Error(coverErrorMessage(body));
   }
-  const data = await response.json();
-  return data.url || `${API_BASE_URL}/api/event-images?id=${data.id}`;
+  const data = await response.json().catch(() => null);
+  const url = (data as { url?: unknown } | null)?.url;
+  if (typeof url === "string" && url.trim()) return url;
+  const id = (data as { id?: unknown } | null)?.id;
+  if (typeof id === "string" && id.trim()) return `${API_BASE_URL}/api/event-images?id=${id}`;
+  // Refuse to persist a bogus banner URL built from a missing/!string id.
+  throw new Error(COVER_UPLOAD_FALLBACK);
 }

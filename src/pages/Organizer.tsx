@@ -5,6 +5,7 @@ import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
 import KineticHeading from "../components/ui/KineticHeading";
 import { uploadEventCoverApi } from "../api";
+import { coverErrorMessage } from "../coverError";
 import {
   Plus,
   TrendingUp,
@@ -264,9 +265,10 @@ export default function OrganizerWorkspace({
       setUploadingImage(true);
       try {
         finalBannerUrl = await uploadEventCoverApi(coverFile);
-      } catch (err: any) {
+        setCoverError(null);
+      } catch (err) {
         console.error("Cover image upload error:", err);
-        setCoverError(err.message || "Please upload a JPG, PNG or WebP image under 5 MB.");
+        setCoverError(coverErrorMessage(err));
         setUploadingImage(false);
         return;
       }
@@ -1105,7 +1107,7 @@ export default function OrganizerWorkspace({
                 className="hidden"
               />
 
-              {coverError && (
+              {coverError?.trim() && (
                 <div className="p-2.5 rounded-xl bg-status-danger/10 text-status-danger border border-status-danger/20 text-xs font-bold flex items-center gap-2">
                   <AlertOctagon className="w-4 h-4 flex-shrink-0" />
                   <span>{coverError}</span>
@@ -1141,8 +1143,10 @@ export default function OrganizerWorkspace({
                   </span>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="relative rounded-[12px] overflow-hidden border border-[#3F3632]/10 bg-[#171719] aspect-[16/9] max-h-[170px] w-full flex items-center justify-center">
+                // self-start: the parent is a stretch flex column, which would
+                // otherwise widen this shell to the full Event Builder width.
+                <div className="flex flex-col gap-3 w-full max-w-[620px] self-start">
+                  <div className="relative rounded-[12px] overflow-hidden border border-[#3F3632]/10 bg-[#171719] aspect-[16/9] w-full">
                     <img
                       src={coverPreviewUrl}
                       alt="Cover preview"
