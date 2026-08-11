@@ -29,6 +29,7 @@ import QRScannerSimulation from "./pages/Scanner";
 import OrganizerWorkspace from "./pages/Organizer";
 import AttendeeEventsList from "./pages/Events";
 import CoverUploadPage from "./pages/CoverUploadPage";
+import StripCustomizer from "./pages/StripCustomizer";
 import HomeUpdates from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
 import LoadingScreen from "./components/LoadingScreen";
@@ -1118,6 +1119,20 @@ export default function App() {
                 >
                   <span>Events &amp; Concerts</span>
                 </NavLink>
+
+                <NavLink
+                  to="/customizer"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => 
+                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
+                      isActive 
+                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
+                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
+                    }`
+                  }
+                >
+                  <span>Photo Strip</span>
+                </NavLink>
               </>
             ) : (
               /* ORGANIZER ROUTES */
@@ -1309,6 +1324,18 @@ export default function App() {
             }
           />
           <Route 
+            path="/customizer" 
+            element={<StripCustomizer />}
+          />
+          <Route 
+            path="/strip-customizer" 
+            element={<StripCustomizer />}
+          />
+          <Route 
+            path="/strip" 
+            element={<StripCustomizer />}
+          />
+          <Route 
             path="/scanner" 
             element={<QRScannerSimulation onToast={addToast} />}
           />
@@ -1375,6 +1402,17 @@ export default function App() {
             >
               <Sparkles className="w-5 h-5" />
               <span>Events</span>
+            </NavLink>
+            <NavLink
+              to="/customizer"
+              className={({ isActive }) => 
+                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
+                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
+                }`
+              }
+            >
+              <TicketIcon className="w-5 h-5" />
+              <span>Strip Studio</span>
             </NavLink>
             {hasScannerAccess && (
               <NavLink
