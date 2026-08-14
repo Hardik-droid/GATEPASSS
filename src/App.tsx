@@ -82,6 +82,9 @@ function nameFromEmail(email: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const reasonOf = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "please try again";
+
 function identityFromSession(u: {
   id?: string;
   name?: string | null;
@@ -586,7 +589,7 @@ export default function App() {
       return true;
     } catch (error) {
       console.warn("Event database save failed:", error);
-      addToast("error", `Failed to save "${newEvent.title}" to the database. Please try again.`);
+      addToast("error", `Failed to save "${newEvent.title}": ${reasonOf(error)}`);
       return false;
     }
   };
@@ -649,7 +652,7 @@ export default function App() {
       return true;
     } catch (error) {
       console.warn("Cover photo save failed:", error);
-      addToast("error", `Cover photo for "${targetTitle}" could not be saved. Please try again.`);
+      addToast("error", `Cover photo for "${targetTitle}" could not be saved: ${reasonOf(error)}`);
       return false;
     }
   };

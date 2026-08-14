@@ -19,11 +19,29 @@ export async function saveAppState(state: AppStateSnapshot): Promise<void> {
     body: JSON.stringify({ state }),
   });
   if (!response.ok) {
-    // The server names the offending field (400) or the timeout (504); without
-    // it every failure looked identical from the console.
-    const detail = await response.text().catch(() => "");
-    throw new Error(`Failed to save app state: ${response.status} ${detail.slice(0, 500)}`);
+    throw new Error(await saveFailureReason(response));
   }
+}
+
+// The server already names the offending field on a 400 and the failure mode on
+// a 5xx. Dropping that on the floor is what made every save failure look like
+// the same unactionable "please try again", so it is carried all the way to the
+// toast the organizer actually sees.
+async function saveFailureReason(response: Response): Promise<string> {
+  const body = await response.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(body) as { error?: string; issues?: { path?: string; message?: string }[] };
+    if (parsed.issues?.length) {
+      return parsed.issues
+        .slice(0, 3)
+        .map((issue) => `${issue.path?.replace(/^state\./, "") ?? "?"} — ${issue.message ?? "invalid"}`)
+        .join("; ");
+    }
+    if (parsed.error) return `${parsed.error} (${response.status})`;
+  } catch {
+    // Not JSON: a gateway timeout or proxy error page.
+  }
+  return `Server returned ${response.status}${body ? ` — ${body.slice(0, 120)}` : ""}`;
 }
 
 export async function createEventApi(event: any): Promise<{ event: any; default_gate: any }> {
