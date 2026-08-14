@@ -277,6 +277,38 @@ test("ticket upsert never overwrites owner columns", () => {
   assert.ok(doUpdate.includes("category_name"), "non-owner columns must still update");
 });
 
+// Publishing one event used to re-upsert every row of the whole state blob:
+// ~130 sequential round trips, 49s against Neon, past the serverless time
+// budget — the transaction rolled back and the organizer saw "Failed to save".
+test("state sync writes only the rows that changed", async () => {
+  const store = Object.create(PostgresAppStateStore.prototype) as any;
+  const state = createInitialAppState();
+  const sql: string[] = [];
+  const client = {
+    query: async (text: string) => {
+      sql.push(text);
+      return { rows: [] };
+    },
+  };
+
+  await store.syncReportingTables(client, state, structuredClone(state));
+  assert.deepEqual(sql, [], "an unchanged snapshot must not write anything");
+
+  const published = structuredClone(state);
+  published.events = [{ ...state.events[0], id: "ev_new", title: "New Event" }, ...state.events];
+  await store.syncReportingTables(client, published, state);
+
+  assert.ok(sql.length > 0, "the new event must be written");
+  assert.ok(
+    sql.length <= 2 + published.events[0].ticketCategories.length,
+    `only the new event's rows may be written, got ${sql.length} queries`,
+  );
+  assert.ok(
+    sql.every((text) => /INSERT INTO (public\.)?(scanner\.)?(events|ticket_categories)/.test(text)),
+    "untouched users, orders, tickets and logs must be left alone",
+  );
+});
+
 test("state sync never truncates the reporting tables", async () => {
   const source = await readFile(new URL("./store.ts", import.meta.url), "utf8");
   assert.ok(

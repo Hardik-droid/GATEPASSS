@@ -116,10 +116,19 @@ function toLower(value: string): string {
 // DO UPDATE: they are owned by the transfer engine (backend/transfer_routes.py).
 // The client state blob may carry a stale owner and must never win — otherwise
 // every accepted transfer reverts on the next browser autosave.
+// category_id is resolved by subquery, not by a JS-side map of derived ids: the
+// row that owns a tier is whichever one holds its (event_id, name), which need
+// not be the id we would derive today. Looking it up here also means the tier
+// upsert can be skipped when nothing about it changed without risking a
+// dangling category_id.
 export const TICKET_UPSERT_SQL = `INSERT INTO tickets (
   id, event_id, order_id, category_id, category_name, price, attendee_name, attendee_phone, attendee_email,
   qr_token, status, issued_at, checked_in_at, gate_scanned, scanned_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::ticket_status, $12, $13, $14, $15)
+) VALUES (
+  $1, $2, $3,
+  (SELECT id FROM ticket_categories WHERE event_id = $2 AND name = $4),
+  $4, $5, $6, $7, $8, $9, $10::ticket_status, $11, $12, $13, $14
+)
 ON CONFLICT (id) DO UPDATE SET
   event_id = EXCLUDED.event_id,
   order_id = EXCLUDED.order_id,
@@ -293,6 +302,12 @@ export class PostgresAppStateStore implements AppStateStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      // Locked for the length of the transaction so the diff in
+      // syncReportingTables cannot race a concurrent save.
+      const previous = await client.query<{ payload: AppStateSnapshot }>(
+        "SELECT payload FROM app_state WHERE state_key = $1 FOR UPDATE",
+        ["default"],
+      );
       await client.query(
         `INSERT INTO app_state (state_key, payload)
          VALUES ($1, $2::jsonb)
@@ -300,7 +315,7 @@ export class PostgresAppStateStore implements AppStateStore {
          DO UPDATE SET payload = EXCLUDED.payload, updated_at = now()`,
         ["default", JSON.stringify(state)],
       );
-      await this.syncReportingTables(client, state);
+      await this.syncReportingTables(client, state, previous.rows[0]?.payload ?? null);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -489,60 +504,87 @@ export class PostgresAppStateStore implements AppStateStore {
     return image ? { contentType: image.content_type, data: image.image_data } : null;
   }
 
-  private async syncReportingTables(client: pg.PoolClient, state: AppStateSnapshot): Promise<void> {
+  private async syncReportingTables(
+    client: pg.PoolClient,
+    state: AppStateSnapshot,
+    previous: AppStateSnapshot | null,
+  ): Promise<void> {
     const organizationId = stableUuid("organizations", "gatepass");
     const userId = stableUuid("users", state.user.id);
     const eventIds = new Map<string, string>();
-    const categoryIds = new Map<string, string>();
     const orderIds = new Map<string, string>();
     const ticketIds = new Map<string, string>();
+
+    // Every save ships the entire app state, but almost all of it is identical
+    // to what is already stored. Re-upserting all of it meant ~130 sequential
+    // round trips — 49s measured against Neon — which outran the serverless
+    // function's time budget, so the whole transaction was rolled back and the
+    // organizer got "Failed to save ... to the database" for a publish that was
+    // otherwise perfectly valid. Only rows whose JSON actually differs from the
+    // previous snapshot are written now; a typical publish is under ten
+    // queries. Skipping untouched rows also keeps this sync further away from
+    // the columns the transfer engine and scanner own.
+    // ponytail: row-level diff by JSON identity — a reordered key just forces a
+    // write, never a wrong one. Batch the writes into multi-row upserts only if
+    // a single save ever legitimately changes hundreds of rows.
+    const stored = new Set<string>();
+    for (const [collection, value] of Object.entries(previous ?? {})) {
+      for (const row of Array.isArray(value) ? value : [value]) {
+        stored.add(`${collection}:${JSON.stringify(row)}`);
+      }
+    }
+    const isUnchanged = (collection: string, row: unknown): boolean =>
+      stored.has(`${collection}:${JSON.stringify(row)}`);
 
     // No bulk delete here, deliberately: this state blob is shared by every
     // signed-in user, so wiping rows destroys data created by other people.
     // Every statement below upserts, and nothing is ever removed.
 
-    await client.query(
-      `INSERT INTO organizations (id, name, org_type, contact_email, contact_phone)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         org_type = EXCLUDED.org_type,
-         contact_email = EXCLUDED.contact_email,
-         contact_phone = EXCLUDED.contact_phone,
-         updated_at = now()`,
-      [organizationId, "GatePass", "Event Operations", state.user.email, state.user.phone],
-    );
+    if (!isUnchanged("user", state.user)) {
+      await client.query(
+        `INSERT INTO organizations (id, name, org_type, contact_email, contact_phone)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           org_type = EXCLUDED.org_type,
+           contact_email = EXCLUDED.contact_email,
+           contact_phone = EXCLUDED.contact_phone,
+           updated_at = now()`,
+        [organizationId, "GatePass", "Event Operations", state.user.email, state.user.phone],
+      );
 
-    await client.query(
-      `INSERT INTO users (
-        id, organization_id, name, email, phone, role, avatar_url, student_id, current_zone, clearance_level
-      ) VALUES ($1, $2, $3, $4, $5, $6::user_role, $7, $8, $9, $10)
-      ON CONFLICT (id) DO UPDATE SET
-        organization_id = EXCLUDED.organization_id,
-        name = EXCLUDED.name,
-        email = EXCLUDED.email,
-        phone = EXCLUDED.phone,
-        role = EXCLUDED.role,
-        avatar_url = EXCLUDED.avatar_url,
-        student_id = EXCLUDED.student_id,
-        current_zone = EXCLUDED.current_zone,
-        clearance_level = EXCLUDED.clearance_level,
-        updated_at = now()`,
-      [
-        userId,
-        organizationId,
-        state.user.name,
-        state.user.email,
-        state.user.phone,
-        toUserRole(state.user.role),
-        state.user.avatarUrl,
-        state.user.studentId ?? null,
-        state.user.currentZone ?? null,
-        state.user.clearanceLevel ?? null,
-      ],
-    );
+      await client.query(
+        `INSERT INTO users (
+          id, organization_id, name, email, phone, role, avatar_url, student_id, current_zone, clearance_level
+        ) VALUES ($1, $2, $3, $4, $5, $6::user_role, $7, $8, $9, $10)
+        ON CONFLICT (id) DO UPDATE SET
+          organization_id = EXCLUDED.organization_id,
+          name = EXCLUDED.name,
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          role = EXCLUDED.role,
+          avatar_url = EXCLUDED.avatar_url,
+          student_id = EXCLUDED.student_id,
+          current_zone = EXCLUDED.current_zone,
+          clearance_level = EXCLUDED.clearance_level,
+          updated_at = now()`,
+        [
+          userId,
+          organizationId,
+          state.user.name,
+          state.user.email,
+          state.user.phone,
+          toUserRole(state.user.role),
+          state.user.avatarUrl,
+          state.user.studentId ?? null,
+          state.user.currentZone ?? null,
+          state.user.clearanceLevel ?? null,
+        ],
+      );
+    }
 
     for (const request of state.requests) {
+      if (isUnchanged("requests", request)) continue;
       await client.query(
         `INSERT INTO access_requests (
           id, requester_name, requester_avatar_url, zone_name, duration_hours, purpose, status, request_time
@@ -570,6 +612,7 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const invite of state.invitePasses) {
+      if (isUnchanged("invitePasses", invite)) continue;
       await client.query(
         `INSERT INTO invite_passes (
           id, organization_id, title, category, sub_category, pass_id_code, status, validity_text, usage_text,
@@ -609,7 +652,10 @@ export class PostgresAppStateStore implements AppStateStore {
 
     for (const event of state.events) {
       const eventDbId = toEventDbId(event.id);
+      // Mapped before the skip: a new ticket can reference an event nobody
+      // edited this round.
       eventIds.set(event.id, eventDbId);
+      if (isUnchanged("events", event)) continue;
       await client.query(
         `INSERT INTO events (
           id, organization_id, title, description, event_type, venue, start_time, end_time, banner_url, capacity
@@ -670,11 +716,9 @@ export class PostgresAppStateStore implements AppStateStore {
       // need not agree; conflicting on `id` then raised a duplicate-key error on
       // `ticket_categories_event_id_name_key` and rolled back the whole save.
       // That stayed hidden only because events previously landed on a fresh row
-      // each time. RETURNING id records whichever row actually owns the tier, so
-      // ticket.category_id below still points at a row that exists.
+      // each time.
       for (const category of event.ticketCategories) {
-        const categoryDbId = stableUuid("ticket_categories", category.id);
-        const categoryRes = await client.query<{ id: string }>(
+        await client.query(
           `INSERT INTO ticket_categories (
             id, event_id, name, description, price, capacity, sold_count
           ) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -683,10 +727,9 @@ export class PostgresAppStateStore implements AppStateStore {
             price = EXCLUDED.price,
             capacity = EXCLUDED.capacity,
             sold_count = EXCLUDED.sold_count,
-            updated_at = now()
-          RETURNING id::text`,
+            updated_at = now()`,
           [
-            categoryDbId,
+            stableUuid("ticket_categories", category.id),
             eventDbId,
             category.name,
             category.description,
@@ -695,13 +738,13 @@ export class PostgresAppStateStore implements AppStateStore {
             category.soldCount,
           ],
         );
-        categoryIds.set(category.id, categoryRes.rows[0]?.id ?? categoryDbId);
       }
     }
 
     for (const order of state.orders) {
       const orderDbId = stableUuid("orders", order.id);
       orderIds.set(order.id, orderDbId);
+      if (isUnchanged("orders", order)) continue;
       await client.query(
         `INSERT INTO orders (
           id, event_id, buyer_name, buyer_email, buyer_phone, payment_status, gross_amount, platform_fee,
@@ -739,15 +782,13 @@ export class PostgresAppStateStore implements AppStateStore {
     for (const ticket of state.tickets) {
       const ticketDbId = stableUuid("tickets", ticket.id);
       ticketIds.set(ticket.id, ticketDbId);
-      const event = state.events.find((item) => item.id === ticket.eventId);
-      const category = event?.ticketCategories.find((item) => item.name === ticket.categoryName);
+      if (isUnchanged("tickets", ticket)) continue;
       await client.query(
         TICKET_UPSERT_SQL,
         [
           ticketDbId,
           eventIds.get(ticket.eventId),
           orderIds.get(ticket.orderId),
-          category ? categoryIds.get(category.id) ?? null : null,
           ticket.categoryName,
           ticket.price,
           ticket.attendeeName,
@@ -764,6 +805,7 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const log of state.scanLogs) {
+      if (isUnchanged("scanLogs", log)) continue;
       await client.query(
         `INSERT INTO scan_logs (
           id, ticket_id, event_id, event_name, attendee_name, category_name, scan_result, scan_time, gate_name, scanned_by
@@ -794,6 +836,7 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const settlement of state.settlements) {
+      if (isUnchanged("settlements", settlement)) continue;
       await client.query(
         `INSERT INTO settlements (
           id, event_id, event_name, gross_sales, total_refunds, platform_fees, gateway_fees, manual_collections,
@@ -828,6 +871,7 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const audit of state.auditLogs) {
+      if (isUnchanged("auditLogs", audit)) continue;
       await client.query(
         `INSERT INTO audit_logs (id, timestamp, actor, action, details)
          VALUES ($1, $2, $3, $4, $5)

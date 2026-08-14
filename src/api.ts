@@ -19,7 +19,10 @@ export async function saveAppState(state: AppStateSnapshot): Promise<void> {
     body: JSON.stringify({ state }),
   });
   if (!response.ok) {
-    throw new Error(`Failed to save app state: ${response.status}`);
+    // The server names the offending field (400) or the timeout (504); without
+    // it every failure looked identical from the console.
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Failed to save app state: ${response.status} ${detail.slice(0, 500)}`);
   }
 }
 
