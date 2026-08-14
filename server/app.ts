@@ -11,7 +11,7 @@ import { roleForAuthenticatedEmail } from "../src/permissions.js";
 import { config } from "./config.js";
 import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
 import type { AppStateStore } from "./store.js";
-import { statePayloadSchema } from "./validation.js";
+import { eventSchema, statePayloadSchema } from "./validation.js";
 import {
   createNeonVerifier,
   makeAuthenticateNeon,
@@ -111,7 +111,8 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
 
   app.post("/api/events", optionalAuthenticateNeon, async (req, res, next) => {
     try {
-      const result = await store.createEvent(req.body.event);
+      const event = eventSchema.parse(req.body?.event);
+      const result = await store.createEvent(event);
       res.status(201).json(result);
     } catch (error) {
       next(error);
@@ -140,7 +141,7 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.post(
     "/api/event-images",
     optionalAuthenticateNeon,
-    express.raw({ type: "*/*", limit: "50mb" }),
+    express.raw({ type: "*/*", limit: "4mb" }),
     async (req, res, next) => {
       try {
         const data = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || []);
@@ -148,8 +149,8 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
           res.status(400).json({ error: "The uploaded image file is empty." });
           return;
         }
-        if (data.length > 50 * 1024 * 1024) {
-          res.status(413).json({ error: "Image exceeds the 50 MB upload limit." });
+        if (data.length > 4 * 1024 * 1024) {
+          res.status(413).json({ error: "Image exceeds the 4 MB stored upload limit." });
           return;
         }
 
@@ -168,8 +169,12 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
 
         const uploadedBy = (req as AuthenticatedRequest).authEmail || "organizer";
         const imageId = await store.saveEventImage(uploadedBy, contentType, data);
-        const imageUrl = `${req.protocol}://${req.get("host")}/api/event-images?id=${imageId}`;
-        res.status(201).json({ id: imageId, url: imageUrl });
+        // Root-relative on purpose. Building this from req.protocol/req.get("host")
+        // stored whichever host served the upload as a permanent cover value —
+        // a dev upload wrote "http://127.0.0.1:3001/..." into a production event
+        // row, unreachable for every visitor. The id is the durable reference;
+        // the origin is whatever origin is serving the app.
+        res.status(201).json({ id: imageId, url: `/api/event-images?id=${imageId}` });
       } catch (error) {
         next(error);
       }

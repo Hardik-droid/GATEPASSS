@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { EventItem, Order, Ticket, ScanLog, Settlement, AuditLog, TicketCategory, TicketStatus, CoverUploadLinkConfig } from "../types";
 import { AnimatedNumber } from "../components/ui/animated-number";
 import AnimatedButton from "../components/ui/animated-button";
 import KineticHeading from "../components/ui/KineticHeading";
 import { createCoverConfig, getShareableCoverUploadUrl, formatExpiryLabel } from "../coverLinkUtils";
+import { uploadEventCoverApi } from "../api";
+import { validateImageFile } from "../imageValidation";
+import { coverErrorMessage } from "../coverError";
 import {
   Plus,
   TrendingUp,
@@ -38,7 +41,8 @@ import {
   XCircle,
   X,
   Check,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Upload
 } from "lucide-react";
 
 // datetime-local inputs need "YYYY-MM-DDTHH:mm" in the browser's local time.
@@ -60,6 +64,8 @@ function defaultEventEnd(start: Date): Date {
   return end;
 }
 
+const DEFAULT_EVENT_COVER_URL = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
+
 interface OrganizerWorkspaceProps {
   events: EventItem[];
   orders: Order[];
@@ -67,10 +73,15 @@ interface OrganizerWorkspaceProps {
   scanLogs: ScanLog[];
   settlements: Settlement[];
   auditLogs: AuditLog[];
-  onAddNewEvent: (newEvent: EventItem) => void;
+  onAddNewEvent: (newEvent: EventItem) => Promise<boolean>;
   onIssueManualTicket: (ticket: Omit<Ticket, "id" | "status" | "issuedAt">) => void;
   onProcessRefund: (ticketId: string) => void;
   onUpdateEventCoverConfig?: (eventId: string, config: CoverUploadLinkConfig) => void;
+  onUpdateEventCover: (
+    eventId: string,
+    newCoverUrl: string,
+    configUpdates?: Partial<CoverUploadLinkConfig>,
+  ) => Promise<boolean>;
 }
 
 export default function OrganizerWorkspace({
@@ -83,7 +94,8 @@ export default function OrganizerWorkspace({
   onAddNewEvent,
   onIssueManualTicket,
   onProcessRefund,
-  onUpdateEventCoverConfig
+  onUpdateEventCoverConfig,
+  onUpdateEventCover
 }: OrganizerWorkspaceProps) {
   const location = useLocation();
   const getTabFromUrl = () => {
@@ -172,6 +184,42 @@ export default function OrganizerWorkspace({
     { name: "VIP Pass", price: 499, capacity: 100 }
   ]);
 
+  // Event Cover Image state in Event Builder
+  const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Cleanup object URL
+  useEffect(() => {
+    return () => {
+      if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(coverPreviewUrl);
+      }
+    };
+  }, [coverPreviewUrl]);
+
+  const processCoverFile = async (selectedFile: File) => {
+    setCoverUploadError(null);
+    const result = await validateImageFile(selectedFile);
+    if (!result.ok) {
+      setCoverUploadError(result.message);
+      return;
+    }
+    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+    setSelectedCoverFile(selectedFile);
+    setCoverPreviewUrl(URL.createObjectURL(selectedFile));
+  };
+
+  const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      processCoverFile(e.target.files[0]);
+    }
+  };
+
   // Cover Link System Modal States
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [modalEventId, setModalEventId] = useState<string | null>(null);
@@ -226,11 +274,29 @@ export default function OrganizerWorkspace({
       return;
     }
 
-    const defaultBannerUrl = "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&auto=format&fit=crop&q=80";
+    setCoverUploading(true);
+    setCoverUploadError(null);
+
+    let finalBannerUrl = DEFAULT_EVENT_COVER_URL;
+
+    if (selectedCoverFile) {
+      try {
+        finalBannerUrl = await uploadEventCoverApi(selectedCoverFile);
+      } catch (err: any) {
+        console.error("Failed to upload event cover image:", err);
+        setCoverUploadError(coverErrorMessage(err));
+        setCoverUploading(false);
+        return;
+      }
+    }
+
     const newEventId = "ev_" + Date.now();
 
     // Create initial cover upload config link for the new event
-    const coverConfig = createCoverConfig();
+    const coverConfig = createCoverConfig({
+      hasCustomCover: Boolean(selectedCoverFile),
+      lastUpdated: new Date().toISOString()
+    });
 
     const categoriesSource = categories.length > 0 ? categories : [
       { name: "General Pass", price: 150, capacity: 400 },
@@ -255,14 +321,32 @@ export default function OrganizerWorkspace({
       venue: eventVenue,
       startTime: new Date(eventStartTime).toISOString(),
       endTime: new Date(eventEndTime).toISOString(),
-      bannerUrl: defaultBannerUrl,
+      bannerUrl: finalBannerUrl,
       capacity: eventCapacity,
       ticketCategories: formattedCategories,
       coverUploadConfig: coverConfig
     };
 
-    onAddNewEvent(newEvent);
-    showToast(`Successfully launched "${eventTitle}"! Cover Upload Link created.`);
+    const saved = await onAddNewEvent(newEvent);
+    if (!saved) {
+      setCoverUploadError(
+        selectedCoverFile
+          ? "The cover uploaded, but the event could not be saved. Please try again."
+          : "The event could not be saved. Please try again."
+      );
+      setCoverUploading(false);
+      return;
+    }
+    showToast(`Successfully launched "${eventTitle}"!`);
+
+    // Clean up temporary preview object URL
+    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+    setSelectedCoverFile(null);
+    setCoverPreviewUrl(null);
+    setCoverUploadError(null);
+    setCoverUploading(false);
 
     // Reset Form & Switch Tab
     setEventTitle("");
@@ -576,7 +660,7 @@ export default function OrganizerWorkspace({
               {events.map((evt) => {
                 const config = evt.coverUploadConfig || createCoverConfig();
                 const shareableUrl = getShareableCoverUploadUrl(evt.id, config.token);
-                const hasCover = config.hasCustomCover || evt.bannerUrl.includes("http");
+                const hasCover = Boolean(config.hasCustomCover || evt.bannerUrl.includes("/api/event-images?"));
                 const isDisabled = config.isDisabled;
 
                 return (
@@ -602,7 +686,7 @@ export default function OrganizerWorkspace({
                           <XCircle className="w-3 h-3" />
                           Link Disabled
                         </span>
-                      ) : config.hasCustomCover ? (
+                      ) : hasCover ? (
                         <span className="text-[10px] font-black uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <Check className="w-3 h-3" />
                           ✓ Cover Added
@@ -667,6 +751,23 @@ export default function OrganizerWorkspace({
                         <ExternalLink className="w-3 h-3" />
                         <span>Replace Cover</span>
                       </button>
+
+                      {hasCover && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!window.confirm(`Remove the custom cover from "${evt.title}"?`)) return;
+                            void onUpdateEventCover(evt.id, DEFAULT_EVENT_COVER_URL, {
+                              hasCustomCover: false,
+                              lastUpdated: new Date().toISOString(),
+                            });
+                          }}
+                          className="col-span-2 py-2 px-3 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-[10px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove Cover</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -875,24 +976,93 @@ export default function OrganizerWorkspace({
               />
             </div>
 
-            {/* NEW: COVER PHOTO LINK SYSTEM NOTICE (NO DIRECT UPLOAD BOX) */}
-            <div className="p-5 rounded-2xl bg-[#F8F5F2] border border-black/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-[#171719] text-[#F8F5F2] flex-shrink-0">
-                  <LinkIcon className="w-5 h-5" />
-                </div>
+            {/* EVENT COVER IMAGE UPLOADER & PREVIEW */}
+            <div className="flex flex-col gap-2 p-5 rounded-2xl bg-[#F8F5F2] border border-black/10">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-xs font-black uppercase text-[#171719] tracking-wider">
-                    Cover Photo Upload Link System Active
+                  <h4 className="text-xs font-black uppercase text-[#171719] tracking-wider flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4" />
+                    Event Cover Image
                   </h4>
-                  <p className="text-[11px] text-[#746D68] mt-0.5 leading-relaxed">
-                    Direct image uploader has been removed from the dashboard. Once published, you can generate a shareable Cover Photo Upload Link for your client, designer, or marketing team.
+                  <p className="text-[11px] text-[#746D68] mt-0.5">
+                    Select a custom cover image or banner for your event (JPG, PNG, WebP up to 50 MB).
                   </p>
                 </div>
+                {coverPreviewUrl && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+                        URL.revokeObjectURL(coverPreviewUrl);
+                      }
+                      setSelectedCoverFile(null);
+                      setCoverPreviewUrl(null);
+                      setCoverUploadError(null);
+                    }}
+                    className="text-xs font-bold text-red-600 hover:text-red-800 uppercase tracking-wider cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
-              <span className="px-3 py-1.5 bg-[#171719]/10 text-[#171719] rounded-xl text-[10px] font-black uppercase tracking-wider flex-shrink-0">
-                Link Sharing Ready
-              </span>
+
+              {/* Controlled Preview Box (Desktop: min(100%, 620px), 16:9 ratio) */}
+              <div className="w-full flex flex-col items-center justify-center mt-2">
+                {coverPreviewUrl ? (
+                  <div
+                    className="relative w-full rounded-2xl overflow-hidden border border-black/15 shadow-sm bg-neutral-900"
+                    style={{
+                      width: "min(100%, 620px)",
+                      maxWidth: "620px",
+                      aspectRatio: "16 / 9"
+                    }}
+                  >
+                    <img
+                      src={coverPreviewUrl}
+                      alt="Cover Preview"
+                      className="w-full h-full object-cover object-center"
+                    />
+                    <div className="absolute top-3 left-3 bg-amber-500 text-black text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full shadow-md flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                      Preview (Not Yet Saved)
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => coverFileInputRef.current?.click()}
+                    className="w-full cursor-pointer rounded-2xl border-2 border-dashed border-black/20 hover:border-black/40 p-6 bg-white/50 flex flex-col items-center justify-center text-center transition-colors"
+                    style={{
+                      width: "min(100%, 620px)",
+                      maxWidth: "620px",
+                      aspectRatio: "16 / 9"
+                    }}
+                  >
+                    <div className="p-3 bg-[#171719] text-white rounded-2xl mb-3 shadow-md">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-[#171719] uppercase tracking-wider mb-1">
+                      Click or drag cover image here
+                    </p>
+                    <p className="text-[11px] text-[#746D68]">
+                      High resolution 16:9 landscape image recommended
+                    </p>
+                  </div>
+                )}
+
+                <input
+                  ref={coverFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleCoverFileChange}
+                  className="hidden"
+                />
+
+                {coverUploadError && (
+                  <p className="text-xs font-bold text-red-600 mt-2 text-center">
+                    {coverUploadError}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Custom Ticket Tiers */}
@@ -969,9 +1139,10 @@ export default function OrganizerWorkspace({
 
             <AnimatedButton
               type="submit"
+              disabled={coverUploading}
               className="!w-full !bg-[#171719] !text-white !py-3.5 !rounded-xl !text-xs !font-bold !uppercase !tracking-wider mt-2 cursor-pointer"
             >
-              <span>Publish Event &amp; Generate Cover Link</span>
+              <span>{coverUploading ? "Uploading & Saving Event..." : "Publish Event & Generate Cover Link"}</span>
             </AnimatedButton>
           </form>
         </div>

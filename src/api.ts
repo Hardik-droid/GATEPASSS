@@ -77,7 +77,7 @@ export async function uploadEventCoverApi(file: File): Promise<string> {
     const url = (data as { url?: unknown } | null)?.url;
     if (typeof url === "string" && url.trim()) return url;
     const id = (data as { id?: unknown } | null)?.id;
-    if (typeof id === "string" && id.trim()) return `${API_BASE_URL}/api/event-images?id=${id}`;
+    if (typeof id === "string" && id.trim()) return `/api/event-images?id=${id}`;
     throw new Error("Upload succeeded, but no valid image URL was returned by server.");
   } catch (err: unknown) {
     if (err instanceof Error) throw err;

@@ -7,7 +7,7 @@ import { createInitialAppState, type AppStateSnapshot } from "../src/appState";
 import { UserRole } from "../src/types";
 import { createApp } from "./app";
 import { createNeonVerifier } from "./neonAuth";
-import { TICKET_UPSERT_SQL, type AppStateStore } from "./store";
+import { PostgresAppStateStore, TICKET_UPSERT_SQL, toEventDbId, type AppStateStore } from "./store";
 
 const ISS = "https://neon.example/neondb/auth";
 
@@ -165,7 +165,14 @@ test("event cover upload stores a real image and serves it publicly", async () =
     .set("Content-Type", "image/png")
     .send(png)
     .expect(201);
-  const id = new URL(uploaded.body.url).searchParams.get("id");
+  // Host-independent on purpose: an absolute URL here bakes the uploading
+  // host into the stored cover value, which is how a dev upload once wrote
+  // "http://127.0.0.1:3001/api/event-images?id=..." into a production event.
+  assert.ok(
+    uploaded.body.url.startsWith("/api/event-images?"),
+    `expected a root-relative reference, got ${uploaded.body.url}`,
+  );
+  const id = new URL(uploaded.body.url, "https://example.test").searchParams.get("id");
   assert.equal(id, "11111111-1111-4111-8111-111111111111");
   const downloaded = await request(app).get(`/api/event-images?id=${id}`).expect(200);
   assert.equal(downloaded.headers["content-type"], "image/png");
@@ -181,6 +188,19 @@ test("event cover upload rejects a spoofed image", async () => {
     .set("Content-Type", "image/png")
     .send(Buffer.from("not an image"))
     .expect(400);
+});
+
+test("POST /api/events rejects temporary browser cover references", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint();
+  for (const bannerUrl of ["blob:https://gatepasss.vercel.app/preview", "data:image/png;base64,iVBORw0KGgo="]) {
+    const event = { ...createInitialAppState().events[0], bannerUrl };
+    await request(app)
+      .post("/api/events")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ event })
+      .expect(400);
+  }
 });
 
 test("removed Node mock QR route now 404s", async () => {
@@ -263,4 +283,112 @@ test("state sync never truncates the reporting tables", async () => {
     !/TRUNCATE/i.test(source),
     "TRUNCATE deletes rows created by other users; use upserts",
   );
+});
+
+// The cover-persistence root cause. Events are handed back to the browser
+// carrying their database uuid, so the client id -> database id mapping must be
+// idempotent. When it was not, every save minted a fresh row for an event that
+// already had one, and load() re-appended that row as a duplicate event still
+// holding its original banner_url — so a newly set cover appeared to revert to
+// the default after a refresh, and the event list grew a copy per save.
+test("event database id is idempotent for an already-persisted event", () => {
+  const clientId = "ev_1785944164551";
+  const dbId = toEventDbId(clientId);
+  assert.match(dbId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  assert.notEqual(dbId, clientId);
+  // Re-deriving from the id the client now holds must not mint a second row.
+  assert.equal(toEventDbId(dbId), dbId);
+  assert.equal(toEventDbId(toEventDbId(dbId)), dbId);
+});
+
+test("load makes the committed database cover win without duplicating the event", async () => {
+  const state = createInitialAppState();
+  const staleEvent = {
+    ...state.events[0],
+    id: "ev_stale_cover",
+    bannerUrl: "https://images.example/default.jpg",
+  };
+  state.events = [staleEvent];
+  const committedCover = "/api/event-images?id=11111111-1111-4111-8111-111111111111";
+  const store = Object.create(PostgresAppStateStore.prototype) as PostgresAppStateStore;
+
+  (store as any).pool = { query: async (sql: string) => {
+    if (sql.includes("SELECT payload FROM app_state")) {
+      return { rows: [{ payload: structuredClone(state) }] };
+    }
+    if (sql.includes("FROM public.events")) {
+      return { rows: [{
+        id: toEventDbId(staleEvent.id),
+        title: staleEvent.title,
+        description: staleEvent.description,
+        event_type: staleEvent.eventType,
+        venue: staleEvent.venue,
+        start_time: staleEvent.startTime,
+        end_time: staleEvent.endTime,
+        banner_url: committedCover,
+        capacity: staleEvent.capacity,
+      }] };
+    }
+    throw new Error("Unexpected query");
+  } };
+
+  const loaded = await store.load();
+  assert.equal(loaded?.events.length, 1);
+  assert.equal(loaded?.events[0].id, staleEvent.id);
+  assert.equal(loaded?.events[0].bannerUrl, committedCover);
+});
+
+test("a persisted cover reference survives PUT /api/state intact", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint({ email: "attendee@example.com" });
+  const state = createInitialAppState();
+  const cover = "/api/event-images?id=11111111-1111-4111-8111-111111111111";
+  state.events = [
+    {
+      id: "ev_cover_1",
+      title: "COVER_PERSISTENCE_TEST_001",
+      description: "cover persistence",
+      eventType: "Concert",
+      venue: "Main Stage",
+      startTime: new Date().toISOString(),
+      endTime: new Date(Date.now() + 3_600_000).toISOString(),
+      bannerUrl: cover,
+      capacity: 100,
+      ticketCategories: [],
+      coverUploadConfig: { token: "tok_1", createdAt: new Date().toISOString(), hasCustomCover: true },
+    },
+  ] as any;
+
+  await request(app).put("/api/state").set("Authorization", `Bearer ${token}`).send({ state }).expect(204);
+  const response = await request(app).get("/api/state").set("Authorization", `Bearer ${token}`).expect(200);
+
+  const saved = response.body.state.events[0];
+  assert.equal(saved.bannerUrl, cover, "cover reference must round-trip unchanged");
+  // Previously stripped by the schema, which reset hasCustomCover and minted a
+  // new share token on every reload.
+  assert.equal(saved.coverUploadConfig?.hasCustomCover, true);
+  assert.equal(saved.coverUploadConfig?.token, "tok_1");
+});
+
+test("a temporary browser preview can never be stored as a cover", async () => {
+  const { app, mint } = await authedApp();
+  const token = await mint();
+  for (const ephemeral of ["blob:https://gatepasss.vercel.app/8f3c-uuid", "data:image/png;base64,iVBORw0KGgo="]) {
+    const state = createInitialAppState();
+    state.events = [
+      {
+        id: "ev_blob",
+        title: "T",
+        description: "d",
+        eventType: "Concert",
+        venue: "V",
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        bannerUrl: ephemeral,
+        capacity: 10,
+        ticketCategories: [],
+      },
+    ] as any;
+    await request(app).put("/api/state").set("Authorization", `Bearer ${token}`).send({ state }).expect(400);
+  }
 });

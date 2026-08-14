@@ -10,6 +10,8 @@ export interface CreateCoverConfigOptions {
   expiryHours?: number | null; // null for Never
   password?: string | null;
   allowReplace?: boolean;
+  hasCustomCover?: boolean;
+  lastUpdated?: string;
 }
 
 export function createCoverConfig(options?: CreateCoverConfigOptions): CoverUploadLinkConfig {
@@ -30,8 +32,8 @@ export function createCoverConfig(options?: CreateCoverConfigOptions): CoverUplo
     password: options?.password?.trim() || null,
     isDisabled: false,
     allowReplace: options?.allowReplace ?? true,
-    hasCustomCover: false,
-    lastUpdated: createdAt,
+    hasCustomCover: options?.hasCustomCover ?? false,
+    lastUpdated: options?.lastUpdated ?? createdAt,
   };
 }
 

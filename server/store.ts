@@ -77,6 +77,23 @@ function stableUuid(scope: string, value: string): string {
   ].join("-");
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Maps a client-side event id to its `public.events` primary key, idempotently.
+//
+// An id that is ALREADY a database uuid maps to itself. Deriving a fresh
+// stableUuid from it instead (the previous behaviour) minted a brand-new row on
+// every single save, because `load()` hands events back to the browser carrying
+// their database uuid. `load()` then failed to recognise those rows as events it
+// already had — it keyed its merge map by client id but compared against
+// `row.id` — so each one was re-appended as a *duplicate* event holding the
+// banner_url captured when that row was first written, i.e. the default cover.
+// The organizer's freshly-set cover therefore appeared to revert to the old
+// image after a refresh, and the event list grew by one copy per save.
+export function toEventDbId(eventId: string): string {
+  return UUID_RE.test(eventId) ? eventId : stableUuid("events", eventId);
+}
+
 function toDate(value: string | undefined): string {
   if (!value) return new Date().toISOString();
   const parsed = new Date(value);
@@ -176,9 +193,11 @@ export class PostgresAppStateStore implements AppStateStore {
 
       if (dbEventsRes.rows.length > 0) {
         const eventsMap = new Map<string, any>();
+        // Keyed by database id, not client id — otherwise a row that IS one of
+        // these events never matches and gets appended as a duplicate.
         if (payload?.events) {
           for (const ev of payload.events) {
-            eventsMap.set(ev.id, ev);
+            eventsMap.set(toEventDbId(ev.id), ev);
           }
         }
         for (const row of dbEventsRes.rows) {
@@ -218,6 +237,11 @@ export class PostgresAppStateStore implements AppStateStore {
             });
           } else {
             const existingEv = eventsMap.get(row.id);
+            // public.events is the committed event record. The JSON snapshot can
+            // lag behind it (the production failure had the uploaded URL here
+            // but the old default URL in app_state), so the database cover must
+            // win whenever the two representations are merged for a refresh.
+            if (row.banner_url) existingEv.bannerUrl = row.banner_url;
             if (!existingEv.ticketCategories || existingEv.ticketCategories.length === 0) {
               existingEv.ticketCategories = [
                 {
@@ -290,7 +314,7 @@ export class PostgresAppStateStore implements AppStateStore {
     try {
       await client.query("BEGIN");
       const organizationId = stableUuid("organizations", "gatepass");
-      const eventDbId = stableUuid("events", eventData.id || randomUUID());
+      const eventDbId = toEventDbId(eventData.id || randomUUID());
 
       await client.query(
         `INSERT INTO organizations (id, name, org_type, contact_email, contact_phone)
@@ -397,8 +421,7 @@ export class PostgresAppStateStore implements AppStateStore {
             `INSERT INTO ticket_categories (
               id, event_id, name, description, price, capacity, sold_count
             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (id) DO UPDATE SET
-              name = EXCLUDED.name,
+            ON CONFLICT (event_id, name) DO UPDATE SET
               price = EXCLUDED.price,
               capacity = EXCLUDED.capacity,
               sold_count = EXCLUDED.sold_count`,
@@ -585,7 +608,7 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const event of state.events) {
-      const eventDbId = stableUuid("events", event.id);
+      const eventDbId = toEventDbId(event.id);
       eventIds.set(event.id, eventDbId);
       await client.query(
         `INSERT INTO events (
@@ -641,21 +664,27 @@ export class PostgresAppStateStore implements AppStateStore {
         console.warn("Non-fatal: scanner.events table sync skipped:", scannerErr);
       }
 
+      // Upsert on (event_id, name) — the table's own unique key — rather than on
+      // the derived id. A tier's id has been derived from different inputs over
+      // time, so the derived id and the row already holding that (event, name)
+      // need not agree; conflicting on `id` then raised a duplicate-key error on
+      // `ticket_categories_event_id_name_key` and rolled back the whole save.
+      // That stayed hidden only because events previously landed on a fresh row
+      // each time. RETURNING id records whichever row actually owns the tier, so
+      // ticket.category_id below still points at a row that exists.
       for (const category of event.ticketCategories) {
         const categoryDbId = stableUuid("ticket_categories", category.id);
-        categoryIds.set(category.id, categoryDbId);
-        await client.query(
+        const categoryRes = await client.query<{ id: string }>(
           `INSERT INTO ticket_categories (
             id, event_id, name, description, price, capacity, sold_count
           ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-          ON CONFLICT (id) DO UPDATE SET
-            event_id = EXCLUDED.event_id,
-            name = EXCLUDED.name,
+          ON CONFLICT (event_id, name) DO UPDATE SET
             description = EXCLUDED.description,
             price = EXCLUDED.price,
             capacity = EXCLUDED.capacity,
             sold_count = EXCLUDED.sold_count,
-            updated_at = now()`,
+            updated_at = now()
+          RETURNING id::text`,
           [
             categoryDbId,
             eventDbId,
@@ -666,6 +695,7 @@ export class PostgresAppStateStore implements AppStateStore {
             category.soldCount,
           ],
         );
+        categoryIds.set(category.id, categoryRes.rows[0]?.id ?? categoryDbId);
       }
     }
 

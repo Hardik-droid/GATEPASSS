@@ -4,7 +4,7 @@ import {
   INITIAL_USER
 } from "./mockData";
 import { createInitialAppState, type AppStateSnapshot } from "./appState";
-import { loadAppState, saveAppState, createEventApi } from "./api";
+import { loadAppState, saveAppState } from "./api";
 import { 
   UserProfile, 
   AccessRequest, 
@@ -29,7 +29,6 @@ import QRScannerSimulation from "./pages/Scanner";
 import OrganizerWorkspace from "./pages/Organizer";
 import AttendeeEventsList from "./pages/Events";
 import CoverUploadPage from "./pages/CoverUploadPage";
-import StripCustomizer from "./pages/StripCustomizer";
 import HomeUpdates from "./pages/Home";
 import LandingPage from "./pages/LandingPage";
 import LoadingScreen from "./components/LoadingScreen";
@@ -61,8 +60,7 @@ import {
   AlertTriangle,
   XCircle,
   Loader2,
-  LogOut,
-  Ticket as TicketIcon
+  LogOut
 } from "lucide-react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -543,12 +541,9 @@ export default function App() {
   };
 
   // Callback: Add New Event (Organizer Workspace Builder)
-  const handleAddNewEvent = (newEvent: EventItem) => {
-    // 1. Optimistic UI update — show the event immediately.
+  const handleAddNewEvent = async (newEvent: EventItem): Promise<boolean> => {
     const updated = [newEvent, ...events];
-    persistState("gps_events", updated, setEvents);
 
-    // Initialize blank settlement parameters
     const newSettlement: Settlement = {
       id: "set_" + newEvent.id,
       eventId: newEvent.id,
@@ -561,9 +556,8 @@ export default function App() {
       netSettlement: 0,
       status: "pending"
     };
-    persistState("gps_settlements", [newSettlement, ...settlements], setSettlements);
+    const updatedSettlements = [newSettlement, ...settlements];
 
-    // Audit log
     const addedAudit: AuditLog = {
       id: "aud_" + Date.now(),
       timestamp: new Date().toISOString(),
@@ -572,45 +566,41 @@ export default function App() {
       details: `Published "${newEvent.title}" (${newEvent.eventType}) at ${newEvent.venue}.`
     };
     const nextAudit = [addedAudit, ...auditLogs];
-    persistState("gps_auditlogs", nextAudit, setAuditLogs);
 
-    // 2. PERSIST to Neon PostgreSQL — try BOTH paths and ensure at least one succeeds.
-    //    Path A: POST /api/events (dedicated atomic insert)
-    //    Path B: PUT  /api/state  (full state blob save → syncReportingTables)
-    const persistA = createEventApi(newEvent)
-      .then((res) => {
-        if (res?.event?.id) {
-          setEvents((current) =>
-            current.map((e) => (e.id === newEvent.id ? { ...e, id: res.event.id } : e)),
-          );
-        }
-        return true;
-      })
-      .catch((err) => {
-        console.warn("POST /api/events failed:", err);
-        return false;
+    try {
+      await saveAppState({
+        ...currentStateSnapshot(),
+        events: updated,
+        settlements: updatedSettlements,
+        auditLogs: nextAudit,
       });
-
-    const persistB = saveAppState({
-      ...currentStateSnapshot(),
-      events: updated,
-    }).then(() => true).catch((err) => {
-      console.warn("PUT /api/state failed:", err);
-      return false;
-    });
-
-    Promise.all([persistA, persistB]).then(([a, b]) => {
-      if (!a && !b) {
-        addToast("error", `Failed to save "${newEvent.title}" to database. Your event will be lost on refresh. Please check your connection and try again.`);
+      const readBack = await loadAppState();
+      const persisted = readBack?.events.find((event) => event.id === newEvent.id);
+      if (!persisted || persisted.bannerUrl !== newEvent.bannerUrl) {
+        throw new Error("Event cover read-back did not match the committed value");
       }
-    });
+
+      persistState("gps_events", updated, setEvents);
+      persistState("gps_settlements", updatedSettlements, setSettlements);
+      persistState("gps_auditlogs", nextAudit, setAuditLogs);
+      return true;
+    } catch (error) {
+      console.warn("Event database save failed:", error);
+      addToast("error", `Failed to save "${newEvent.title}" to the database. Please try again.`);
+      return false;
+    }
   };
 
-  const handleUpdateEventCover = (
+  // Resolves true only once the new cover is committed to the database. The
+  // debounced autosave is fire-and-forget and swallows its failures, so a cover
+  // reported as "updated" on the strength of local state alone was a false
+  // success — the preview looked right until a refresh went back to the server.
+  const handleUpdateEventCover = async (
     eventId: string,
     newCoverUrl: string,
     configUpdates?: Partial<import("./types").CoverUploadLinkConfig>
-  ) => {
+  ): Promise<boolean> => {
+    const removingCover = configUpdates?.hasCustomCover === false;
     const updatedEvents = events.map((ev) => {
       if (ev.id === eventId) {
         const existingConfig = ev.coverUploadConfig || {
@@ -623,26 +613,45 @@ export default function App() {
           coverUploadConfig: {
             ...existingConfig,
             ...configUpdates,
-            hasCustomCover: true,
+            hasCustomCover: !removingCover,
             lastUpdated: new Date().toISOString()
           }
         };
       }
       return ev;
     });
-    persistState("gps_events", updatedEvents, setEvents);
-
     const targetTitle = events.find(e => e.id === eventId)?.title || "Event";
-    addToast("success", `Cover photo updated for "${targetTitle}"!`);
 
     const addedAudit: AuditLog = {
       id: "aud_" + Date.now(),
       timestamp: new Date().toISOString(),
       actor: "Cover Upload Portal",
-      action: "Cover Photo Updated",
-      details: `Updated cover photo for event '${targetTitle}' via secure upload link.`
+      action: removingCover ? "Cover Photo Removed" : "Cover Photo Updated",
+      details: `${removingCover ? "Removed" : "Updated"} cover photo for event '${targetTitle}'.`
     };
-    persistState("gps_auditlogs", [addedAudit, ...auditLogs], setAuditLogs);
+    const updatedAuditLogs = [addedAudit, ...auditLogs];
+
+    try {
+      await saveAppState({
+        ...currentStateSnapshot(),
+        events: updatedEvents,
+        auditLogs: updatedAuditLogs,
+      });
+      const readBack = await loadAppState();
+      const persisted = readBack?.events.find((event) => event.id === eventId);
+      if (!persisted || persisted.bannerUrl !== newCoverUrl) {
+        throw new Error("Event cover read-back did not match the committed value");
+      }
+
+      persistState("gps_events", updatedEvents, setEvents);
+      persistState("gps_auditlogs", updatedAuditLogs, setAuditLogs);
+      addToast("success", `Cover photo ${removingCover ? "removed" : "updated"} for "${targetTitle}"!`);
+      return true;
+    } catch (error) {
+      console.warn("Cover photo save failed:", error);
+      addToast("error", `Cover photo for "${targetTitle}" could not be saved. Please try again.`);
+      return false;
+    }
   };
 
   const handleUpdateEventCoverConfig = (
@@ -1119,20 +1128,6 @@ export default function App() {
                 >
                   <span>Events &amp; Concerts</span>
                 </NavLink>
-
-                <NavLink
-                  to="/customizer"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={({ isActive }) => 
-                    `h-[32px] px-3 rounded-[13px] flex items-center justify-center text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-160 cursor-pointer ${
-                      isActive 
-                        ? "bg-white/34 text-[#171719] border border-white/24 shadow-[0_2px_8px_rgba(32,27,24,0.04),inset_0_1px_0_rgba(255,255,255,0.36)] font-extrabold" 
-                        : "text-[#171719]/65 hover:text-[#171719] hover:bg-white/18"
-                    }`
-                  }
-                >
-                  <span>Photo Strip</span>
-                </NavLink>
               </>
             ) : (
               /* ORGANIZER ROUTES */
@@ -1302,6 +1297,7 @@ export default function App() {
                 onIssueManualTicket={handleIssueManualTicket}
                 onProcessRefund={handleProcessRefund}
                 onUpdateEventCoverConfig={handleUpdateEventCoverConfig}
+                onUpdateEventCover={handleUpdateEventCover}
               /> : <Navigate to="/" replace />
             } 
           />
@@ -1323,19 +1319,7 @@ export default function App() {
               />
             }
           />
-          <Route 
-            path="/customizer" 
-            element={<StripCustomizer />}
-          />
-          <Route 
-            path="/strip-customizer" 
-            element={<StripCustomizer />}
-          />
-          <Route 
-            path="/strip" 
-            element={<StripCustomizer />}
-          />
-          <Route 
+          <Route
             path="/scanner" 
             element={<QRScannerSimulation onToast={addToast} />}
           />
@@ -1402,17 +1386,6 @@ export default function App() {
             >
               <Sparkles className="w-5 h-5" />
               <span>Events</span>
-            </NavLink>
-            <NavLink
-              to="/customizer"
-              className={({ isActive }) => 
-                `flex min-h-12 min-w-12 flex-col items-center justify-center gap-1 text-[10px] uppercase font-bold tracking-wider cursor-pointer ${
-                  isActive ? "text-primary font-extrabold" : "text-on-surface-variant"
-                }`
-              }
-            >
-              <TicketIcon className="w-5 h-5" />
-              <span>Strip Studio</span>
             </NavLink>
             {hasScannerAccess && (
               <NavLink

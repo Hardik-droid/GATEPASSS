@@ -27,7 +27,39 @@ const ticketCategorySchema = z.object({
   soldCount: count,
 });
 
-const eventSchema = z.object({
+// A cover reference is either an absolute http(s) URL (an external image) or a
+// root-relative path to our own image endpoint (/api/event-images?id=...).
+// Relative is what uploads now produce: it stays correct across the production
+// domain, preview deployments and localhost, whereas an absolute URL built from
+// the request host bakes in whichever host happened to serve the upload — that
+// is how "http://127.0.0.1:3001/api/event-images?id=..." reached a production
+// event row. Ephemeral browser handles (blob:, data:) match neither branch and
+// are rejected here, so a temporary preview can never be stored as the cover.
+const coverReference = z
+  .string()
+  .trim()
+  .min(1)
+  .max(3000)
+  .refine((value) => value.startsWith("/") || /^https?:\/\/\S+$/.test(value), {
+    message: "Cover must be an absolute http(s) URL or a root-relative path",
+  });
+
+// Persisted so the organizer's upload link (token, passcode, expiry) and the
+// "cover added" flag survive a reload. Zod strips unknown keys, so omitting
+// this silently dropped the whole object on every save — which reset
+// hasCustomCover and minted a new share token on each refresh.
+const coverUploadConfigSchema = z.object({
+  token: requiredString.max(200),
+  createdAt: requiredString.max(80),
+  expiresAt: z.string().max(80).nullish(),
+  password: z.string().max(200).nullish(),
+  isDisabled: z.boolean().optional(),
+  allowReplace: z.boolean().optional(),
+  hasCustomCover: z.boolean().optional(),
+  lastUpdated: z.string().max(80).optional(),
+});
+
+export const eventSchema = z.object({
   id: requiredString.max(160),
   title: requiredString.max(240),
   description: requiredString,
@@ -35,9 +67,10 @@ const eventSchema = z.object({
   venue: requiredString.max(240),
   startTime: requiredString.max(80),
   endTime: requiredString.max(80),
-  bannerUrl: z.string().url().max(3000),
+  bannerUrl: coverReference,
   capacity: count,
   ticketCategories: z.array(ticketCategorySchema).max(100),
+  coverUploadConfig: coverUploadConfigSchema.optional(),
 });
 
 const orderSchema = z.object({

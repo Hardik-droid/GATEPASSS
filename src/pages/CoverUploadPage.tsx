@@ -33,7 +33,11 @@ import {
 
 interface CoverUploadPageProps {
   events: EventItem[];
-  onUpdateEventCover: (eventId: string, newCoverUrl: string, configUpdates?: Partial<CoverUploadLinkConfig>) => void;
+  onUpdateEventCover: (
+    eventId: string,
+    newCoverUrl: string,
+    configUpdates?: Partial<CoverUploadLinkConfig>,
+  ) => Promise<boolean>;
 }
 
 export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUploadPageProps) {
@@ -136,13 +140,24 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
 
     try {
       const uploadedUrl = await uploadEventCoverApi(file);
-      setPublishedUrl(uploadedUrl);
-      
-      onUpdateEventCover(targetEvent.id, uploadedUrl, {
+
+      // "Deployed" is claimed only after the event row has actually committed
+      // the new reference. Uploading the bytes is only half the job — showing
+      // success on the upload alone is what made the cover look saved right up
+      // until the next refresh.
+      const saved = await onUpdateEventCover(targetEvent.id, uploadedUrl, {
         hasCustomCover: true,
         lastUpdated: new Date().toISOString()
       });
 
+      if (!saved) {
+        setValidationError(
+          "Your image uploaded, but saving it to the event failed. Please try again."
+        );
+        return;
+      }
+
+      setPublishedUrl(uploadedUrl);
       setUploadSuccess(true);
     } catch (err: any) {
       console.error("Cover upload error:", err);
@@ -426,7 +441,7 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
                         <Upload className="w-7 h-7" />
                       </div>
                       <p className="text-xs font-bold text-white mb-1">Drag &amp; drop your cover photo</p>
-                      <p className="text-[10px] text-gray-400 mb-4">Supports PNG, JPG, WEBP up to 10MB</p>
+                      <p className="text-[10px] text-gray-400 mb-4">Supports PNG, JPG, WEBP up to 50 MB</p>
                       <span className="px-4 py-2 rounded-xl bg-white text-black font-extrabold text-[11px] uppercase tracking-wider shadow-lg hover:bg-gray-100 transition-all">
                         Select Image
                       </span>
