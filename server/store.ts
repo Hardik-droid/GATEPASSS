@@ -562,20 +562,13 @@ export class PostgresAppStateStore implements AppStateStore {
       );
 
       await client.query(
+        // app_state is shared and its display profile is overlaid with the
+        // current login. It must not overwrite (or be blocked by) an existing
+        // identity that owns the same unique email/student id.
         `INSERT INTO users (
           id, organization_id, name, email, phone, role, avatar_url, student_id, current_zone, clearance_level
         ) VALUES ($1, $2, $3, $4, $5, $6::user_role, $7, $8, $9, $10)
-        ON CONFLICT (id) DO UPDATE SET
-          organization_id = EXCLUDED.organization_id,
-          name = EXCLUDED.name,
-          email = EXCLUDED.email,
-          phone = EXCLUDED.phone,
-          role = EXCLUDED.role,
-          avatar_url = EXCLUDED.avatar_url,
-          student_id = EXCLUDED.student_id,
-          current_zone = EXCLUDED.current_zone,
-          clearance_level = EXCLUDED.clearance_level,
-          updated_at = now()`,
+        ON CONFLICT DO NOTHING`,
         [
           userId,
           organizationId,

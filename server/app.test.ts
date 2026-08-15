@@ -306,6 +306,24 @@ test("state sync writes only the rows that changed", async () => {
   );
 });
 
+test("state sync never overwrites an existing user identity", async () => {
+  const store = Object.create(PostgresAppStateStore.prototype) as any;
+  const previous = createInitialAppState();
+  const next = structuredClone(previous);
+  next.user = { ...next.user, id: "another-login", email: "another@example.com" };
+  const sql: string[] = [];
+
+  await store.syncReportingTables(
+    { query: async (text: string) => { sql.push(text); return { rows: [] }; } },
+    next,
+    previous,
+  );
+
+  const userInsert = sql.find((text) => /INSERT INTO users/i.test(text));
+  assert.match(userInsert ?? "", /ON CONFLICT DO NOTHING/i);
+  assert.doesNotMatch(userInsert ?? "", /DO UPDATE SET/i);
+});
+
 test("state sync never truncates the reporting tables", async () => {
   const source = await readFile(new URL("./store.ts", import.meta.url), "utf8");
   assert.ok(
