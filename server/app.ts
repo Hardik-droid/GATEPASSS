@@ -12,6 +12,7 @@ import { config } from "./config.js";
 import { errorHandler, HttpError, notFoundHandler } from "./errors.js";
 import type { AppStateStore } from "./store.js";
 import { eventSchema, statePayloadSchema } from "./validation.js";
+import { uploadToCloudinary } from "./cloudinary.js";
 import {
   createNeonVerifier,
   makeAuthenticateNeon,
@@ -26,12 +27,13 @@ interface CreateAppOptions {
   neonVerifier?: NeonVerifier;
 }
 
-function applyOAuthRole(state: AppStateSnapshot, email?: string): AppStateSnapshot {
+function applyOAuthRole(state: AppStateSnapshot, email?: string, name?: string): AppStateSnapshot {
   return {
     ...state,
     user: {
       ...state.user,
       ...(email ? { email } : {}),
+      ...(name ? { name } : {}),
       role: roleForAuthenticatedEmail(email),
     },
   };
@@ -76,8 +78,9 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.get("/api/state", optionalAuthenticateNeon, async (req, res, next) => {
     try {
       const state = (await store.load()) ?? createInitialAppState();
+      const authReq = req as AuthenticatedRequest;
       res.json({
-        state: applyOAuthRole(state, (req as AuthenticatedRequest).authEmail),
+        state: applyOAuthRole(state, authReq.authEmail, authReq.authName),
       });
     } catch (error) {
       next(error);
@@ -87,10 +90,12 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
   app.put("/api/state", optionalAuthenticateNeon, async (req, res, next) => {
     try {
       const { state } = statePayloadSchema.parse(req.body);
+      const authReq = req as AuthenticatedRequest;
       await store.save(
         applyOAuthRole(
           state as AppStateSnapshot,
-          (req as AuthenticatedRequest).authEmail,
+          authReq.authEmail,
+          authReq.authName,
         ),
       );
       res.status(204).send();
@@ -169,12 +174,14 @@ export function createApp({ store, staticDir, neonVerifier }: CreateAppOptions) 
 
         const uploadedBy = (req as AuthenticatedRequest).authEmail || "organizer";
         const imageId = await store.saveEventImage(uploadedBy, contentType, data);
-        // Root-relative on purpose. Building this from req.protocol/req.get("host")
-        // stored whichever host served the upload as a permanent cover value —
-        // a dev upload wrote "http://127.0.0.1:3001/..." into a production event
-        // row, unreachable for every visitor. The id is the durable reference;
-        // the origin is whatever origin is serving the app.
-        res.status(201).json({ id: imageId, url: `/api/event-images?id=${imageId}` });
+        const cloudinaryResult = await uploadToCloudinary(data, contentType);
+        const persistentUrl = cloudinaryResult?.url || `/api/event-images?id=${imageId}`;
+
+        res.status(201).json({
+          id: imageId,
+          url: persistentUrl,
+          ...(cloudinaryResult ? { cloudinary_url: cloudinaryResult.url, public_id: cloudinaryResult.publicId } : {}),
+        });
       } catch (error) {
         next(error);
       }

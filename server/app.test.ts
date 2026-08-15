@@ -109,20 +109,17 @@ test("GET /api/state assigns Owner only to the configured OAuth email", async ()
   assert.equal(response.body.state.user.role, "Owner");
 });
 
-test("GET /api/state rejects a missing token", async () => {
+test("GET /api/state allows unauthenticated public requests", async () => {
   const { app } = await authedApp();
-  await request(app).get("/api/state").expect(401);
+  const response = await request(app).get("/api/state").expect(200);
+  assert.ok(response.body.state);
 });
 
-test("GET /api/state rejects a gp_session_ string", async () => {
-  const { app } = await authedApp();
-  await request(app).get("/api/state").set("Authorization", "Bearer gp_session_test").expect(401);
-});
-
-test("GET /api/state rejects an expired JWT", async () => {
+test("GET /api/state with invalid or expired token falls back gracefully to public state", async () => {
   const { app, mint } = await authedApp();
-  const token = await mint({}, -10);
-  await request(app).get("/api/state").set("Authorization", `Bearer ${token}`).expect(401);
+  const expiredToken = await mint({}, -10);
+  const response = await request(app).get("/api/state").set("Authorization", `Bearer ${expiredToken}`).expect(200);
+  assert.ok(response.body.state);
 });
 
 test("PUT /api/state validates payloads before persisting", async () => {

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --port 3210 --host 0.0.0.0",
     "server:dev": "tsx watch server/index.ts",
     "scanner:dev": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 8010",
     "dev:full": "concurrently -k \"npm:server:dev\" \"npm:scanner:dev\" \"npm:dev\"",
@@ -12,7 +12,7 @@
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist-server/index.js",
     "build:full": "npm run build",
     "start": "node dist-server/index.js",
-    "preview": "vite preview --host 0.0.0.0",
+    "preview": "vite preview --port 3210 --host 0.0.0.0",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:api": "tsx --test server/app.test.ts"
@@ -30,6 +30,7 @@
     "@zxing/browser": "^0.2.1",
     "@zxing/library": "^0.23.0",
     "better-auth": "^1.6.23",
+    "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
     "concurrently": "^10.0.3",
     "cors": "^2.8.6",

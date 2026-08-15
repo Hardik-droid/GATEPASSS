@@ -187,6 +187,7 @@ export default function OrganizerWorkspace({
   // Event Cover Image state in Event Builder
   const [selectedCoverFile, setSelectedCoverFile] = useState<File | null>(null);
   const [coverPreviewUrl, setCoverPreviewUrl] = useState<string | null>(null);
+  const [persistedCoverUrl, setPersistedCoverUrl] = useState<string | null>(null);
   const [coverUploadError, setCoverUploadError] = useState<string | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
@@ -204,19 +205,33 @@ export default function OrganizerWorkspace({
     setCoverUploadError(null);
     const result = await validateImageFile(selectedFile);
     if (!result.ok) {
-      setCoverUploadError(result.message);
+      setCoverUploadError(coverErrorMessage(result.message));
       return;
     }
     if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
       URL.revokeObjectURL(coverPreviewUrl);
     }
     setSelectedCoverFile(selectedFile);
+    setPersistedCoverUrl(null);
     setCoverPreviewUrl(URL.createObjectURL(selectedFile));
   };
 
   const handleCoverFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       processCoverFile(e.target.files[0]);
+    }
+  };
+
+  const handleRemoveCover = () => {
+    if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(coverPreviewUrl);
+    }
+    setSelectedCoverFile(null);
+    setCoverPreviewUrl(null);
+    setPersistedCoverUrl(null);
+    setCoverUploadError(null);
+    if (coverFileInputRef.current) {
+      coverFileInputRef.current.value = "";
     }
   };
 
@@ -277,12 +292,18 @@ export default function OrganizerWorkspace({
     setCoverUploading(true);
     setCoverUploadError(null);
 
-    let finalBannerUrl = DEFAULT_EVENT_COVER_URL;
+    let activeBannerUrl = persistedCoverUrl || DEFAULT_EVENT_COVER_URL;
 
-    if (selectedCoverFile) {
+    // Upload only if we have a chosen file and haven't already obtained a persistent URL
+    if (selectedCoverFile && !persistedCoverUrl) {
       try {
-        finalBannerUrl = await uploadEventCoverApi(selectedCoverFile);
-      } catch (err: any) {
+        const uploadedUrl = await uploadEventCoverApi(selectedCoverFile);
+        if (typeof uploadedUrl !== "string" || !uploadedUrl.trim()) {
+          throw new Error("Upload succeeded, but no valid image URL string was returned by server.");
+        }
+        activeBannerUrl = uploadedUrl;
+        setPersistedCoverUrl(uploadedUrl);
+      } catch (err: unknown) {
         console.error("Failed to upload event cover image:", err);
         setCoverUploadError(coverErrorMessage(err));
         setCoverUploading(false);
@@ -294,7 +315,7 @@ export default function OrganizerWorkspace({
 
     // Create initial cover upload config link for the new event
     const coverConfig = createCoverConfig({
-      hasCustomCover: Boolean(selectedCoverFile),
+      hasCustomCover: Boolean(selectedCoverFile || persistedCoverUrl),
       lastUpdated: new Date().toISOString()
     });
 
@@ -321,7 +342,7 @@ export default function OrganizerWorkspace({
       venue: eventVenue,
       startTime: new Date(eventStartTime).toISOString(),
       endTime: new Date(eventEndTime).toISOString(),
-      bannerUrl: finalBannerUrl,
+      bannerUrl: typeof activeBannerUrl === "string" ? activeBannerUrl : DEFAULT_EVENT_COVER_URL,
       capacity: eventCapacity,
       ticketCategories: formattedCategories,
       coverUploadConfig: coverConfig
@@ -330,9 +351,9 @@ export default function OrganizerWorkspace({
     const saved = await onAddNewEvent(newEvent);
     if (!saved) {
       setCoverUploadError(
-        selectedCoverFile
-          ? "The cover uploaded, but the event could not be saved. Please try again."
-          : "The event could not be saved. Please try again."
+        selectedCoverFile || persistedCoverUrl
+          ? "The cover uploaded, but the event could not be saved to the database. Click Publish to retry without re-uploading."
+          : "The event could not be saved to the database. Please try again."
       );
       setCoverUploading(false);
       return;
@@ -345,8 +366,12 @@ export default function OrganizerWorkspace({
     }
     setSelectedCoverFile(null);
     setCoverPreviewUrl(null);
+    setPersistedCoverUrl(null);
     setCoverUploadError(null);
     setCoverUploading(false);
+    if (coverFileInputRef.current) {
+      coverFileInputRef.current.value = "";
+    }
 
     // Reset Form & Switch Tab
     setEventTitle("");
@@ -991,14 +1016,7 @@ export default function OrganizerWorkspace({
                 {coverPreviewUrl && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (coverPreviewUrl && coverPreviewUrl.startsWith("blob:")) {
-                        URL.revokeObjectURL(coverPreviewUrl);
-                      }
-                      setSelectedCoverFile(null);
-                      setCoverPreviewUrl(null);
-                      setCoverUploadError(null);
-                    }}
+                    onClick={handleRemoveCover}
                     className="text-xs font-bold text-red-600 hover:text-red-800 uppercase tracking-wider cursor-pointer"
                   >
                     Remove

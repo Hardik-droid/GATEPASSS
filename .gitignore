@@ -32,3 +32,6 @@ __pycache__
 # Never commit these — the credential inside must not enter git history.
 .vercel_python_packages/
 scratch/
+.claude/
+.playwright-mcp/
+.tmp/

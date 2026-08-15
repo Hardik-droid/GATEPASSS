@@ -23,6 +23,10 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   GOOGLE_CLIENT_ID: z.string().default(process.env.GOOGLE_CLIENT_ID || process.env.GoogleAuth__ClientId || process.env.VITE_GOOGLE_CLIENT_ID || ""),
   NEON_AUTH_URL: z.string().default(process.env.NEON_AUTH_URL || process.env.VITE_NEON_AUTH_URL || ""),
+  CLOUDINARY_URL: z.string().default(process.env.CLOUDINARY_URL || ""),
+  CLOUDINARY_CLOUD_NAME: z.string().default(process.env.CLOUDINARY_CLOUD_NAME || ""),
+  CLOUDINARY_API_KEY: z.string().default(process.env.CLOUDINARY_API_KEY || ""),
+  CLOUDINARY_API_SECRET: z.string().default(process.env.CLOUDINARY_API_SECRET || ""),
 });
 
 export const config = envSchema.parse(process.env);

@@ -60,6 +60,7 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
   // Upload & Editing state
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [persistedCoverUrl, setPersistedCoverUrl] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "4:3">("16:9");
@@ -98,7 +99,7 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
     setValidationError(null);
     const result = await validateImageFile(selectedFile);
     if (!result.ok) {
-      setValidationError(result.message);
+      setValidationError(coverErrorMessage(result.message));
       return;
     }
 
@@ -107,6 +108,7 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
     }
 
     setFile(selectedFile);
+    setPersistedCoverUrl(null);
     setPreviewUrl(URL.createObjectURL(selectedFile));
   };
 
@@ -139,27 +141,34 @@ export default function CoverUploadPage({ events, onUpdateEventCover }: CoverUpl
     setValidationError(null);
 
     try {
-      const uploadedUrl = await uploadEventCoverApi(file);
+      let activeCoverUrl = persistedCoverUrl;
+      if (!activeCoverUrl) {
+        activeCoverUrl = await uploadEventCoverApi(file);
+        if (typeof activeCoverUrl !== "string" || !activeCoverUrl.trim()) {
+          throw new Error("Upload succeeded, but no valid image URL string was returned by server.");
+        }
+        setPersistedCoverUrl(activeCoverUrl);
+      }
 
       // "Deployed" is claimed only after the event row has actually committed
       // the new reference. Uploading the bytes is only half the job — showing
       // success on the upload alone is what made the cover look saved right up
       // until the next refresh.
-      const saved = await onUpdateEventCover(targetEvent.id, uploadedUrl, {
+      const saved = await onUpdateEventCover(targetEvent.id, activeCoverUrl, {
         hasCustomCover: true,
         lastUpdated: new Date().toISOString()
       });
 
       if (!saved) {
         setValidationError(
-          "Your image uploaded, but saving it to the event failed. Please try again."
+          "Your image uploaded, but saving it to the event failed. Click Confirm to retry without re-uploading."
         );
         return;
       }
 
-      setPublishedUrl(uploadedUrl);
+      setPublishedUrl(activeCoverUrl);
       setUploadSuccess(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Cover upload error:", err);
       setValidationError(coverErrorMessage(err));
     } finally {
