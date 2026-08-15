@@ -79,6 +79,14 @@ function stableUuid(scope: string, value: string): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function deterministicKey(obj: unknown): string {
+  if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
+  if (Array.isArray(obj)) return `[${obj.map(deterministicKey).join(",")}]`;
+  const record = obj as Record<string, unknown>;
+  const sortedKeys = Object.keys(record).sort();
+  return `{${sortedKeys.map((k) => `${JSON.stringify(k)}:${deterministicKey(record[k])}`).join(",")}}`;
+}
+
 // Maps a client-side event id to its `public.events` primary key, idempotently.
 //
 // An id that is ALREADY a database uuid maps to itself. Deriving a fresh
@@ -530,11 +538,11 @@ export class PostgresAppStateStore implements AppStateStore {
     const stored = new Set<string>();
     for (const [collection, value] of Object.entries(previous ?? {})) {
       for (const row of Array.isArray(value) ? value : [value]) {
-        stored.add(`${collection}:${JSON.stringify(row)}`);
+        stored.add(`${collection}:${deterministicKey(row)}`);
       }
     }
     const isUnchanged = (collection: string, row: unknown): boolean =>
-      stored.has(`${collection}:${JSON.stringify(row)}`);
+      stored.has(`${collection}:${deterministicKey(row)}`);
 
     // No bulk delete here, deliberately: this state blob is shared by every
     // signed-in user, so wiping rows destroys data created by other people.

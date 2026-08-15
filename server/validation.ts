@@ -49,8 +49,8 @@ const coverReference = z
 // this silently dropped the whole object on every save — which reset
 // hasCustomCover and minted a new share token on each refresh.
 const coverUploadConfigSchema = z.object({
-  token: requiredString.max(200),
-  createdAt: requiredString.max(80),
+  token: z.string().max(200).optional(),
+  createdAt: z.string().max(80).optional(),
   expiresAt: z.string().max(80).nullish(),
   password: z.string().max(200).nullish(),
   isDisabled: z.boolean().optional(),
@@ -61,14 +61,14 @@ const coverUploadConfigSchema = z.object({
 
 export const eventSchema = z.object({
   id: requiredString.max(160),
-  title: requiredString.max(240),
-  description: requiredString,
+  title: requiredString.max(300),
+  description: z.string().max(5000).default(""),
   eventType: requiredString.max(120),
-  venue: requiredString.max(240),
+  venue: requiredString.max(300),
   startTime: requiredString.max(80),
   endTime: requiredString.max(80),
   bannerUrl: coverReference,
-  capacity: count,
+  capacity: count.min(1),
   ticketCategories: z.array(ticketCategorySchema).max(100),
   coverUploadConfig: coverUploadConfigSchema.optional(),
 });
@@ -183,4 +183,3 @@ export const statePayloadSchema = z.object({
 });
 
 export type ValidAppState = z.infer<typeof appStateSchema>;
-
