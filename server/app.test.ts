@@ -324,6 +324,29 @@ test("state sync never overwrites an existing user identity", async () => {
   assert.doesNotMatch(userInsert ?? "", /DO UPDATE SET/i);
 });
 
+test("state sync skips dependent rows whose parent is absent", async () => {
+  const store = Object.create(PostgresAppStateStore.prototype) as any;
+  const state = createInitialAppState();
+  const previous = structuredClone(state);
+  state.events = [];
+  previous.orders = [];
+  previous.tickets = [];
+  previous.scanLogs = [];
+  previous.settlements = [];
+  const sql: string[] = [];
+
+  await store.syncReportingTables(
+    { query: async (text: string) => { sql.push(text); return { rows: [] }; } },
+    state,
+    previous,
+  );
+
+  assert.ok(
+    sql.every((text) => !/INSERT INTO (orders|tickets|scan_logs|settlements)/i.test(text)),
+    "a filtered-out event must not turn child foreign keys into null",
+  );
+});
+
 test("state sync never truncates the reporting tables", async () => {
   const source = await readFile(new URL("./store.ts", import.meta.url), "utf8");
   assert.ok(

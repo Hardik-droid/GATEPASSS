@@ -743,6 +743,8 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const order of state.orders) {
+      const eventDbId = eventIds.get(order.eventId);
+      if (!eventDbId) continue;
       const orderDbId = stableUuid("orders", order.id);
       orderIds.set(order.id, orderDbId);
       if (isUnchanged("orders", order)) continue;
@@ -765,7 +767,7 @@ export class PostgresAppStateStore implements AppStateStore {
           updated_at = now()`,
         [
           orderDbId,
-          eventIds.get(order.eventId),
+          eventDbId,
           order.buyerName,
           order.buyerEmail,
           order.buyerPhone,
@@ -781,6 +783,9 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const ticket of state.tickets) {
+      const eventDbId = eventIds.get(ticket.eventId);
+      const orderDbId = orderIds.get(ticket.orderId);
+      if (!eventDbId || !orderDbId) continue;
       const ticketDbId = stableUuid("tickets", ticket.id);
       ticketIds.set(ticket.id, ticketDbId);
       if (isUnchanged("tickets", ticket)) continue;
@@ -788,8 +793,8 @@ export class PostgresAppStateStore implements AppStateStore {
         TICKET_UPSERT_SQL,
         [
           ticketDbId,
-          eventIds.get(ticket.eventId),
-          orderIds.get(ticket.orderId),
+          eventDbId,
+          orderDbId,
           ticket.categoryName,
           ticket.price,
           ticket.attendeeName,
@@ -806,6 +811,9 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const log of state.scanLogs) {
+      const ticketDbId = ticketIds.get(log.ticketId);
+      const eventDbId = eventIds.get(log.eventId);
+      if (!ticketDbId || !eventDbId) continue;
       if (isUnchanged("scanLogs", log)) continue;
       await client.query(
         `INSERT INTO scan_logs (
@@ -823,8 +831,8 @@ export class PostgresAppStateStore implements AppStateStore {
           scanned_by = EXCLUDED.scanned_by`,
         [
           stableUuid("scan_logs", log.id),
-          ticketIds.get(log.ticketId),
-          eventIds.get(log.eventId),
+          ticketDbId,
+          eventDbId,
           log.eventName,
           log.attendeeName,
           log.categoryName,
@@ -837,6 +845,8 @@ export class PostgresAppStateStore implements AppStateStore {
     }
 
     for (const settlement of state.settlements) {
+      const eventDbId = eventIds.get(settlement.eventId);
+      if (!eventDbId) continue;
       if (isUnchanged("settlements", settlement)) continue;
       await client.query(
         `INSERT INTO settlements (
@@ -857,7 +867,7 @@ export class PostgresAppStateStore implements AppStateStore {
           updated_at = now()`,
         [
           stableUuid("settlements", settlement.id),
-          eventIds.get(settlement.eventId),
+          eventDbId,
           settlement.eventName,
           settlement.grossSales,
           settlement.totalRefunds,
